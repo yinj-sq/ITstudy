@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>{% if submode == 'editor' %}编辑{% else %}预览{% endif %} - {{ filename }}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { height: 100vh; display: flex; flex-direction: column; background: #1a1a2e; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .toolbar {
+      padding: 6px 16px; background: #16213e; display: flex; align-items: center; gap: 12px; z-index: 10;
+      border-bottom: 1px solid #2a2a4a;
+    }
+    .toolbar .filename { color: #ccc; font-size: 14px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .toolbar .status { color: #888; font-size: 12px; }
+    .toolbar .status.loading { color: #f39c12; }
+    .toolbar .status.ok { color: #2ecc71; }
+    .toolbar .status.error { color: #e74c3c; }
+    .toolbar .save-status { font-size: 12px; margin-right: 0; }
+    .toolbar .save-status.saving { color: #f39c12; }
+    .toolbar .save-status.saved { color: #2ecc71; }
+    .toolbar .save-status.error { color: #e74c3c; }
+    .toolbar button {
+      padding: 5px 14px; border: none; border-radius: 4px; cursor: pointer;
+      font-size: 13px; color: #fff; background: #d14424; transition: background .2s;
+    }
+    .toolbar button:hover { background: #b83a1e; }
+    .toolbar button:disabled { opacity: .5; cursor: not-allowed; }
+    .toolbar .btn-back { background: #555; }
+    .toolbar .btn-back:hover { background: #666; }
+    iframe { flex: 1; border: none; width: 100%; }
+  </style>
+  <script src="{{ versioned_static('js/ui-feedback.js') }}" defer></script>
+</head>
+<body>
+  <div class="toolbar">
+    <span class="filename" title="{{ filename }}">{{ filename }}</span>
+    <span class="status" id="statusText"></span>
+    {% if submode == 'editor' %}
+    <span class="save-status" id="saveStatus"></span>
+    <button id="saveBtn" onclick="doSave()" disabled>保存</button>
+    {% endif %}
+    <button class="btn-back" onclick="window.location.href={{ back_url|tojson }}">返回网盘</button>
+  </div>
+  <!-- allow-same-origin 必需：否则 iframe 为 opaque origin，内部 fetch
+       视为跨源请求不带会话 Cookie → JSON/PPTX 加载全部 302 到登录页，
+       PPTist 永远拿不到数据（此前"无法导入/编辑网盘 PPTX"的第一根因） -->
+  <iframe id="pptistFrame" src="/static/pptist/index.html?mode=embed&submode={{ submode }}"
+          sandbox="allow-scripts allow-forms allow-modals allow-same-origin"></iframe>
+
+  <script>
+    var FILE_ID = {{ file_id }};
+    var JSON_URL = {{ json_url|tojson }};
+    var SAVE_JSON_URL = {{ save_json_url|tojson }};
+    var DOWNLOAD_URL = {{ download_url|tojson }};
+    var FILENAME = {{ filename|tojson }};
+    var SUBMODE = {{ submode|tojson }};
+
+    var frame = document.getElementById('pptistFrame');
+    var statusEl = document.getElementById('statusText');
+    var saveBtn = document.getElementById('saveBtn');
+    var saveStatusEl = document.getElementById('saveStatus');
+
+    function setStatus(text, cls) {
+      if (!statusEl) return;
+      statusEl.textContent = text;
+      statusEl.className = 'status' + (cls ? ' ' + cls : '');
+    }
+
+    function setSaveStatus(text, cls) {
+      if (!saveStatusEl) return;
+      saveStatusEl.textContent = text;
+      saveStatusEl.className = 'save-status' + (cls ? ' ' + cls : '');
+    }
+
+    // ══════════════════════════════════════════════════
+    //  监听 PPTist 发回的消息
+    // ══════════════════════════════════════════════════
+    window.addEventListener('message', function(e) {
+      if (e.source !== frame.contentWindow) return;
+      var msg = e.data;
+      if (!msg || msg.source !== 'pptist-embed') return;
+
+      switch (msg.action) {
+
+        case 'ready':
+          setStatus('已连接，正在加载...', 'loading');
+          loadPPTistData();
+          break;
+
+        case 'loaded':
+          setStatus('已加载 ' + msg.slideCount + ' 页', 'ok');
+          if (saveBtn) saveBtn.disabled = false;
+          break;
+
+        case 'pptxImported':
+          setStatus('首次解析完成，正在缓存...', 'loading');
+          saveToBackend(msg.data);
+          break;
+
+        case 'data':
+          // PPTist 返回当前数据（响应 getData）
+          saveToBackend(msg.data);
+          break;
+
+        case 'error':
+          setStatus('错误: ' + msg.message, 'error');
+          break;
+      }
+    });
+
+    // ══════════════════════════════════════════════════
+    //  加载数据：优先缓存 JSON，无则触发 PPTist 原生解析。
+    //  快路径判定必须校验 r.ok 与 slides 结构——后端无数据时返回
+    //  404 {"error":...}，此前 r.json() 解析成功即当作有效数据发送
+    //  load → applyData 静默失败 → 永远卡在"正在加载缓存数据"，
+    //  永远走不到 loadPPTX 慢路径（首次打开必现）。
+    // ══════════════════════════════════════════════════
+    function loadPPTistData() {
+      fetch(JSON_URL, { credentials: 'same-origin' })
+        .then(function(r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(function(data) {
+          if (!data || !Array.isArray(data.slides) || data.slides.length === 0) {
+            throw new Error('缓存数据无效');
+          }
+          setStatus('正在加载缓存数据...', 'loading');
+          frame.contentWindow.postMessage({
+            source: 'pptist-host',
+            action: 'load',
+            slidesData: data
+          }, window.location.origin);
+        })
+        .catch(function() {
+          // 无缓存/版本过旧 → PPTist 下载并解析原始 PPTX（免 CD 头 inline URL）
+          setStatus('首次打开，正在解析 PPTX...', 'loading');
+          frame.contentWindow.postMessage({
+            source: 'pptist-host',
+            action: 'loadPPTX',
+            url: DOWNLOAD_URL,
+            filename: FILENAME
+          }, window.location.origin);
+        });
+    }
+
+    // ══════════════════════════════════════════════════
+    //  保存 JSON 到后端
+    // ══════════════════════════════════════════════════
+    function saveToBackend(data) {
+      if (saveStatusEl) setSaveStatus('正在保存...', 'saving');
+      fetch(SAVE_JSON_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // 显式携带（不依赖 ui-feedback.js 全局补丁的加载时序）
+          'X-CSRFToken': (window.getCsrfToken && window.getCsrfToken()) ||
+              (document.cookie.match(/(?:^|; )csrf_token=([^;]+)/) || ['', ''])[1] || ''
+        },
+        body: JSON.stringify(data)
+      })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+          if (res.ok) {
+            if (saveStatusEl) setSaveStatus('已保存', 'saved');
+            else setStatus('就绪', 'ok');
+            if (saveBtn) saveBtn.disabled = false;
+          } else {
+            if (saveStatusEl) setSaveStatus('保存失败', 'error');
+            else setStatus('保存失败', 'error');
+            if (saveBtn) saveBtn.disabled = false;
+          }
+        })
+        .catch(function() {
+          if (saveStatusEl) setSaveStatus('保存失败', 'error');
+          else setStatus('保存失败', 'error');
+          if (saveBtn) saveBtn.disabled = false;
+        });
+    }
+
+    function doSave() {
+      if (!saveBtn) return;
+      saveBtn.disabled = true;
+      setSaveStatus('正在保存...', 'saving');
+      frame.contentWindow.postMessage({
+        source: 'pptist-host',
+        action: 'getData'
+      }, window.location.origin);
+    }
+  </script>
+</body>
+</html>

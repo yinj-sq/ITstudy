@@ -1,0 +1,29 @@
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  overflow: hidden;
+  background: #f4f7fb;
+  font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif;
+}
+
+#root > div,
+#root [data-ketcher-editor] {
+  height: 100%;
+  width: 100%;
+}
+
+/* Ketcher 自带滚动条在窄嵌入场景下会挤压画布 */
+#root ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+#root ::-webkit-scrollbar-thumb {
+  background: #c4cedb;
+  border-radius: 4px;
+}

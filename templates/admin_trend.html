@@ -1,0 +1,991 @@
+{% extends 'base.html' %}
+
+{% block title %}成绩趋势分析{% endblock %}
+
+{% block head %}
+<style>
+    /* 表格相关样式 */
+    .table-fixed-header {
+        height: 300px; /* 固定高度，确保始终出现滚动条 */
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        position: relative;
+    }
+    
+    .table-fixed-header thead {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background-color: #f8f9fa;
+    }
+    
+    .table-fixed-header thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background-color: #f8f9fa;
+        box-shadow: 0 1px 0 rgba(0,0,0,.1);
+    }
+    
+    /* 自定义滚动条样式 */
+    .table-responsive::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+    
+    .table-responsive::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+    }
+    
+    .table-responsive::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 10px;
+    }
+    
+    .table-responsive::-webkit-scrollbar-thumb:hover {
+        background: #555;
+    }
+    
+    /* 表格行高亮效果 */
+    .student-row:hover {
+        background-color: rgba(0, 123, 255, 0.05);
+    }
+    
+    /* 滚动指示器 */
+    .scroll-indicator {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        text-align: center;
+        background: rgba(248, 249, 250, 0.9);
+        padding: 4px;
+        font-size: 12px;
+        border-top: 1px solid #dee2e6;
+        z-index: 1;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2 class="mb-3">成绩趋势分析 - {{ exam.name }}</h2>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="{{ url_for('exam_management.admin_exams') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> 返回试卷管理
+            </a>
+            {% if results %}
+            <a href="{{ url_for('scores.export_scores', exam_id=exam.id) }}" class="btn btn-outline-primary">
+                <i class="fas fa-file-excel"></i> 导出分析
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    
+    {% if results %}
+    <!-- 班级分析 -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">班级分析</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>班级</th>
+                                    <th>学生人数</th>
+                                    <th>平均分</th>
+                                    <th>最高分</th>
+                                    <th>最低分</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for class_name, stats in class_stats.items() %}
+                                <tr>
+                                    <td>{{ class_name }}</td>
+                                    <td>{{ stats.count }}</td>
+                                    <td>{{ stats.average }}</td>
+                                    <td>{{ stats.max }}</td>
+                                    <td>{{ stats.min }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 学生成绩工作表 -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">学生成绩</h5>
+                    <div class="d-flex align-items-center">
+                        <!-- 班级筛选表单 -->
+                        <form method="get" action="{{ url_for('scores.admin_trend', exam_id=exam.id) }}" class="me-3 d-flex">
+                            <select name="class_filter" class="form-select form-select-sm me-2" aria-label="班级筛选">
+                                <option value="">所有班级</option>
+                                {% for class_name in available_classes %}
+                                <option value="{{ class_name }}" {% if class_filter == class_name %}selected{% endif %}>{{ class_name }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit" class="btn btn-sm btn-light">筛选</button>
+                        </form>
+                        <button id="batchDeleteBtn" class="btn btn-sm btn-danger me-2" style="display: none;" onclick="confirmBatchDelete()">
+                            <i class="fas fa-trash"></i> 批量删除
+                        </button>
+                        <button class="btn btn-sm btn-light" onclick='exportToExcel("studentScoresTable", "学生成绩-" + {{ exam.name|tojson }})'>
+                            <i class="fas fa-download"></i> 导出Excel
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive table-fixed-header">
+                        <table id="studentScoresTable" class="table table-bordered table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th width="40">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="selectAllCheckbox" onclick="toggleSelectAll(this)">
+                                            <label class="form-check-label" for="selectAllCheckbox"></label>
+                                        </div>
+                                    </th>
+                                    <th>班级</th>
+                                    <th>姓名</th>
+                                    <th>试卷名称</th>
+                                    <th>总分</th>
+                                    <th>提交时间</th>
+                                    {% for question in questions %}
+                                    <th>第{{ loop.index }}题</th>
+                                    {% if question.question_type == 'comprehensive' %}
+                                        {% set outer_loop_index = loop.index %}
+                                        {% for sub_q in question.sub_questions %}
+                                        <th>第{{ outer_loop_index }}-{{ loop.index }}小题</th>
+                                        {% endfor %}
+                                    {% endif %}
+                                    {% endfor %}
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="studentScoresBody">
+                                {% for detail in student_details %}
+                                <tr class="student-row">
+                                    <td>
+                                        <div class="form-check">
+                                            <input class="form-check-input student-checkbox" type="checkbox" 
+                                                   data-result-id="{{ detail.result_id }}" 
+                                                   data-student-name="{{ detail.name }}"
+                                                   onchange="updateBatchDeleteButton()">
+                                        </div>
+                                    </td>
+                                    <td>{{ detail.class }}</td>
+                                    <td>{{ detail.name }}</td>
+                                    <td>{{ exam.name }}</td>
+                                    <td>{{ detail.total_score }}</td>
+                                    <td>{{ detail.submit_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                                    {% for question in questions %}
+                                    {% if question.question_type == 'python_fill' %}
+                                    <td>
+                                        {% set q_id = question.id|string %}
+                                        {% set int_id = question.id %}
+                                        {{ detail.question_scores.get(q_id, detail.question_scores.get(int_id, 0)) }}
+                                    </td>
+                                    {% else %}
+                                    <td>{{ detail.question_scores.get(question.id|string, 0) }}</td>
+                                    {% endif %}
+                                    {% if question.question_type == 'comprehensive' %}
+                                        {% set outer_loop_index = loop.index %}
+                                        {% for sub_q in question.sub_questions %}
+                                        <td>{{ detail.question_scores.get('sub_' ~ sub_q.id, 0) }}</td>
+                                        {% endfor %}
+                                    {% endif %}
+                                    {% endfor %}
+                                    <td>
+                                        <form method="post" action="{{ url_for('scores.delete_result', result_id=detail.result_id) }}"
+                                              onsubmit='return confirm("确定要删除 " + {{ detail.name|tojson }} + " 的成绩吗？\n\n删除后该学生可以重新作答本试卷。");'
+                                              style="display: inline;">
+                                            <button type="submit" class="btn btn-sm btn-danger">
+                                                <i class="fas fa-trash"></i> 删除
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% if detail_pagination and detail_pagination.pages > 1 %}
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
+                            <span class="text-muted small">共 {{ detail_pagination.total }} 名学生，第 {{ detail_pagination.page }} / {{ detail_pagination.pages }} 页</span>
+                            <nav aria-label="学生明细分页">
+                                <ul class="pagination justify-content-center mb-0 flex-wrap">
+                                    <li class="page-item {% if not detail_pagination.has_prev %}disabled{% endif %}">
+                                        <a class="page-link" href="{{ url_for('scores.admin_trend', exam_id=exam.id, page=detail_pagination.prev_num, class_filter=class_filter) if detail_pagination.has_prev else '#' }}">上一页</a>
+                                    </li>
+                                    {% for p in range(1, detail_pagination.pages + 1) %}
+                                        {% if p == 1 or p == detail_pagination.pages or (p >= detail_pagination.page - 2 and p <= detail_pagination.page + 2) %}
+                                        <li class="page-item {% if p == detail_pagination.page %}active{% endif %}">
+                                            <a class="page-link" href="{{ url_for('scores.admin_trend', exam_id=exam.id, page=p, class_filter=class_filter) }}">{{ p }}</a>
+                                        </li>
+                                        {% elif p == 2 or p == detail_pagination.pages - 1 %}
+                                        <li class="page-item disabled"><span class="page-link">…</span></li>
+                                        {% endif %}
+                                    {% endfor %}
+                                    <li class="page-item {% if not detail_pagination.has_next %}disabled{% endif %}">
+                                        <a class="page-link" href="{{ url_for('scores.admin_trend', exam_id=exam.id, page=detail_pagination.next_num, class_filter=class_filter) if detail_pagination.has_next else '#' }}">下一页</a>
+                                    </li>
+                                </ul>
+                            </nav>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">成绩分布</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label for="scoreDistChartType" class="form-label">选择图表类型：</label>
+                            <select id="scoreDistChartType" class="form-select" onchange="updateChartType('scoreDistChart', this.value)">
+                                <option value="pie">饼图</option>
+                                <option value="bar">柱形图</option>
+                                <option value="horizontalBar">条形图</option>
+                                <option value="doughnut">环形图</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="chart-container" style="position: relative; height:300px;">
+                        <canvas id="scoreDistChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">每题正确率</h5>
+                    <div class="chart-controls">
+                        <select id="correctRateChartType" class="form-select" onchange="updateChartType('correctRateChart', this.value)">
+                            <option value="bar">柱形图</option>
+                            <option value="horizontalBar">条形图</option>
+                            <option value="pie">饼图</option>
+                            <option value="doughnut">环形图</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container" style="position: relative; height:400px;">
+                        <canvas id="correctRateChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 题目详情分析 -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">各题详细分析</h5>
+                </div>
+                <div class="card-body">
+                    <div class="accordion" id="questionAccordion">
+                        {% for q_stat in q_stats %}
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="heading{{ q_stat.id }}">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ q_stat.id }}" aria-expanded="false" aria-controls="collapse{{ q_stat.id }}">
+                                    第{{ loop.index }}题 
+                                    <span class="badge bg-primary ms-2">
+                                        {% if q_stat.type == 'single' %}单选题
+                                        {% elif q_stat.type == 'multiple' %}多选题
+                                        {% elif q_stat.type == 'judge' %}判断题
+                                        {% elif q_stat.type == 'comprehensive' %}综合题
+                                        {% elif q_stat.type == 'fill' %}填空题
+                                        {% elif q_stat.type == 'python_fill' %}Python填空题
+                                        {% else %}{{ q_stat.type }}{% endif %}
+                                    </span>
+                                    <span class="badge {% if q_stat.correct_rate >= 80 %}bg-success{% elif q_stat.correct_rate >= 60 %}bg-warning{% else %}bg-danger{% endif %} ms-2">
+                                        正确率: {{ q_stat.correct_rate }}%
+                                    </span>
+                                </button>
+                            </h2>
+                            <div id="collapse{{ q_stat.id }}" class="accordion-collapse collapse" aria-labelledby="heading{{ q_stat.id }}" data-bs-parent="#questionAccordion">
+                                <div class="accordion-body">
+                                    <!-- 题目内容 -->
+                                    <div class="mb-3">
+                                        <h6>题目内容:</h6>
+                                        <div class="card p-3 bg-light">
+                                            {{ q_stat.content_html|sanitize_rich_text }}
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 选项分布 -->
+                                    {% if q_stat.type in ['single', 'multiple'] and q_stat.option_count %}
+                                    <div class="mb-3">
+                                        <h6>选项分布:</h6>
+                                        <div class="chart-type-control mb-2">
+                                            <select class="form-select form-select-sm w-auto" 
+                                                    onchange="updateChartType('optionChart{{ q_stat.id }}', this.value)">
+                                                <option value="bar">柱形图</option>
+                                                <option value="horizontalBar">条形图</option>
+                                                <option value="pie">饼图</option>
+                                                <option value="doughnut">环形图</option>
+                                            </select>
+                                        </div>
+                                        <div class="chart-container" style="position: relative; height:200px;">
+                                            <canvas id="optionChart{{ q_stat.id }}"></canvas>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <!-- 判断题答案分布 -->
+                                    {% if q_stat.type == 'judge' and q_stat.option_count %}
+                                    <div class="mb-3">
+                                        <h6>答案分布:</h6>
+                                        <div class="chart-type-control mb-2">
+                                            <select class="form-select form-select-sm w-auto" 
+                                                    onchange="updateChartType('judgeChart{{ q_stat.id }}', this.value)">
+                                                <option value="pie">饼图</option>
+                                                <option value="bar">柱形图</option>
+                                                <option value="horizontalBar">条形图</option>
+                                                <option value="doughnut">环形图</option>
+                                            </select>
+                                        </div>
+                                        <div class="chart-container" style="position: relative; height:200px;">
+                                            <canvas id="judgeChart{{ q_stat.id }}"></canvas>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <!-- Python填空题/填空题空点分析 -->
+                                    {% if q_stat.type in ['python_fill', 'fill'] and q_stat.detail_rates %}
+                                    <div class="mb-3">
+                                        <h6>填空点得分分析:</h6>
+                                        <div class="chart-type-control mb-2">
+                                            <select class="form-select form-select-sm w-auto"
+                                                    onchange="updateChartType('pyDetailChart{{ q_stat.id }}', this.value)">
+                                                <option value="bar">柱形图</option>
+                                                <option value="horizontalBar">条形图</option>
+                                                <option value="pie">饼图</option>
+                                                <option value="doughnut">环形图</option>
+                                            </select>
+                                        </div>
+                                        <div class="chart-container" style="position: relative; height:200px;">
+                                            <canvas id="pyDetailChart{{ q_stat.id }}"></canvas>
+                                        </div>
+                                        <div class="table-responsive mt-3">
+                                            <table class="table table-sm table-bordered">
+                                                <thead class="table-light">
+                                                    <tr>
+                                                        <th>填空点</th>
+                                                        <th>正确率</th>
+                                                        <th>状态</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for point, data in q_stat.detail_rates.items() %}
+                                                    <tr>
+                                                        <td>{{ point }}</td>
+                                                        <td>{{ data.rate }}%</td>
+                                                        <td>
+                                                            <div class="progress" style="height: 20px;">
+                                                                <div class="progress-bar {% if data.rate >= 80 %}bg-success{% elif data.rate >= 60 %}bg-warning{% else %}bg-danger{% endif %}"
+                                                                    role="progressbar"
+                                                                    style="width: {{ data.rate }}%;"
+                                                                    aria-valuenow="{{ data.rate }}"
+                                                                    aria-valuemin="0"
+                                                                    aria-valuemax="100">
+                                                                    {{ data.rate }}%
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+
+                                    <!-- 综合题得分点分析 -->
+                                    {% if q_stat.type == 'comprehensive' %}
+                                    {% if q_stat.sub_questions %}
+                                    <div class="mb-3">
+                                        <h6>得分点分析:</h6>
+                                        <div class="chart-type-control mb-2">
+                                            <select class="form-select form-select-sm w-auto" 
+                                                    onchange="updateChartType('detailRateChart{{ q_stat.id }}', this.value)">
+                                                <option value="horizontalBar">条形图</option>
+                                                <option value="bar">柱形图</option>
+                                                <option value="pie">饼图</option>
+                                                <option value="doughnut">环形图</option>
+                                            </select>
+                                        </div>
+                                        <div class="chart-container" style="position: relative; height:200px;">
+                                            <canvas id="detailRateChart{{ q_stat.id }}"></canvas>
+                                        </div>
+                                        <div class="table-responsive mt-3">
+                                            <table class="table table-sm table-bordered">
+                                                <thead class="table-light">
+                                                    <tr>
+                                                        <th>得分点</th>
+                                                        <th>正确率</th>
+                                                        <th>状态</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for sub_q_stat in q_stat.sub_questions %}
+                                                    <tr>
+                                                        <td>小题{{ loop.index }}</td>
+                                                        <td>{{ sub_q_stat.correct_rate|round(2) }}%</td>
+                                                        <td>
+                                                            <div class="progress" style="height: 20px;">
+                                                                <div class="progress-bar {% if sub_q_stat.correct_rate >= 80 %}bg-success{% elif sub_q_stat.correct_rate >= 60 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                                                    role="progressbar" 
+                                                                    style="width: {{ sub_q_stat.correct_rate }}%;" 
+                                                                    aria-valuenow="{{ sub_q_stat.correct_rate }}" 
+                                                                    aria-valuemin="0" 
+                                                                    aria-valuemax="100">
+                                                                    {{ sub_q_stat.correct_rate }}%
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        <h5><i class="fas fa-info-circle me-2"></i>暂无数据</h5>
+        <p>该试卷暂无学生提交记录，无法生成成绩趋势分析。</p>
+        <p>您可以前往<a href="{{ url_for('exam_management.admin_exams') }}" class="alert-link">试卷管理</a>页面查看其他试卷，或者等待学生提交后再查看分析。</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if results %}
+<script>window.DEFERRED_SCRIPTS = window.DEFERRED_SCRIPTS || []; window.DEFERRED_SCRIPTS.push('chart_js'); window.DEFERRED_SCRIPTS.push('xlsx');</script>
+<script>
+    // 用于存储图表实例
+    const chartInstances = {};
+    
+    // 批量删除功能
+    function toggleSelectAll(checkbox) {
+        const studentCheckboxes = document.querySelectorAll('.student-checkbox:not([disabled])');
+        studentCheckboxes.forEach(box => {
+            box.checked = checkbox.checked;
+        });
+        updateBatchDeleteButton();
+    }
+    
+    function updateBatchDeleteButton() {
+        const checkedBoxes = document.querySelectorAll('.student-checkbox:checked');
+        const batchDeleteBtn = document.getElementById('batchDeleteBtn');
+
+        if (batchDeleteBtn) {
+            if (checkedBoxes.length > 0) {
+                batchDeleteBtn.style.display = 'inline-block';
+                batchDeleteBtn.textContent = `批量删除 (${checkedBoxes.length})`;
+            } else {
+                batchDeleteBtn.style.display = 'none';
+            }
+        }
+
+        // 更新全选框状态
+        const allBoxes = document.querySelectorAll('.student-checkbox:not([disabled])');
+        const selectAllBox = document.getElementById('selectAllCheckbox');
+        if (!selectAllBox) return;
+        if (allBoxes.length === checkedBoxes.length && allBoxes.length > 0) {
+            selectAllBox.checked = true;
+            selectAllBox.indeterminate = false;
+        } else if (checkedBoxes.length === 0) {
+            selectAllBox.checked = false;
+            selectAllBox.indeterminate = false;
+        } else {
+            selectAllBox.indeterminate = true;
+        }
+    }
+    
+    function confirmBatchDelete() {
+        const checkedBoxes = document.querySelectorAll('.student-checkbox:checked');
+        const resultIds = Array.from(checkedBoxes).map(box => box.dataset.resultId);
+        const studentNames = Array.from(checkedBoxes).map(box => box.dataset.studentName);
+        
+        if (resultIds.length === 0) {
+            return;
+        }
+        
+        let message = `确定要删除以下 ${resultIds.length} 名学生的成绩吗？\n\n`;
+        // 如果学生数量多于10个，只显示前10个，然后显示"等"
+        if (studentNames.length > 10) {
+            message += studentNames.slice(0, 10).join(', ') + ` 等${studentNames.length}名学生`;
+        } else {
+            message += studentNames.join(', ');
+        }
+        message += '\n\n删除后这些学生可以重新作答本试卷。';
+        
+        if (confirm(message)) {
+            batchDeleteResults(resultIds);
+        }
+    }
+    
+    function batchDeleteResults(resultIds) {
+        // 创建表单并提交
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{{ url_for("scores.admin_trend", exam_id=exam.id) }}' + '/batch_delete';
+        
+        // 添加CSRF令牌（如果有的话）
+        {% if csrf_token %}
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrf_token';
+        csrfInput.value = '{{ csrf_token }}';
+        form.appendChild(csrfInput);
+        {% endif %}
+        
+        // 添加班级筛选参数（如果有的话）
+        {% if class_filter %}
+        const classFilterInput = document.createElement('input');
+        classFilterInput.type = 'hidden';
+        classFilterInput.name = 'class_filter';
+        classFilterInput.value = '{{ class_filter }}';
+        form.appendChild(classFilterInput);
+        {% endif %}
+        
+        // 添加所有要删除的result_id
+        resultIds.forEach(id => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'result_ids';
+            input.value = id;
+            form.appendChild(input);
+        });
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
+    
+    // 初始化所有图表（Chart.js/xlsx 为延迟加载，等待 resource-loader 派发 all-scripts-loaded 事件后执行；
+    // 兜底：事件未触发时轮询 typeof Chart，最多等待 5 秒）
+    var _chartsInited = false;
+    var _chartPollTries = 0;
+    function initAllCharts() {
+        if (_chartsInited) return;
+        _chartsInited = true;
+        try {
+            initScoreDistChart();
+            initCorrectRateChart();
+            initDetailCharts();
+            console.log('所有图表和表格初始化完成');
+        } catch (error) {
+            console.error('图表初始化失败:', error);
+        }
+    }
+    function pollChartReady() {
+        if (typeof Chart !== 'undefined') {
+            initAllCharts();
+        } else if (_chartPollTries < 25) { // 每 200ms 轮询一次，最多 5 秒
+            _chartPollTries++;
+            setTimeout(pollChartReady, 200);
+        } else {
+            console.error('Chart.js 加载超时，图表初始化失败');
+        }
+    }
+    window.addEventListener('all-scripts-loaded', initAllCharts);
+    pollChartReady();
+    
+    // 更新图表类型
+    function updateChartType(chartId, newType) {
+        // 获取图表实例
+        const chart = chartInstances[chartId];
+        if (!chart) {
+            console.error('图表不存在：', chartId);
+            return;
+        }
+        
+        try {
+            // 保存当前数据
+            const labels = chart.data.labels.slice();
+            const datasets = chart.data.datasets;
+            const dataValues = datasets[0].data.slice();
+            
+            // 获取颜色信息（确保是数组）
+            let backgroundColor;
+            if (Array.isArray(datasets[0].backgroundColor)) {
+                backgroundColor = datasets[0].backgroundColor.slice();
+            } else {
+                // 如果不是数组，创建一个与数据长度相等的颜色数组
+                backgroundColor = new Array(dataValues.length).fill(datasets[0].backgroundColor || 'rgba(54, 162, 235, 0.6)');
+            }
+            
+            // 销毁旧图表
+            chart.destroy();
+            
+            // 创建新的配置选项
+            const options = {
+                responsive: true,
+                maintainAspectRatio: false
+            };
+            
+            // 根据图表类型设置特定选项
+            let actualType = newType;
+            
+            // 处理水平条形图
+            if (newType === 'horizontalBar') {
+                actualType = 'bar';
+                options.indexAxis = 'y';
+            }
+            
+            // 添加图表特定选项
+            if (actualType === 'bar') {
+                options.scales = {
+                    y: { 
+                        beginAtZero: true
+                    }
+                };
+                
+                // 对于百分比数据，设置最大值为100
+                if (chartId === 'correctRateChart' || chartId.includes('detailRateChart')) {
+                    options.scales.y.max = 100;
+                }
+            } else if (actualType === 'pie' || actualType === 'doughnut') {
+                options.plugins = {
+                    legend: { 
+                        position: 'right',
+                        display: true
+                    }
+                };
+                // 饼图和环形图不需要坐标轴
+                delete options.scales;
+            }
+            
+            // 创建新图表
+            const ctx = document.getElementById(chartId).getContext('2d');
+            const newChart = new Chart(ctx, {
+                type: actualType,
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: datasets[0].label,
+                        data: dataValues,
+                        backgroundColor: backgroundColor
+                    }]
+                },
+                options: options
+            });
+            
+            // 保存新图表到实例映射
+            chartInstances[chartId] = newChart;
+            
+            console.log(`图表 ${chartId} 类型已更新为 ${newType}`);
+        } catch (error) {
+            console.error(`更新图表 ${chartId} 类型时出错:`, error);
+        }
+    }
+    
+    // 成绩分布图
+    function initScoreDistChart() {
+        const distCtx = document.getElementById('scoreDistChart').getContext('2d');
+        const chart = new Chart(distCtx, {
+            type: 'pie',
+            data: {
+                labels: [{% for label in bin_labels %}'{{ label }}'{% if not loop.last %}, {% endif %}{% endfor %}],
+                datasets: [{
+                    label: '分数分布',
+                    data: [{% for d in dist %}{{ d }}{% if not loop.last %}, {% endif %}{% endfor %}],
+                    backgroundColor: [
+                        'rgba(255, 99, 132, 0.6)',
+                        'rgba(54, 162, 235, 0.6)',
+                        'rgba(255, 206, 86, 0.6)',
+                        'rgba(75, 192, 192, 0.6)',
+                        'rgba(153, 102, 255, 0.6)'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right'
+                    }
+                }
+            }
+        });
+        chartInstances['scoreDistChart'] = chart;
+    }
+    
+    // 每题正确率条形图
+    function initCorrectRateChart() {
+        const rateCtx = document.getElementById('correctRateChart').getContext('2d');
+        const chart = new Chart(rateCtx, {
+            type: 'bar',
+            data: {
+                labels: [{% for q in q_stats %}'第{{ loop.index }}题'{% if not loop.last %}, {% endif %}{% endfor %}],
+                datasets: [{
+                    label: '正确率(%)',
+                    data: [{% for q in q_stats %}{{ q.correct_rate }}{% if not loop.last %}, {% endif %}{% endfor %}],
+                    backgroundColor: [
+                        {% for q in q_stats %}
+                        {% if q.correct_rate >= 80 %}'rgba(75, 192, 192, 0.6)'
+                        {% elif q.correct_rate >= 60 %}'rgba(255, 206, 86, 0.6)'
+                        {% else %}'rgba(255, 99, 132, 0.6)'{% endif %}
+                        {% if not loop.last %}, {% endif %}
+                        {% endfor %}
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.raw.toFixed(2) + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        chartInstances['correctRateChart'] = chart;
+    }
+    
+    // 初始化所有详情图表
+    function initDetailCharts() {
+        // 选项分布图
+        {% for q_stat in q_stats %}
+        {% if q_stat.type in ['single', 'multiple'] and q_stat.option_count %}
+        const optionCtx{{ q_stat.id }} = document.getElementById('optionChart{{ q_stat.id }}').getContext('2d');
+        const optionChart{{ q_stat.id }} = new Chart(optionCtx{{ q_stat.id }}, {
+            type: 'bar',
+            data: {
+                labels: [
+                    {% for option, count in q_stat.option_count.items() %}
+                    {{ option|tojson }}{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                ],
+                datasets: [{
+                    label: '选择人数',
+                    data: [
+                        {% for option, count in q_stat.option_count.items() %}
+                        {{ count }}{% if not loop.last %}, {% endif %}
+                        {% endfor %}
+                    ],
+                    backgroundColor: 'rgba(54, 162, 235, 0.6)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+        chartInstances['optionChart{{ q_stat.id }}'] = optionChart{{ q_stat.id }};
+        {% endif %}
+        
+        // 判断题答案分布图
+        {% if q_stat.type == 'judge' and q_stat.option_count %}
+        const judgeCtx{{ q_stat.id }} = document.getElementById('judgeChart{{ q_stat.id }}').getContext('2d');
+        const judgeChart{{ q_stat.id }} = new Chart(judgeCtx{{ q_stat.id }}, {
+            type: 'pie',
+            data: {
+                labels: [
+                    {% for option, count in q_stat.option_count.items() %}
+                    {{ option|tojson }}{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                ],
+                datasets: [{
+                    label: '选择人数',
+                    data: [
+                        {% for option, count in q_stat.option_count.items() %}
+                        {{ count }}{% if not loop.last %}, {% endif %}
+                        {% endfor %}
+                    ],
+                    backgroundColor: [
+                        'rgba(75, 192, 192, 0.6)',
+                        'rgba(255, 99, 132, 0.6)'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right'
+                    }
+                }
+            }
+        });
+        chartInstances['judgeChart{{ q_stat.id }}'] = judgeChart{{ q_stat.id }};
+        {% endif %}
+        
+        // Python填空题/填空题得分点分析图表
+        {% if q_stat.type in ['python_fill', 'fill'] and q_stat.detail_rates %}
+        const pyDetailCtx{{ q_stat.id }} = document.getElementById('pyDetailChart{{ q_stat.id }}').getContext('2d');
+        const pyDetailChart{{ q_stat.id }} = new Chart(pyDetailCtx{{ q_stat.id }}, {
+            type: 'bar',
+            data: {
+                labels: [
+                    {% for point, data in q_stat.detail_rates.items() %}
+                    '{{ point }}'{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                ],
+                datasets: [{
+                    label: '正确率(%)',
+                    data: [
+                        {% for point, data in q_stat.detail_rates.items() %}
+                        {{ data.rate }}{% if not loop.last %}, {% endif %}
+                        {% endfor %}
+                    ],
+                    backgroundColor: [
+                        {% for point, data in q_stat.detail_rates.items() %}
+                        {% if data.rate >= 80 %}'rgba(75, 192, 192, 0.6)'
+                        {% elif data.rate >= 60 %}'rgba(255, 206, 86, 0.6)'
+                        {% else %}'rgba(255, 99, 132, 0.6)'{% endif %}
+                        {% if not loop.last %}, {% endif %}
+                        {% endfor %}
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.raw.toFixed(2) + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        chartInstances['pyDetailChart{{ q_stat.id }}'] = pyDetailChart{{ q_stat.id }};
+        {% endif %}
+
+        // 综合题得分点分析图表
+        {% if q_stat.type == 'comprehensive' %}
+        {% if q_stat.sub_questions %}
+        const detailRateCtx{{ q_stat.id }} = document.getElementById('detailRateChart{{ q_stat.id }}').getContext('2d');
+        const detailRateChart{{ q_stat.id }} = new Chart(detailRateCtx{{ q_stat.id }}, {
+            type: 'bar',
+            data: {
+                labels: [
+                    {% for sub_q_stat in q_stat.sub_questions %}
+                    '小题{{ loop.index }}'{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                ],
+                datasets: [{
+                    label: '正确率(%)',
+                    data: [
+                        {% for sub_q_stat in q_stat.sub_questions %}
+                        {{ sub_q_stat.correct_rate }}{% if not loop.last %}, {% endif %}
+                        {% endfor %}
+                    ],
+                    backgroundColor: [
+                        {% for sub_q_stat in q_stat.sub_questions %}
+                        {% if sub_q_stat.correct_rate >= 80 %}'rgba(75, 192, 192, 0.6)'
+                        {% elif sub_q_stat.correct_rate >= 60 %}'rgba(255, 206, 86, 0.6)'
+                        {% else %}'rgba(255, 99, 132, 0.6)'{% endif %}
+                        {% if not loop.last %}, {% endif %}
+                        {% endfor %}
+                    ]
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        max: 100
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.raw.toFixed(2) + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        chartInstances['detailRateChart{{ q_stat.id }}'] = detailRateChart{{ q_stat.id }};
+        {% endif %}
+        {% endif %}
+        {% endfor %}
+    }
+    
+    // Excel导出功能（xlsx 为延迟加载，未就绪时给出提示）
+    function exportToExcel(tableId, fileName) {
+        if (typeof XLSX === 'undefined') {
+            alert('导出组件尚未加载完成，请稍候再试');
+            return;
+        }
+        const table = document.getElementById(tableId);
+        const wb = XLSX.utils.table_to_book(table);
+        XLSX.writeFile(wb, fileName + '.xlsx');
+    }
+</script>
+{% endif %}
+{% endblock %} 

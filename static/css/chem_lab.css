@@ -1,0 +1,973 @@
+/* 化学仿真工作台：浅色教学工作台 + 深色 3D 画布 */
+html.chem-lab-root,
+html.chem-lab-root body {
+  height: 100%;
+}
+body.chem-lab-active {
+  overflow: hidden;
+}
+body.chem-lab-active > .container {
+  max-width: 100%;
+  width: 100%;
+  padding-left: 12px;
+  padding-right: 12px;
+}
+body.chem-lab-active.chem-embedded,
+body.chem-lab-active.chem-embedded > .container {
+  height: 100%;
+}
+body.chem-lab-active > footer {
+  display: none;
+}
+body.chem-lab-active #aiFab,
+body.chem-lab-active #aiChatPanel {
+  display: none !important;
+}
+
+:root {
+  --chem-primary: #0d6efd;
+  --chem-accent: #0aa2a2;
+  --chem-bg: #f5f7fb;
+  --chem-panel: #ffffff;
+  --chem-border: #e2e8f0;
+  --chem-text: #1f2937;
+  --chem-muted: #64748b;
+  --chem-dark: #0f1724;
+  --chem-radius: 12px;
+}
+
+.chem-lab-page {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 96px);
+  min-height: 520px;
+  background: var(--chem-bg);
+  color: var(--chem-text);
+}
+
+/* ── 顶部工具栏 ── */
+.chem-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 8px 4px 10px;
+  flex-wrap: wrap;
+}
+.chem-head-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+.chem-head-title h1 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.chem-head-title h1 i {
+  color: var(--chem-accent);
+  margin-right: 4px;
+}
+.chem-subtitle {
+  font-size: .78rem;
+  color: var(--chem-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chem-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.chem-current {
+  font-size: .8rem;
+  color: var(--chem-muted);
+  background: #fff;
+  border: 1px solid var(--chem-border);
+  border-radius: 999px;
+  padding: 4px 12px;
+  max-width: 360px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chem-current i {
+  color: var(--chem-accent);
+  margin-right: 4px;
+}
+
+/* ── 帮助 ── */
+.chem-help {
+  background: #fff;
+  border: 1px solid var(--chem-border);
+  border-radius: var(--chem-radius);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, .06);
+}
+.chem-help-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+.chem-help h3 {
+  margin: 0 0 6px;
+  font-size: .92rem;
+}
+.chem-help h3 i {
+  color: var(--chem-accent);
+  margin-right: 4px;
+}
+.chem-help p {
+  margin: 0;
+  font-size: .82rem;
+  color: var(--chem-muted);
+  line-height: 1.7;
+}
+
+/* ── 主体三栏 ── */
+.chem-body {
+  display: flex;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+.chem-nav {
+  width: 196px;
+  flex: 0 0 196px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--chem-panel);
+  border: 1px solid var(--chem-border);
+  border-radius: var(--chem-radius);
+  padding: 10px;
+  overflow-y: auto;
+}
+.chem-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: #475569;
+  font-size: .9rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color .15s, color .15s;
+}
+.chem-nav-item i {
+  width: 18px;
+  text-align: center;
+  color: var(--chem-muted);
+}
+.chem-nav-item:hover {
+  background: #f1f5f9;
+  color: var(--chem-text);
+}
+.chem-nav-item.active {
+  background: #e8f1ff;
+  color: var(--chem-primary);
+  font-weight: 600;
+}
+.chem-nav-item.active i {
+  color: var(--chem-primary);
+}
+
+.chem-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  background: var(--chem-panel);
+  border: 1px solid var(--chem-border);
+  border-radius: var(--chem-radius);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.chem-pane {
+  display: none;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+.chem-pane.active {
+  display: flex;
+}
+
+/* ── 绘制 + 3D 左右工作区（参照 MolView） ── */
+.chem-studio {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(360px, 1.05fr);
+}
+.chem-studio-left,
+.chem-studio-right {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.chem-studio-left {
+  background: #f8fafc;
+  border-right: 1px solid var(--chem-border);
+}
+.chem-studio-right {
+  background: var(--chem-dark);
+}
+.chem-studio-left .chem-sketch-wrap {
+  flex: 1;
+  min-height: 0;
+}
+.chem-studio-right .chem-view-wrap {
+  flex: 1;
+  min-height: 0;
+}
+.chem-studio-tip {
+  font-size: .72rem;
+  color: var(--chem-muted);
+  margin-left: auto;
+  white-space: nowrap;
+}
+.chem-studio-right .chem-toolbar {
+  background: #111c2e;
+  border-color: #1e293b;
+  color: #cbd5e1;
+}
+.chem-studio-right .form-select {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+.chem-studio-right .btn-outline-secondary {
+  color: #cbd5e1;
+  border-color: #334155;
+}
+.chem-studio-right .btn-outline-secondary:hover {
+  background: #1e293b;
+  color: #fff;
+}
+
+.chem-side {
+  width: 280px;
+  flex: 0 0 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+}
+.chem-side-card {
+  background: var(--chem-panel);
+  border: 1px solid var(--chem-border);
+  border-radius: var(--chem-radius);
+  padding: 12px 14px;
+}
+.chem-side-card h3 {
+  margin: 0 0 8px;
+  font-size: .86rem;
+  color: #334155;
+}
+.chem-side-card h3 i {
+  color: var(--chem-accent);
+  margin-right: 4px;
+}
+.chem-side-muted {
+  background: #f8fafc;
+}
+.chem-info-list {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 6px 8px;
+  font-size: .82rem;
+}
+.chem-info-list dt {
+  color: var(--chem-muted);
+  font-weight: 400;
+}
+.chem-info-list dd {
+  margin: 0;
+  color: var(--chem-text);
+  word-break: break-all;
+}
+.chem-tips-text {
+  margin: 0;
+  font-size: .8rem;
+  color: var(--chem-muted);
+  line-height: 1.7;
+}
+
+/* ── 工具栏 ── */
+.chem-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--chem-border);
+  background: #fbfdff;
+}
+.chem-toolbar .form-select,
+.chem-toolbar .form-control {
+  width: auto;
+  min-width: 110px;
+  max-width: 180px;
+}
+.chem-view-hint {
+  font-size: .78rem;
+  color: var(--chem-muted);
+  margin-left: auto;
+}
+
+.chem-placeholder {
+  text-align: center;
+  color: var(--chem-muted);
+}
+.chem-placeholder i {
+  font-size: 2rem;
+  color: #cbd5e1;
+  margin-bottom: 8px;
+  display: block;
+}
+.chem-placeholder p {
+  margin: 0;
+  font-size: .85rem;
+}
+
+/* ── 3D 查看 ── */
+.chem-pane-view {
+  background: var(--chem-dark);
+}
+.chem-pane-view .chem-toolbar {
+  background: #111c2e;
+  border-color: #1e293b;
+  color: #cbd5e1;
+}
+.chem-pane-view .form-select {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+.chem-pane-view .btn-outline-secondary {
+  color: #cbd5e1;
+  border-color: #334155;
+}
+.chem-pane-view .btn-outline-secondary:hover {
+  background: #1e293b;
+  color: #fff;
+}
+.chem-pane-view .chem-view-hint {
+  color: #94a3b8;
+}
+.chem-view-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+#chemViewer {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+  background: var(--chem-dark);
+}
+.chem-view-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(15, 23, 36, .72);
+  color: #e2e8f0;
+  font-size: .9rem;
+}
+
+/* ── 可视化化学 ── */
+.chem-pane-visual {
+  background: #f8fafc;
+}
+.chem-visual-gallery {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px;
+}
+.chem-visual-group {
+  margin-bottom: 20px;
+}
+.chem-visual-group h2 {
+  font-size: .95rem;
+  margin: 0 0 10px;
+  color: #334155;
+}
+.chem-visual-group h2 i {
+  color: var(--chem-accent);
+  margin-right: 4px;
+}
+.chem-count {
+  font-size: .72rem;
+  color: var(--chem-muted);
+  background: #eef2f7;
+  border-radius: 999px;
+  padding: 1px 8px;
+  margin-left: 4px;
+  font-weight: 400;
+}
+.chem-visual-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
+}
+.chem-visual-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  text-align: left;
+  background: #fff;
+  border: 1px solid var(--chem-border);
+  border-radius: 10px;
+  padding: 12px;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+.chem-visual-card:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 6px 18px rgba(13, 110, 253, .1);
+  transform: translateY(-2px);
+}
+.chem-visual-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: #e8f1ff;
+  color: var(--chem-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+.chem-visual-card strong {
+  font-size: .86rem;
+}
+.chem-visual-card small {
+  font-size: .76rem;
+  color: var(--chem-muted);
+  line-height: 1.5;
+}
+.chem-visual-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--chem-dark);
+  z-index: 5;
+}
+.chem-pane-visual {
+  position: relative;
+}
+.chem-pane-visual .chem-visual-stage[hidden] {
+  display: none;
+}
+.chem-visual-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: #111c2e;
+  color: #e2e8f0;
+  border-bottom: 1px solid #1e293b;
+}
+.chem-visual-bar strong {
+  flex: 1;
+  font-size: .9rem;
+}
+.chem-visual-actions {
+  display: flex;
+  gap: 6px;
+}
+#chemVisualFrame {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: #000;
+}
+
+/* ── 分子库 ── */
+.chem-library-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px 6px;
+}
+.chem-library-head h2 {
+  margin: 0;
+  font-size: .95rem;
+}
+.chem-library-head h2 i {
+  color: var(--chem-accent);
+  margin-right: 4px;
+}
+.chem-library-grid {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 14px 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+  align-content: start;
+}
+.chem-library-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  text-align: left;
+  background: #fff;
+  border: 1px solid var(--chem-border);
+  border-radius: 10px;
+  padding: 12px;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+}
+.chem-library-card:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 6px 18px rgba(13, 110, 253, .1);
+}
+.chem-library-badge {
+  font-size: .7rem;
+  color: #0f766e;
+  background: #ccfbf1;
+  border-radius: 999px;
+  padding: 1px 8px;
+  margin-bottom: 2px;
+}
+.chem-library-card strong {
+  font-size: .88rem;
+}
+.chem-library-card small {
+  font-size: .78rem;
+  color: var(--chem-muted);
+}
+.chem-library-text {
+  font-size: .74rem;
+  color: #94a3b8;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ── 状态栏 ── */
+.chem-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 4px 0;
+  font-size: .76rem;
+  color: var(--chem-muted);
+  flex-wrap: wrap;
+}
+.chem-status .chem-ok {
+  color: #0f766e;
+}
+.chem-status .chem-off {
+  color: #b45309;
+}
+
+/* ── 嵌入/课堂模式 ── */
+.chem-embed {
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+}
+.chem-embed .chem-head {
+  flex: 0 0 auto;
+  padding: 6px 8px;
+  gap: 6px 12px;
+}
+.chem-embed .chem-head-title {
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+.chem-embed .chem-help {
+  flex: 0 0 auto;
+  max-height: 38vh;
+  overflow: auto;
+}
+.chem-embed .chem-body {
+  gap: 8px;
+  min-height: 340px;
+}
+.chem-embed .chem-nav {
+  width: 72px;
+  flex: 0 0 72px;
+  padding: 8px 6px;
+}
+.chem-embed .chem-nav-item {
+  flex-direction: column;
+  gap: 4px;
+  padding: 9px 4px;
+  font-size: .68rem;
+  text-align: center;
+}
+.chem-embed .chem-nav-item i {
+  font-size: 1rem;
+}
+.chem-embed .chem-status {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+}
+body.chem-lab-active.chem-embedded > .container {
+  padding: 0;
+}
+body.chem-lab-active.chem-embedded .chem-lab-page {
+  height: 100%;
+}
+
+/* ── 响应式 ── */
+@media (max-width: 1100px) {
+  .chem-side {
+    display: none;
+  }
+}
+@media (max-width: 820px) {
+  .chem-lab-page {
+    height: auto;
+    min-height: 0;
+  }
+  body.chem-lab-active {
+    overflow: auto;
+  }
+  .chem-body {
+    flex-direction: column;
+  }
+  .chem-nav {
+    width: 100%;
+    flex: 0 0 auto;
+    flex-direction: row;
+    overflow-x: auto;
+  }
+  .chem-nav-item {
+    flex: 0 0 auto;
+    width: auto;
+    white-space: nowrap;
+  }
+  .chem-main {
+    min-height: 68vh;
+  }
+  .chem-studio {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(360px, 1fr) minmax(300px, .9fr);
+  }
+  .chem-studio-left {
+    border-right: 0;
+    border-bottom: 1px solid var(--chem-border);
+  }
+  .chem-head-actions .chem-current {
+    max-width: 100%;
+  }
+}
+
+/* ── 离线 Ketcher 2D + 3Dmol 3D ── */
+.chem-pane-sketch {
+  background: #f6f8fb;
+  min-height: 0;
+}
+.chem-ketcher-frame {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  display: block;
+  background: #fff;
+}
+.chem-ketcher-status {
+  flex: 0 0 auto;
+  font-size: .74rem;
+  color: #0f766e;
+  background: #ecfdf5;
+  border-top: 1px solid #a7f3d0;
+  padding: 5px 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chem-sketch-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 7px 10px;
+  background: #fbfdff;
+  border-bottom: 1px solid var(--chem-border);
+}
+.chem-sketch-bar strong {
+  font-size: .84rem;
+  color: #334155;
+  white-space: nowrap;
+}
+.chem-sketch-bar strong i {
+  color: var(--chem-accent);
+  margin-right: 3px;
+}
+.chem-sketch-tip {
+  font-size: .72rem;
+  color: var(--chem-muted);
+  white-space: nowrap;
+}
+.chem-sketch-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.chem-sketch-actions .form-select {
+  width: auto;
+  min-width: 104px;
+  max-width: 140px;
+}
+.chem-3d-toolbar {
+  padding: 7px 10px;
+  gap: 6px;
+}
+.chem-3d-toolbar strong {
+  font-size: .84rem;
+  color: #e2e8f0;
+  white-space: nowrap;
+}
+.chem-3d-toolbar strong i {
+  color: #38bdf8;
+  margin-right: 3px;
+}
+.chem-3d-status {
+  font-size: .72rem;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 190px;
+}
+.chem-3d-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.chem-3d-actions .btn.active {
+  background: #0ea5e9;
+  border-color: #0ea5e9;
+  color: #fff;
+}
+.chem-3d-actions .form-select {
+  width: auto;
+  min-width: 74px;
+  max-width: 104px;
+}
+.chem-3dmol-wrap {
+  position: relative;
+  background: var(--chem-dark);
+  overflow: hidden;
+}
+.chem-3dmol {
+  position: absolute;
+  inset: 0;
+}
+.chem-3dmol canvas {
+  display: block;
+}
+.chem-3d-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #94a3b8;
+  text-align: center;
+  padding: 20px;
+  pointer-events: none;
+}
+.chem-3d-empty i {
+  font-size: 2rem;
+  color: #475569;
+}
+.chem-3d-empty p {
+  margin: 0;
+  font-size: .84rem;
+  line-height: 1.6;
+}
+.chem-3d-empty[hidden] {
+  display: none;
+}
+.chem-offline-note {
+  flex: 0 0 auto;
+  font-size: .72rem;
+  color: #0f766e;
+  background: #ecfdf5;
+  border-top: 1px solid #a7f3d0;
+  padding: 5px 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chem-embed .chem-studio {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+}
+.chem-embed .chem-sketch-actions {
+  justify-content: flex-end;
+}
+.chem-embed .chem-sketch-actions .btn {
+  padding: 3px 6px;
+  font-size: .72rem;
+}
+/* 课堂嵌入保留最右侧「当前结构/观察要点/数据源」，压缩为窄栏 */
+.chem-embed .chem-side {
+  display: flex;
+  width: 200px;
+  flex: 0 0 200px;
+  gap: 8px;
+}
+.chem-embed .chem-side-card {
+  padding: 8px 10px;
+}
+.chem-embed .chem-side-card h3 {
+  margin-bottom: 5px;
+  font-size: .76rem;
+}
+.chem-embed .chem-info-list {
+  grid-template-columns: 50px 1fr;
+  gap: 4px 6px;
+  font-size: .72rem;
+}
+.chem-embed .chem-tips-text {
+  font-size: .72rem;
+  line-height: 1.55;
+}
+.chem-embed .chem-3d-actions .btn.active {
+  background: #0ea5e9;
+  border-color: #0ea5e9;
+  color: #fff;
+}
+@media (max-width: 1200px) {
+  .chem-embed .chem-side {
+    width: 180px;
+    flex: 0 0 180px;
+  }
+}
+@media (max-width: 820px) {
+  .chem-embed {
+    height: auto;
+  }
+  .chem-embed .chem-body {
+    flex: 0 0 auto;
+  }
+  .chem-embed .chem-main {
+    min-height: 760px;
+  }
+  .chem-embed .chem-studio {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(380px, 1fr) minmax(340px, 1fr);
+  }
+  .chem-embed .chem-nav {
+    width: 100%;
+    flex: 0 0 auto;
+  }
+  .chem-embed .chem-side {
+    display: grid;
+    width: 100%;
+    flex: 0 0 auto;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+}
+.chem-embed .chem-sketch-bar,
+.chem-embed .chem-3d-toolbar {
+  padding: 4px 6px;
+  gap: 4px;
+}
+.chem-embed .chem-sketch-actions .form-select,
+.chem-embed .chem-3d-actions .form-select {
+  min-width: 66px;
+  max-width: 92px;
+  font-size: .72rem;
+}
+.chem-embed .chem-3d-status {
+  max-width: 140px;
+}
+.chem-studio-left:fullscreen {
+  background: #fff;
+}
+.chem-studio-right:fullscreen {
+  background: var(--chem-dark);
+}
+
+/* ── 分子库 + 本地 3D 左右布局 ── */
+.chem-library-layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(220px, 300px) minmax(320px, 1fr);
+}
+.chem-library-list {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid var(--chem-border);
+  background: #fbfdff;
+}
+.chem-library-view {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--chem-dark);
+}
+.chem-library-view .chem-toolbar {
+  background: #111c2e;
+  border-color: #1e293b;
+  color: #cbd5e1;
+}
+.chem-library-view .form-select {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+.chem-library-status {
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: 5px 10px;
+  background: #111c2e;
+  color: #cbd5e1;
+  font-size: .74rem;
+}
+.chem-library-status[data-state="error"] {
+  color: #fca5a5;
+}
+.chem-library-view .btn-outline-secondary {
+  color: #cbd5e1;
+  border-color: #334155;
+}
+.chem-library-view .btn-outline-secondary:hover {
+  background: #1e293b;
+  color: #fff;
+}
+@media (max-width: 900px) {
+  .chem-library-layout { grid-template-columns: 1fr; grid-template-rows: 42vh 1fr; }
+  .chem-library-list { border-right: 0; border-bottom: 1px solid var(--chem-border); }
+}

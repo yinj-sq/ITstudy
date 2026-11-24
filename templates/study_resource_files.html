@@ -1,0 +1,35 @@
+{# 资源卡展开后按需返回的文件网格；由 /study/resource/<id>/files 渲染。
+   变量：res（资源 dict）、rd、files、homework、visible。 #}
+{% if files %}
+  {% if rd.homepage_file %}
+  <div class="mb-2"><span class="badge bg-light text-dark mb-2"><i class="fas fa-home me-1"></i>主页文件</span></div>
+  <div class="file-grid mb-3">
+    {% set f = rd.homepage_file %}
+    {% include 'study_file_card.html' %}
+  </div>
+  {% endif %}
+
+  {% if homework %}
+  <div class="p-2 bg-warning bg-opacity-10 rounded-3 mb-2">
+    <span class="fw-bold text-warning"><i class="fas fa-tasks me-1"></i>作业文件（{{ homework|length }}个）</span>
+  </div>
+  <div class="file-grid mb-3">
+    {% for f in homework %}
+    {% include 'study_file_card.html' %}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% set other_files = visible | rejectattr('is_homepage') | list %}
+  {% if other_files %}
+  <div class="file-grid">
+    {% for f in other_files %}
+    {% include 'study_file_card.html' %}
+    {% endfor %}
+  </div>
+  {% else %}
+  {% if not rd.homepage_file and not homework %}<small class="text-muted">暂无文件</small>{% endif %}
+  {% endif %}
+{% else %}
+  <small class="text-muted">暂无文件</small>
+{% endif %}

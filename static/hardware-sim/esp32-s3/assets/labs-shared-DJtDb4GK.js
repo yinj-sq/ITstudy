@@ -1,0 +1,1 @@
+var e={screen:{previewSoon:`Preview coming with this lab.`,nextView:`button: next view`,label:`Simulated {{lesson}} screen: {{views}} views`,withHint:`{{label}}. {{hint}}`},gallery:{soon:`Coming with this lab.`,views:`Screen view`,example:`Example of the {{view}} view`}};export{e as default};

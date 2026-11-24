@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+
+{% block title %}Python填空题特殊标记指南{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>Python填空题特殊标记使用指南</h1>
+    
+    <div class="alert alert-info mt-3">
+        <strong>重要提示：</strong> 本系统现已支持使用特殊标记符号 (①, ②, ③ 等) 作为填空题标记，无需再使用 <code># YOUR ANSWER</code> 标记。
+    </div>
+    
+    <div class="card mt-4">
+        <div class="card-header bg-primary text-white">
+            <h2 class="h4 mb-0">教师指南 - 如何创建带特殊标记的Python填空题</h2>
+        </div>
+        <div class="card-body">
+            <h3>可用的特殊标记</h3>
+            <p>系统支持以下特殊标记符号作为填空位置：</p>
+            <div class="row">
+                <div class="col-md-6">
+                    <ul class="list-group">
+                        <li class="list-group-item">① - 填空1</li>
+                        <li class="list-group-item">② - 填空2</li>
+                        <li class="list-group-item">③ - 填空3</li>
+                        <li class="list-group-item">④ - 填空4</li>
+                        <li class="list-group-item">⑤ - 填空5</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <ul class="list-group">
+                        <li class="list-group-item">⑥ - 填空6</li>
+                        <li class="list-group-item">⑦ - 填空7</li>
+                        <li class="list-group-item">⑧ - 填空8</li>
+                        <li class="list-group-item">⑨ - 填空9</li>
+                        <li class="list-group-item">⑩ - 填空10</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <h3 class="mt-4">使用步骤</h3>
+            <ol>
+                <li>创建Python代码文件，在需要学生填写的位置插入特殊标记符号（①, ②, ③...）</li>
+                <li>在系统中创建题目时，上传该Python文件</li>
+                <li>为每个填空位置设置正确答案：
+                    <ul>
+                        <li>填空1对应特殊标记①</li>
+                        <li>填空2对应特殊标记②</li>
+                        <li>以此类推...</li>
+                    </ul>
+                </li>
+                <li>可以在特殊标记后添加注释，帮助说明该填空的目的或提示</li>
+            </ol>
+            
+            <h3 class="mt-4">示例代码</h3>
+            <pre class="bg-light p-3 rounded"><code>def is_prime(n):
+    """判断一个数是否为素数"""
+    if n <= 1:
+        return ①  # 填空1: 预期答案为False
+    
+    if n <= 3:
+        return ②  # 填空2: 预期答案为True</code></pre>
+            
+            <h3 class="mt-4">注意事项</h3>
+            <ul>
+                <li>确保在设置答案时，填空编号与特殊标记编号一致</li>
+                <li>系统会自动识别这些特殊标记，并与学生提交的答案进行比对</li>
+                <li>可以接受多个正确答案，用竖线"|"分隔，如：<code>True|true</code></li>
+                <li>特殊标记可以用在表达式的任何位置，不仅限于整行替换</li>
+            </ul>
+        </div>
+    </div>
+    
+    <div class="card mt-4">
+        <div class="card-header bg-success text-white">
+            <h2 class="h4 mb-0">学生指南 - 如何回答带特殊标记的Python填空题</h2>
+        </div>
+        <div class="card-body">
+            <h3>特殊标记的含义</h3>
+            <p>在下载的Python文件中，你会看到特殊标记符号（如 ①, ②, ③），这些是需要你填写代码的位置。</p>
+            
+            <h3 class="mt-4">回答步骤</h3>
+            <ol>
+                <li>下载题目文件</li>
+                <li>打开文件，找到所有特殊标记符号（①, ②, ③...）</li>
+                <li><strong>直接将特殊标记替换为你的答案</strong>，保持其他代码不变</li>
+                <li>保存文件并上传</li>
+            </ol>
+            
+            <h3 class="mt-4">示例</h3>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header bg-light">原始题目</div>
+                        <div class="card-body">
+                            <pre><code>def is_prime(n):
+    if n <= 1:
+        return ①
+    
+    if n <= 3:
+        return ②</code></pre>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header bg-light">正确提交的答案</div>
+                        <div class="card-body">
+                            <pre><code>def is_prime(n):
+    if n <= 1:
+        return False
+    
+    if n <= 3:
+        return True</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="alert alert-warning mt-4">
+                <strong>重要！</strong> 请确保：
+                <ul class="mb-0">
+                    <li>直接替换特殊标记，不要保留标记符号</li>
+                    <li>不要修改标记以外的任何代码</li>
+                    <li>提交前确认文件可以正确执行</li>
+                </ul>
+            </div>
+            
+            <h3 class="mt-4">常见错误</h3>
+            <table class="table table-bordered">
+                <thead class="thead-light">
+                    <tr>
+                        <th>错误类型</th>
+                        <th>错误示例</th>
+                        <th>正确做法</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>保留了特殊标记</td>
+                        <td><code>return ① False</code></td>
+                        <td><code>return False</code></td>
+                    </tr>
+                    <tr>
+                        <td>修改了其他代码</td>
+                        <td><code>if n &lt;= 0: return False</code></td>
+                        <td>保持原始条件：<code>if n &lt;= 1: return False</code></td>
+                    </tr>
+                    <tr>
+                        <td>答案格式不匹配</td>
+                        <td><code>return "True"</code> (字符串)</td>
+                        <td><code>return True</code> (布尔值)</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <div class="card mt-4 mb-5">
+        <div class="card-header bg-info text-white">
+            <h2 class="h4 mb-0">常见问题</h2>
+        </div>
+        <div class="card-body">
+            <div class="accordion" id="faqAccordion">
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="faqOne">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne">
+                            如何输入特殊标记符号？
+                        </button>
+                    </h2>
+                    <div id="collapseOne" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                        <div class="accordion-body">
+                            <p>您可以：</p>
+                            <ul>
+                                <li>复制粘贴本指南中的标记</li>
+                                <li>使用Windows的字符映射表</li>
+                                <li>在Word等文字处理软件中插入特殊符号</li>
+                                <li>使用在线工具生成带圈数字</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="faqTwo">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo">
+                            还需要使用"# YOUR ANSWER"标记吗？
+                        </button>
+                    </h2>
+                    <div id="collapseTwo" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                        <div class="accordion-body">
+                            <p>不需要。系统现在支持两种标记方式：</p>
+                            <ul>
+                                <li>特殊标记符号（①, ②, ③...）- 推荐</li>
+                                <li>"# YOUR ANSWER"标记 - 兼容旧题目</li>
+                            </ul>
+                            <p>建议使用特殊标记，它提供更好的可视化效果和更简洁的答题方式。</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="faqThree">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree">
+                            一行中可以有多个标记吗？
+                        </button>
+                    </h2>
+                    <div id="collapseThree" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                        <div class="accordion-body">
+                            <p>可以，但不推荐。尽管系统支持在一行中放置多个标记，但这可能导致学生混淆。建议每个标记占一行，使结构更清晰。</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

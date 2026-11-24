@@ -1,0 +1,64 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+
+# 敏感凭据（运行期生成，绝不入库）
+instance/secret_key
+admin_account.txt
+admin_account.initial.txt
+postgresql.txt
+
+# 日志与运行时
+*.log
+*.log.*
+logs/
+data/cache/
+data/
+instance/
+
+# 上传
+static/uploads/
+static/homework/
+static/submissions/
+static/question_img/
+static/chunks/
+uploads/
+
+# 打包产物
+# 安装包构建产物（nssm.exe 工具需入库，见 pack/封装说明）
+pack/*-Setup.exe
+# 离线 wheel 包（build-installer.ps1 自动下载生成，数百 MB 构建产物）
+pack/wheels/
+
+# 临时文件
+*.tmp
+*.bak
+*.swp
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+# 本地 Claude Code 权限/设置（每机各异，不作为项目资产入库）
+.claude/
+
+# 测试
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# 数据库导出
+*.sql
+*.dump
+*.pgdump
+
+# Ketcher 构建源码依赖（编译产物在 static/chem-lab/ketcher/）
+tools/ketcher-app/node_modules/
+tools/ketcher-app/src/ocl-resources.json
+tools/ketcher-app/dist/

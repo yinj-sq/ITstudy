@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ITstudy - 学科教学及测试平台</title>
+  <link rel="icon" type="image/x-icon" href="/static/favicon.ico" />
+
+  <!-- ========== 资源加载（多源回退：本地 → 国内镜像 → 原CDN） ========== -->
+  <script src="/static/js/resource-loader.js"></script>
+  <!-- 全局反馈（toast + fetch/XHR 拦截器）：API 403/500 与网络错误自动
+       提示，与 SSR 端 base.html 保持一致；含 CSRF 自动附加（幂等） -->
+  <script src="/static/js/ui-feedback.js"></script>
+  <script>
+    (async function () {
+      // Tailwind 配置与图标样式互不依赖，并行加载
+      await Promise.all([
+        resourceLoader.tryLoadByType('tailwind').then(function () {
+          if (typeof tailwind !== 'undefined') {
+            tailwind.config = {
+              theme: { extend: { colors: {
+                primary: '#0d6efd', success: '#198754', danger: '#dc3545',
+                warning: '#ffc107', info: '#0dcaf0', dark: '#212529'
+              }}}
+            };
+          }
+        }).catch(function (e) { console.error('tailwind 加载失败', e); }),
+        // FontAwesome 图标样式（视图内 90+ 处 fa-* 图标依赖）
+        resourceLoader.tryLoadByType('fontawesome_css')
+          .catch(function (e) { console.error('fontawesome 加载失败', e); })
+      ]);
+
+      // Vue 必须先于 vue-router 加载；axios 与 vue-router 无依赖，可并行
+      try { await resourceLoader.tryLoadByType('vue'); }
+      catch (e) { console.error('vue 加载失败', e); }
+      await Promise.all([
+        resourceLoader.tryLoadByType('vue_router')
+          .catch(function (e) { console.error('vue-router 加载失败', e); }),
+        resourceLoader.tryLoadByType('axios')
+          .catch(function (e) { console.error('axios 加载失败', e); })
+      ]);
+      window.dispatchEvent(new Event('libs-ready'));
+    })();
+  </script>
+
+  <!-- ========== Custom CSS ========== -->
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans SC", sans-serif;
+      background-color: #f5f7fa; color: #212529; min-height: 100vh;
+    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f1f1; }
+    ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #a1a1a1; }
+    .fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
+    .fade-enter-from, .fade-leave-to { opacity: 0; }
+    .loading-spinner {
+      display: inline-block; width: 2rem; height: 2rem;
+      border: 3px solid #e5e7eb; border-top-color: #0d6efd;
+      border-radius: 50%; animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body class="antialiased">
+  <div id="app">
+    <div class="flex items-center justify-center min-h-screen">
+      <div class="text-center">
+        <div class="loading-spinner mx-auto mb-4"></div>
+        <p class="text-gray-500 text-sm">加载中...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 版权声明 ========== -->
+  <footer class="text-center text-gray-600 py-2" style="font-size:12px;">
+    ITstudy V6.0.0 &copy; Copyright (C) 2025-2026 YINJUN &mdash; 仅供个人学习使用，商用请联系权利人 YINJUN
+  </footer>
+
+  <!-- ========== API Layer ========== -->
+  <script src="api/client.js"></script>
+  <script src="api/auth.js"></script>
+  <script src="api/exams.js"></script>
+  <script src="api/questions.js"></script>
+  <script src="api/results.js"></script>
+  <script src="api/resources.js"></script>
+
+  <!-- ========== Utilities ========== -->
+  <script src="utils/format.js"></script>
+  <script src="utils/question-types.js"></script>
+  <script src="utils/sanitize.js"></script>
+  <script src="utils/login-countdown.js"></script>
+
+  <!-- ========== Composables ========== -->
+  <script src="composables/useAuth.js"></script>
+
+  <!-- ========== Core Components ========== -->
+  <script src="components/LoadingSpinner.js"></script>
+  <script src="components/EmptyState.js"></script>
+  <script src="components/ConfirmModal.js"></script>
+  <script src="components/AppHeader.js"></script>
+  <script src="components/AppPagination.js"></script>
+  <script src="components/FileUploader.js"></script>
+  <script src="components/QuestionCard.js"></script>
+
+  <!-- ========== View Components ==========
+       视图脚本改为按需加载（router.js loadComponent 动态注入）：
+       首屏仅下载核心层（API/utils/components/app/router）+ 登录页视图，
+       进入各路由时再按需下载对应视图（运行时代码分割，免构建，
+       兼容离线部署；每个视图脚本首次进入后由浏览器 10 分钟缓存复用） -->
+
+  <!-- ========== Router & App ========== -->
+  <script>
+  // 等待资源加载完成后再执行 app.js（依赖 Vue/VueRouter 等）
+  function loadAppBundle() {
+    if (typeof Vue === 'undefined' || typeof VueRouter === 'undefined') {
+      setTimeout(loadAppBundle, 50);
+      return;
+    }
+    var s = document.createElement('script');
+    s.src = 'router.js';
+    s.onload = function () {
+      var s2 = document.createElement('script');
+      s2.src = 'app.js';
+      document.body.appendChild(s2);
+    };
+    document.body.appendChild(s);
+  }
+  window.addEventListener('libs-ready', loadAppBundle);
+  </script>
+</body>
+</html>

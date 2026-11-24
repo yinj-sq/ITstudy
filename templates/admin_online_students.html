@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+{% block title %}在线学生 - 管理员{% endblock %}
+{% block content %}
+<div class="container py-4">
+    <!-- 页头：标题 + 操作区 -->
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <h2 class="mb-0"><i class="fas fa-wifi me-2"></i>在线学生</h2>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-info text-dark">
+                <i class="fas fa-users me-1"></i>当前在线：{{ total }} 人
+            </span>
+            <a href="{{ url_for('students.export_online_students') }}" class="btn btn-success btn-sm">
+                <i class="fas fa-download me-1"></i>下载汇总表
+            </a>
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="location.reload()">
+                <i class="fas fa-sync-alt me-1"></i>刷新
+            </button>
+            <form action="{{ url_for('students.clear_online_students') }}" method="POST"
+                  class="d-inline" onsubmit="return confirm('确定要清除在线学生列表吗？此操作会将所有当前登录学生标记为离线。');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-danger btn-sm">
+                    <i class="fas fa-trash-alt me-1"></i>清除列表
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 在线学生列表 -->
+    <div class="card">
+        <div class="card-header bg-white">
+            <i class="fas fa-list-alt me-2 text-primary"></i>最近 30 分钟内活跃的学生
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3">
+                                <a href="?sort=name&order={% if sort=='name' and order=='asc' %}desc{% else %}asc{% endif %}&page={{ pagination.page }}"
+                                   class="text-decoration-none {% if sort=='name' %}text-primary fw-bold{% endif %}">
+                                    姓名{% if sort=='name' %} <i class="fas fa-sort-{{ 'up' if order=='asc' else 'down' }}"></i>{% endif %}
+                                </a>
+                            </th>
+                            <th>
+                                <a href="?sort=student_class&order={% if sort=='student_class' and order=='asc' %}desc{% else %}asc{% endif %}&page={{ pagination.page }}"
+                                   class="text-decoration-none {% if sort=='student_class' %}text-primary fw-bold{% endif %}">
+                                    班级{% if sort=='student_class' %} <i class="fas fa-sort-{{ 'up' if order=='asc' else 'down' }}"></i>{% endif %}
+                                </a>
+                            </th>
+                            <th>
+                                <a href="?sort=ip_address&order={% if sort=='ip_address' and order=='asc' %}desc{% else %}asc{% endif %}&page={{ pagination.page }}"
+                                   class="text-decoration-none {% if sort=='ip_address' %}text-primary fw-bold{% endif %}">
+                                    IP 地址{% if sort=='ip_address' %} <i class="fas fa-sort-{{ 'up' if order=='asc' else 'down' }}"></i>{% endif %}
+                                </a>
+                            </th>
+                            <th class="pe-3">
+                                <a href="?sort=login_time&order={% if sort=='login_time' and order=='asc' %}desc{% else %}asc{% endif %}&page={{ pagination.page }}"
+                                   class="text-decoration-none {% if sort=='login_time' %}text-primary fw-bold{% endif %}">
+                                    最后活跃{% if sort=='login_time' %} <i class="fas fa-sort-{{ 'up' if order=='asc' else 'down' }}"></i>{% endif %}
+                                </a>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for s in students %}
+                        <tr>
+                            <td class="ps-3"><i class="fas fa-user-circle text-primary me-2"></i>{{ s.name }}</td>
+                            <td><span class="badge bg-light text-dark border">{{ s.student_class or '未分班' }}</span></td>
+                            <td><code>{{ s.ip_address or '-' }}</code></td>
+                            {% set seen = s.last_seen or s.login_time %}
+                            <td class="pe-3 text-muted small">{{ seen.strftime('%Y-%m-%d %H:%M:%S') if seen else '-' }}</td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center text-muted py-5">
+                                <i class="fas fa-user-slash fa-2x mb-3 d-block text-secondary"></i>
+                                当前没有在线学生
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% if pagination.pages > 1 %}
+        <div class="card-footer bg-white">
+            <nav aria-label="分页导航">
+                <ul class="pagination justify-content-center mb-0 flex-wrap">
+                    <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                        <a class="page-link" href="?page={{ pagination.prev_num }}&sort={{ sort }}&order={{ order }}">上一页</a>
+                    </li>
+                    {% for p in range(1, pagination.pages+1) %}
+                        <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                            <a class="page-link" href="?page={{ p }}&sort={{ sort }}&order={{ order }}">{{ p }}</a>
+                        </li>
+                    {% endfor %}
+                    <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                        <a class="page-link" href="?page={{ pagination.next_num }}&sort={{ sort }}&order={{ order }}">下一页</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

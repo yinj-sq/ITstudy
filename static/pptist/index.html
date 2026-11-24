@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8">
+    <link rel="icon" href="./favicon.ico">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+    <meta name="renderer" content="webkit">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="PPTist - 在线演示文稿（幻灯片）应用，还原了大部分 Office PowerPoint 常用功能，实现在线PPT的编辑、演示，支持导出PPT文件，支持AI生成PPT。" />
+    <meta name="keywords" content="pptist,ppt,powerpoint,office powerpoint,在线ppt,幻灯片,演示文稿,ppt在线制作,aippt" />
+    <title>PPTist - 在线演示文稿</title>
+
+    <style>
+      .first-screen-loading {
+        width: 200px; height: 200px; position: fixed;
+        top: 50%; left: 50%; margin-top: -100px; margin-left: -100px;
+        display: flex; flex-direction: column; justify-content: center; align-items: center;
+      }
+      .first-screen-loading-spinner {
+        width: 36px; height: 36px;
+        border: 3px solid #d14424; border-top-color: transparent;
+        border-radius: 50%; box-sizing: border-box;
+        animation: spinner .8s linear infinite;
+      }
+      .first-screen-loading-text { margin-top: 20px; color: #d14424; }
+      @keyframes spinner {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    </style>
+    <script type="module" crossorigin src="./assets/index-B0P34-pG.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-Cc2zDJNn.css">
+  </head>
+  <body>
+    <div id="app">
+      <div class="first-screen-loading">
+        <div class="first-screen-loading-spinner"></div>
+        <div class="first-screen-loading-text">正在加载中，请稍等 ...</div>
+      </div>
+    </div>
+  </body>
+
+  <script>
+    document.oncontextmenu = e => e.preventDefault()
+  </script>
+  <script>
+    (function() {
+      var params = new URLSearchParams(window.location.search);
+      var mode = params.get('mode');
+
+      // Not in embed mode → standalone PPTist
+      if (mode !== 'embed') return;
+      var submode = params.get('submode') || 'preview';
+
+      // Clean URL
+      try { window.history.replaceState({}, '', window.location.pathname); } catch(e) {}
+
+      var parentWindow = window.parent !== window ? window.parent : null;
+      if (!parentWindow) return;
+
+      // ══════════════════════════════════════════════════
+      //  发送消息到父窗口
+      // ══════════════════════════════════════════════════
+      function send(action, extra) {
+        var msg = { source: 'pptist-embed', action: action };
+        if (extra) Object.assign(msg, extra);
+        // 限定目标源（与宿主同源），不使用 '*'
+        parentWindow.postMessage(msg, window.location.origin);
+      }
+
+      // ══════════════════════════════════════════════════
+      //  获取 Pinia 实例与各 store
+      // ══════════════════════════════════════════════════
+      var slidesStore = null;
+      var _pinia = null;
+      function ensurePinia(cb) {
+        var n = 0, max = 120;
+        (function tryGet() {
+          n++;
+          var el = document.getElementById('app');
+          var app = el && el.__vue_app__;
+          if (!app) { if (n < max) setTimeout(tryGet, 500); return; }
+          var pinia = null;
+          if (app.config && app.config.globalProperties) pinia = app.config.globalProperties.$pinia;
+          if (!pinia && app._instance) pinia = app._instance.appContext.config.globalProperties.$pinia;
+          if (!pinia) { if (n < max) setTimeout(tryGet, 500); return; }
+          _pinia = pinia;
+          cb(pinia);
+        })();
+      }
+
+      function getStore(cb) {
+        ensurePinia(function(pinia) {
+          var n = 0, max = 120;
+          (function tryGet() {
+            n++;
+            if (pinia._s) {
+              var store = pinia._s.get('slides');
+              if (store && store.slides !== undefined) { cb(store); return; }
+            }
+            if (n < max) setTimeout(tryGet, 500);
+          })();
+        });
+      }
+
+      // screen store（id="screen"，action setScreening）驱动桌面放映视图
+      function getScreenStore(cb) {
+        if (!_pinia || !_pinia._s) return;
+        var entries = Array.from(_pinia._s.values ? _pinia._s.values() : []);
+        for (var i = 0; i < entries.length; i++) {
+          var s = entries[i];
+          if (s && 'screening' in s && typeof s.setScreening === 'function') { cb(s); return; }
+        }
+      }
+
+      function collectData() {
+        return {
+          title: slidesStore.title || '',
+          slides: JSON.parse(JSON.stringify(slidesStore.slides || [])),
+          theme: slidesStore.theme ? JSON.parse(JSON.stringify(slidesStore.theme)) : {},
+          viewportSize: slidesStore.viewportSize || 1000,
+          viewportRatio: slidesStore.viewportRatio || 0.5625
+        };
+      }
+
+      function applyData(slidesData) {
+        try {
+          var data = typeof slidesData === 'string' ? JSON.parse(slidesData) : slidesData;
+          var slides = data.slides || data;
+          if (!Array.isArray(slides) || slides.length === 0) return;
+          var theme = data.theme || {};
+          slidesStore.setSlides(slides, theme);
+          if (data.viewportSize) slidesStore.setViewportSize(data.viewportSize);
+          if (data.viewportRatio) slidesStore.setViewportRatio(data.viewportRatio);
+          if (data.title) slidesStore.setTitle(data.title);
+          slidesStore.updateSlideIndex(0);
+          send('loaded', Object.assign({ slideCount: slides.length }, activeRequestExtra()));
+          enterSubmodeView();
+        } catch(err) {
+          send('error', Object.assign({ message: '加载数据失败: ' + err.message },
+            activeRequestExtra()));
+        }
+      }
+
+      // ══════════════════════════════════════════════════
+      //  子模式行为（02 文档 §2.3）：
+      //  preview / player → 数据就绪后经 screen store 进入只读放映视图
+      //  （本构建无 vue-router，hash '#/player' 无效；放映由 pinia 状态
+      //  screening 驱动）。editor → 停留完整编辑器
+      // ══════════════════════════════════════════════════
+      function enterSubmodeView() {
+        if (!slidesStore) return;
+        if (submode === 'preview' || submode === 'player') {
+          slidesStore.updateSlideIndex(0);
+          getScreenStore(function(scr) {
+            try { scr.setScreening(true); } catch (e) {}
+          });
+        }
+      }
+
+      // ══════════════════════════════════════════════════
+      //  初始化 → 获取 store 后通知 host
+      // ══════════════════════════════════════════════════
+      getStore(function(store) {
+        slidesStore = store;
+        // 主动向宿主上报当前页码，宿主据此记忆 PPTX 阅读位置
+        try {
+          if (typeof store.$subscribe === 'function') {
+            store.$subscribe(function () {
+              if (slidesStore) {
+                send('slideState', Object.assign({
+                  index: Number(slidesStore.slideIndex) || 0
+                }, activeRequestExtra()));
+              }
+            });
+          }
+        } catch (e) { /* 旧版 pinia 无 $subscribe */ }
+        send('ready');
+      });
+
+      // ══════════════════════════════════════════════════
+      //  监听 host 消息
+      // ══════════════════════════════════════════════════
+      window.addEventListener('message', function(e) {
+        if (e.source !== parentWindow) return;
+        var msg = e.data;
+        if (!msg || msg.source !== 'pptist-host') return;
+
+        switch (msg.action) {
+
+          case 'load':
+            // 加载缓存的 JSON 数据；作废仍在进行的旧 PPTX 导入
+            if (slidesStore) {
+              beginJsonLoad(msg.requestId);
+              applyData(msg.slidesData);
+            }
+            break;
+
+          case 'loadPPTX':
+            // 下载原始 PPTX 并在浏览器内解析（每次导入独立闩锁/序号）
+            var importSeq = beginImport(msg.requestId);
+            fetchAndImportPPTX(msg.url, msg.filename, importSeq);
+            break;
+
+          case 'getData':
+            // 返回当前 slides 数据
+            if (slidesStore) send('data', { data: collectData() });
+            break;
+
+          case 'getSlideState':
+            if (slidesStore) {
+              send('slideState', Object.assign({
+                index: Number(slidesStore.slideIndex) || 0
+              }, activeRequestExtra()));
+            }
+            break;
+
+          case 'gotoSlide':
+            if (slidesStore) {
+              var idx = Number(msg.index);
+              var total = (slidesStore.slides || []).length;
+              if (isFinite(idx) && idx >= 0 && (!total || idx < total)) {
+                slidesStore.updateSlideIndex(idx);
+              }
+            }
+            break;
+
+          case 'play':
+            if (slidesStore) {
+              slidesStore.updateSlideIndex(0);
+              getScreenStore(function(scr) {
+                try { scr.setScreening(true); } catch (e) {}
+              });
+            }
+            break;
+        }
+      });
+
+      // ══════════════════════════════════════════════════
+      //  fetch PPTX → PPTist 原生解析
+      // ══════════════════════════════════════════════════
+      function fetchAndImportPPTX(url, filename, seq) {
+        // credentials: same-origin —— sandbox 同源模式下显式携带会话 Cookie，
+        // 否则部分浏览器对 iframe 内 fetch 默认 omit 凭据导致 302 登录页
+        fetch(url, { credentials: 'same-origin' })
+          .then(function(r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.blob();
+          })
+          .then(function(blob) {
+            if (!isActiveImport(seq)) return;
+            var file = new File([blob], filename || 'presentation.pptx', {
+              type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+            });
+            injectFileAndWait(file, seq);
+          })
+          .catch(function(err) {
+            if (!isActiveImport(seq)) return;
+            send('error', Object.assign({
+              message: '下载 PPTX 失败: ' + err.message
+            }, activeRequestExtra()));
+          });
+      }
+
+      // ══════════════════════════════════════════════════
+      //  注入 File 到 PPTist 文件输入，监听导入完成。
+      //  本构建事实（对照打包产物核实）：
+      //  · 导入组件 accept 为完整 MIME（…presentationml.presentation），
+      //    旧的 '.ppt' 子串过滤永不命中 → 必须按 MIME 匹配；
+      //  · 无「导入PPTX」文案，入口为「导入文件」→ 点击匹配需覆盖；
+      //  · 兜底不得盲取 inputs[0]（可能是 .json/.pptist 导入框）。
+      // ══════════════════════════════════════════════════
+      // 导入完成闩（按每次导入重置）：内部管线两条落库路径——setSlides
+      // （覆盖式）与 addSlidesFromData（追加式，PPTX 导入实测走此路径）——
+      // 统一用 $subscribe/ setSlides + 页数/页码签名基线判定。此前闩锁只有
+      // 一份且首次导入后永不复位，切换第二个课件时不再上报 pptxImported，
+      // 宿主一直停在“正在加载中”，只能刷新 iframe 恢复。
+      var _importDone = false;
+      var _importSeq = 0;
+      var _importBaseLen = 0;
+      var _importBaseSig = '';
+      var _activeRequestId = null;
+
+      function slidesSignature() {
+        if (!slidesStore || !Array.isArray(slidesStore.slides)) return '';
+        return slidesStore.slides.map(function(s) {
+          return (s && s.id ? s.id : '') + ':' +
+            (s && Array.isArray(s.elements) ? s.elements.length : 0);
+        }).join('|');
+      }
+
+      function activeRequestExtra() {
+        return _activeRequestId ? { requestId: _activeRequestId } : {};
+      }
+
+      function beginImport(requestId) {
+        _importSeq += 1;
+        _activeRequestId = requestId || null;
+        _importDone = false;
+        _importBaseLen = slidesStore && slidesStore.slides ? slidesStore.slides.length : 0;
+        _importBaseSig = slidesSignature();
+        return _importSeq;
+      }
+
+      function beginJsonLoad(requestId) {
+        _importSeq += 1;             // 作废仍在下载/解析的旧 PPTX
+        _activeRequestId = requestId || null;
+        // JSON 直载不是 PPTX 导入：关闭旧导入闩，避免 applyData 的
+        // setSlides 触发上一次导入的 maybeLatch 再发一次 pptxImported。
+        _importDone = true;
+      }
+
+      function isActiveImport(seq) {
+        return seq === _importSeq;
+      }
+
+      function ensureIntercept() {
+        if (ensureIntercept._on || !slidesStore) return;
+        ensureIntercept._on = true;
+
+        function maybeLatch() {
+          if (_importDone || !slidesStore) return;
+          var n = slidesStore.slides ? slidesStore.slides.length : 0;
+          var sig = slidesSignature();
+          if (n > 0 && (n !== _importBaseLen || sig !== _importBaseSig)) {
+            _importDone = true;
+            var seq = _importSeq;
+            setTimeout(function() {
+              // 等待期间若已切换课件，旧导入结果不得再上报/覆盖当前状态
+              if (!isActiveImport(seq)) return;
+              send('pptxImported', Object.assign({
+                data: collectData()
+              }, activeRequestExtra()));
+              enterSubmodeView();
+            }, 500);
+          }
+        }
+
+        try {
+          var origSetSlides = slidesStore.setSlides;
+          slidesStore.setSlides = function(slides, theme) {
+            origSetSlides.apply(this, arguments);
+            maybeLatch();
+          };
+        } catch (e) {}
+        try {
+          slidesStore.$subscribe(function() { maybeLatch(); });
+        } catch (e) { /* 旧版 pinia 无 $subscribe → 仅 setSlides 路径 */ }
+      }
+
+      function injectFileAndWait(file, seq) {
+        ensureIntercept();
+
+        // ── 主路径：调用宿主暴露的内部导入 API（确定性最高）──
+        // 构建产物已打微创补丁（tools/patch_pptist_bundle.py）：在随编辑器
+        // 必然挂载的粘贴钩子处暴露 window.__pptistAPI.importPPTXFile，
+        // 直通 pptxtojson 解析管线，不依赖任何 UI 状态。API 挂载略晚于
+        // slides store 就绪，故阶梯轮询；命中一次即停（完成闩防重复）
+        var fired = false;
+        [0, 300, 800, 1500, 2500, 4000, 6000].forEach(function(ms) {
+          setTimeout(function() {
+            if (!isActiveImport(seq) || _importDone || fired) return;
+            var api = window.__pptistAPI;
+            if (api && typeof api.importPPTXFile === 'function') {
+              try {
+                api.importPPTXFile([file]);
+                fired = true;
+              } catch (e) { /* 调用异常 → 留给后续通道 */ }
+            }
+          }, ms);
+        });
+
+        // ── 次级：合成 paste 事件（未来构建若支持文件粘贴则自动生效；
+        //    本构建的 paste 处理器只管文本/图片，实测不处理 PPTX 文件）──
+        [9000, 13000].forEach(function(ms) {
+          setTimeout(function() {
+            if (!isActiveImport(seq) || _importDone || fired) return;
+            try {
+              var dt = new DataTransfer();
+              dt.items.add(file);
+              document.dispatchEvent(new ClipboardEvent('paste', {
+                clipboardData: dt, bubbles: true, cancelable: true
+              }));
+            } catch (e) { /* ClipboardEvent 不可构造 → 走兜底 */ }
+          }, ms);
+        });
+
+        // ── 兜底：DOM 注入链（导入面板恰好挂载时可用）──
+        setTimeout(function() {
+          if (isActiveImport(seq) && !_importDone && !fired) legacyInject(file, seq);
+        }, 17000);
+
+        // ── 最终报错（全通道均未命中）──
+        setTimeout(function() {
+          if (isActiveImport(seq) && !_importDone && !fired)
+            send('error', Object.assign({
+              message: '未能自动导入：解析超时或文件不是有效 PPTX'
+            }, activeRequestExtra()));
+        }, 26000);
+      }
+
+      // ── 兜底：DOM 注入链（导入面板恰好挂载时可用）──
+      // 本构建事实（对照打包产物核实）：导入组件 accept 为完整 MIME；
+      // 入口文案为「导入文件」；兜底不得盲取 inputs[0]（可能是 .json/.pptist 框）
+      function legacyInject(file, seq) {
+        var lf = false;  // 兜底链局部闩（与外层重试 fired 互不影响）
+
+        function inject(input) {
+          if (!isActiveImport(seq)) return;
+          try {
+            var dt = new DataTransfer();
+            dt.items.add(file);
+            input.files = dt.files;
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+          } catch(e) {
+            if (isActiveImport(seq) && !_importDone && !lf) {
+              lf = true;
+              send('error', Object.assign({ message: '文件注入失败: ' + e.message },
+                activeRequestExtra()));
+            }
+          }
+        }
+
+        // file input 是否可接收 PPTX：空 accept / 通配 / .ppt* 后缀 /
+        // OOXML presentation MIME（本构建导入组件的真实形态）
+        function acceptsPptx(input) {
+          var acc = (input.getAttribute('accept') || '').toLowerCase();
+          if (!acc || acc === '*') return true;
+          if (acc.indexOf('.ppt') !== -1) return true;
+          return acc.indexOf('presentationml') !== -1;
+        }
+
+        function findPptxInput() {
+          var all = document.querySelectorAll('input[type="file"]');
+          var i;
+          // 第一优先：精确匹配 pptx MIME 的专用导入框，
+          // 避免误注入 .json/.pptist 导入框
+          for (i = 0; i < all.length; i++) {
+            if ((all[i].getAttribute('accept') || '').toLowerCase()
+                  .indexOf('presentationml') !== -1) return all[i];
+          }
+          for (i = 0; i < all.length; i++) {
+            if (acceptsPptx(all[i])) return all[i];
+          }
+          return null;
+        }
+
+        // 方案 1：直接注入已渲染的导入组件
+        var direct = findPptxInput();
+        if (direct) { lf = true; inject(direct); return; }
+
+        // 方案 2：点击导入入口触发动态创建（本构建文案为「导入文件」）
+        var clicked = false;
+        function tryClickImport() {
+          if (!isActiveImport(seq) || clicked) return;
+          var els = document.querySelectorAll('*');
+          for (var j = 0; j < els.length; j++) {
+            var txt = (els[j].textContent || '').replace(/\s+/g, '');
+            var isEntry = (txt === '导入文件' || txt === '导入' ||
+                           txt === '导入PPTX' || txt === '导入PPTX文件');
+            if (isEntry && els[j].children.length <= 2) {
+              try { els[j].click(); clicked = true; return; } catch(e) {}
+            }
+          }
+        }
+
+        // MutationObserver 监听新创建的 file input（仅接受能收 PPTX 的）
+        var observer = new MutationObserver(function(mutations) {
+          if (!isActiveImport(seq)) return;
+          for (var i = 0; i < mutations.length; i++) {
+            var added = mutations[i].addedNodes;
+            for (var j = 0; j < added.length; j++) {
+              if (added[j].nodeType !== 1) continue;
+              var inputs = [];
+              if (added[j].tagName === 'INPUT' && added[j].type === 'file') inputs.push(added[j]);
+              var nested = added[j].querySelectorAll && added[j].querySelectorAll('input[type="file"]');
+              if (nested) for (var k = 0; k < nested.length; k++) inputs.push(nested[k]);
+              for (var m = 0; m < inputs.length; m++) {
+                if (!lf && acceptsPptx(inputs[m])) {
+                  lf = true; observer.disconnect();
+                  inject(inputs[m]);
+                  return;
+                }
+              }
+            }
+          }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+
+        // 多次尝试点击导入按钮
+        var clickAttempt = 0;
+        var clickTimer = setInterval(function() {
+          clickAttempt++;
+          tryClickImport();
+          if (clicked && clickAttempt > 3) clearInterval(clickTimer);
+          if (clickAttempt > 10) clearInterval(clickTimer);
+        }, 1000);
+
+        // 超时收尾：报错由外层最终计时器统一负责（26s），此处仅做
+        // 最后一轮注入尝试
+        setTimeout(function() {
+          clearInterval(clickTimer);
+          observer.disconnect();
+          if (!isActiveImport(seq) || _importDone || lf) return;
+          var target = findPptxInput();
+          if (target) {
+            lf = true;
+            inject(target);
+          }
+        }, 12000);
+      }
+
+    })();
+  </script>
+</html>

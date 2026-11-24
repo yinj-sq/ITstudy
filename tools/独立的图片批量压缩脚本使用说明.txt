@@ -1,0 +1,10 @@
+独立的图片批量压缩脚本使用说明
+运行命令（在项目根目录下）：python tools/compress_images.py
+
+功能说明：
+会自动遍历 static/question_img 和 static/images 目录下的所有 .jpg、.jpeg、.png 图片。
+每张图片会被压缩到最大宽高1200像素，JPEG质量85，PNG压缩等级6，原地覆盖。
+支持多次运行，已压缩图片不会重复放大。
+
+依赖：
+需已安装 Pillow 库。

@@ -1,0 +1,27 @@
+{
+  "name": "itstudy-ketcher-app",
+  "private": true,
+  "version": "6.1.0",
+  "type": "module",
+  "scripts": {
+    "prebuild": "node -e \"const fs=require('fs');fs.mkdirSync('src',{recursive:true});fs.copyFileSync('node_modules/openchemlib/dist/resources.json','src/ocl-resources.json')\"",
+    "build": "vite build",
+    "postbuild": "node copy-licenses.mjs",
+    "dev": "vite"
+  },
+  "dependencies": {
+    "buffer": "^6.0.3",
+    "events": "^3.3.0",
+    "ketcher-core": "3.18.0",
+    "ketcher-react": "3.18.0",
+    "ketcher-standalone": "3.18.0",
+    "openchemlib": "9.26.0",
+    "raphael": "^2.3.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^6.3.5"
+  }
+}

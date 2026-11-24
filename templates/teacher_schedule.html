@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% block title %}作息时间表{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+      <h2 class="mb-1"><i class="fas fa-clock me-2"></i>作息时间表</h2>
+      <div class="text-muted small">管理员维护；这里显示当前启用的作息时段和本人任课班级课程表。</div>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="/study?mode=classroom" class="btn btn-outline-primary rounded-pill">
+        <i class="fas fa-chalkboard-teacher me-1"></i>进入课堂
+      </a>
+      <a href="{{ url_for('resources.teacher_resource_library') }}" class="btn btn-outline-secondary rounded-pill">
+        <i class="fas fa-folder-open me-1"></i>资源管理
+      </a>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+      <strong><i class="fas fa-calendar-day me-1"></i>今日作息</strong>
+      {% if current_period %}
+      <span class="badge bg-warning text-dark">当前：{{ current_period.period_name }} {{ current_period.start_time }}-{{ current_period.end_time }}</span>
+      {% else %}
+      <span class="badge bg-light text-dark">当前：课间休息</span>
+      {% endif %}
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr><th>节次</th><th>时段名称</th><th>开始</th><th>结束</th><th>状态</th></tr>
+        </thead>
+        <tbody>
+          {% for s in schedules %}
+          <tr class="{% if current_period and s.id == current_period.id %}table-warning{% endif %}">
+            <td>{{ loop.index }}</td>
+            <td><strong>{{ s.period_name }}</strong></td>
+            <td>{{ s.start_time }}</td>
+            <td>{{ s.end_time }}</td>
+            <td>
+              {% if current_period and s.id == current_period.id %}
+              <span class="badge bg-warning text-dark">当前节次</span>
+              {% else %}
+              <span class="badge bg-secondary">已启用</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="text-center text-muted py-4">暂无作息时段，请联系管理员设置</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-header bg-dark text-white">
+      <strong><i class="fas fa-calendar-alt me-1"></i>我的班级课程表</strong>
+    </div>
+    <div class="table-responsive">
+      {% if schedules and classes %}
+      <table class="table table-bordered table-hover align-middle mb-0">
+        <thead class="table-dark">
+          <tr>
+            <th style="width:100px">节次</th>
+            <th style="width:120px">时间</th>
+            {% for wd in range(1, 8) %}
+            <th class="text-center{% if wd == today_weekday %} table-primary{% endif %}">
+              {{ weekday_names.get(wd, '?') }}{% if wd == today_weekday %} ★{% endif %}
+            </th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in schedules %}
+          {% set period_num = loop.index %}
+          <tr>
+            <td><strong>第{{ period_num }}节</strong><br><small class="text-muted">{{ s.period_name }}</small></td>
+            <td class="small">{{ s.start_time }}<br>{{ s.end_time }}</td>
+            {% for wd in range(1, 8) %}
+            <td class="text-center{% if wd == today_weekday %} table-primary{% endif %}">
+              {% for entry in entry_map.get((wd, period_num), []) %}
+              <span class="badge bg-success me-1 mb-1">{{ entry.class_name }}</span>
+              {% else %}
+              <span class="text-muted small">—</span>
+              {% endfor %}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% elif not classes %}
+      <div class="text-center text-muted py-4">尚未分配任课班级，请联系管理员。</div>
+      {% else %}
+      <div class="text-center text-muted py-4">暂无作息时段，请联系管理员设置。</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+{% block title %}系统开关{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h2 class="mb-4"><i class="fas fa-toggle-on me-2"></i>系统开关</h2>
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <form method="post">
+        {% for key, label, desc in switches %}
+        <div class="d-flex justify-content-between align-items-center border-bottom py-3">
+          <div>
+            <strong>{{ label }}</strong>
+            <div class="small text-muted">{{ desc }}</div>
+          </div>
+          <div class="form-check form-switch fs-4">
+            <input class="form-check-input" type="checkbox" name="{{ key }}" value="1" {% if values[key] %}checked{% endif %}>
+          </div>
+        </div>
+        {% endfor %}
+        <div class="d-flex justify-content-between align-items-center border-bottom py-3">
+          <div>
+            <strong>AI 流式并发上限</strong>
+            <div class="small text-muted">
+              全进程同时进行的 AI 流式响应数，超出返回 429；范围 1–64，留空使用部署默认值。
+              当前生效：<strong>{{ ai_stream_effective }}</strong>
+              （部署默认 {{ ai_stream_default }}）
+            </div>
+          </div>
+          <div style="width:9rem">
+            <input class="form-control" type="number" min="1" max="64" step="1"
+                   name="ai_max_concurrent_streams" value="{{ ai_stream_limit }}"
+                   placeholder="部署默认 {{ ai_stream_default }}">
+          </div>
+        </div>
+        <div class="d-flex justify-content-between align-items-center border-bottom py-3">
+          <div>
+            <strong>Waitress 工作线程数</strong>
+            <div class="small text-muted">
+              单进程并发能力，范围 {{ waitress_threads_min }}–{{ waitress_threads_max }}，留空恢复默认
+              {{ waitress_threads_default }}；<strong>修改后需重启 ITstudy 服务生效</strong>。
+              当前运行：<strong>{{ waitress_threads_running }}</strong>
+              {% if waitress_threads_saved != waitress_threads_running %}
+              ，已保存 {{ waitress_threads_saved }}（待重启）
+              {% endif %}
+              <br>调高后应用数据库连接池会同步放大，请确认 PostgreSQL
+              <code>max_connections</code> 留有足够余量（默认 100）。
+              {% if waitress_env_override %}
+              <br><span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>
+              当前由环境变量 WAITRESS_THREADS 覆盖，本项保存不生效。</span>
+              {% endif %}
+            </div>
+          </div>
+          <div style="width:9rem">
+            <input class="form-control" type="number"
+                   min="{{ waitress_threads_min }}" max="{{ waitress_threads_max }}"
+                   step="1" name="waitress_threads"
+                   value="{{ waitress_threads_saved }}"
+                   placeholder="默认 {{ waitress_threads_default }}">
+          </div>
+        </div>
+        <div class="pt-3">
+          <button class="btn btn-primary rounded-pill px-4"><i class="fas fa-save me-1"></i>保存设置</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mt-4">
+    <div class="card-header bg-secondary text-white">
+      <strong><i class="fas fa-server me-2"></i>部署调优参数（只读）</strong>
+    </div>
+    <div class="card-body">
+      <p class="small text-muted mb-3">
+        <i class="fas fa-info-circle me-1"></i>
+        修改方式：编辑
+        <code>{{ deploy_conf_path }}</code>（首次启动已自动生成模板），
+        或设置同名系统环境变量；<strong>修改后需重启 ITstudy 服务生效</strong>。
+        优先级：环境变量 &gt; deploy.conf &gt; 内置默认。
+      </p>
+      <table class="table table-sm table-bordered mb-0">
+        <thead class="table-light">
+          <tr><th style="width:25%">参数</th><th>当前值</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+          {% for p in deploy_params %}
+          <tr>
+            <td><code>{{ p.key }}</code><br><span class="small text-muted">{{ p.display }}</span></td>
+            <td>{{ p.value }}</td>
+            <td class="small text-muted">{{ p.hint }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

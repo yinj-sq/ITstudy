@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf-token" content="{{ csrf_token }}">
+<title>课堂 - {{ res.title }}</title>
+<link rel="stylesheet" href="{{ versioned_static('css/study_lesson.css') }}">
+<link rel="stylesheet" href="{{ versioned_static('bootstrap-icons/bootstrap-icons.min.css') }}">
+{% if session.get('student_id') or is_teacher %}
+<link rel="stylesheet" href="{{ versioned_static('css/ai-chat.css') }}">
+<link rel="stylesheet" href="{{ versioned_static('highlight/github.min.css') }}">
+{% endif %}
+</head>
+<body class="{% if classroom_mode %}mode-classroom{% endif %}">
+
+<!-- ══ 顶栏 ══ -->
+<header class="lesson-topbar">
+  <div class="topbar-left">
+    <i class="bi bi-mortarboard-fill topbar-icon"></i>
+    <span class="lesson-title" title="{{ res.title }}">{{ res.title }}</span>
+  </div>
+  <div class="topbar-right">
+    <button class="tb-btn" id="btnFullscreen" title="全屏"><i class="bi bi-arrows-fullscreen"></i></button>
+    <button class="tb-btn" id="btnDocs" title="电子文档"><i class="bi bi-file-earmark-text"></i></button>
+    {% if is_teacher and classroom_mode %}
+    <span class="tb-online" id="onlineBadge" title="在线学生数"><i class="bi bi-people-fill"></i><span id="onlineCount">…</span></span>
+    {% endif %}
+    {% if is_teacher and classroom_mode %}
+    {% if in_class %}
+    <form method="post" action="/teaching-center/end_class/{{ res.id }}" class="inline-form" id="endClassForm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      {% if lesson_class_id %}<input type="hidden" name="class_id" value="{{ lesson_class_id }}">{% endif %}
+      <button type="submit" class="tb-btn tb-btn-primary" id="btnEndClass"><i class="bi bi-box-arrow-right"></i> 下课</button>
+    </form>
+    {% else %}
+    <form method="post" action="/teaching-center/start_class/{{ res.id }}" class="inline-form" id="startClassForm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      {% if lesson_class_id %}<input type="hidden" name="class_id" value="{{ lesson_class_id }}">{% endif %}
+      <button type="submit" class="tb-btn tb-btn-primary"><i class="bi bi-play-btn"></i> 上课</button>
+    </form>
+    {% endif %}
+    {% endif %}
+  </div>
+</header>
+
+<div class="lesson-body" id="lessonBody">
+  <!-- ══ 左侧章节树 ══ -->
+  <aside class="lesson-sidebar" id="lessonSidebar">
+    {% if classroom_mode %}
+    <!-- 课堂时钟：教师实时掌握课堂进度 -->
+    <div class="lesson-clock" id="lessonClock" role="timer" aria-label="当前时间">
+      <div class="lesson-clock-time" id="lessonClockTime">--:--:--</div>
+      <div class="lesson-clock-date" id="lessonClockDate"></div>
+    </div>
+    {% endif %}
+    <nav class="chapter-tree" id="chapterTree"><!-- JS 渲染 --></nav>
+    <div class="sidebar-footer">
+      <label class="autoplay-toggle">
+        <span>视频自动播放</span>
+        <span class="switch"><input type="checkbox" id="autoplayToggle"><i></i></span>
+      </label>
+      {% if classroom_mode %}
+      <a class="exit-classroom-btn" href="{{ url_for('resources.study', mode='classroom') }}"
+         title="返回资源列表（不会结束当前上课）">
+        <i class="bi bi-box-arrow-right"></i> 退出课堂模式
+      </a>
+      {% endif %}
+    </div>
+  </aside>
+  <button class="sidebar-collapse" id="sidebarToggle" title="收起/展开目录"><i class="bi bi-chevron-left"></i></button>
+
+  <!-- ══ 中央舞台 ══ -->
+  <main class="lesson-stage" id="lessonStage">
+    <!-- 视频 -->
+    <div class="stage-view" id="viewVideo">
+      <video id="videoPlayer" playsinline preload="metadata"></video>
+      <div class="video-hint" id="videoHint">
+        <button class="big-play" id="bigPlay" aria-label="播放视频"><i class="bi bi-play-fill"></i></button>
+      </div>
+      <div class="rate-bar" id="rateBar">
+        <button data-rate="0.75">0.75x</button><button data-rate="1" class="active">1x</button>
+        <button data-rate="1.25">1.25x</button><button data-rate="1.5">1.5x</button><button data-rate="2">2x</button>
+      </div>
+    </div>
+    <!-- PPTX（PPTist 放映） -->
+    <div class="stage-view" id="viewPptist">
+      <div class="pptist-status" id="pptistStatus">准备放映…</div>
+      <iframe id="pptistFrame" class="hidden" sandbox="allow-scripts allow-forms allow-modals allow-same-origin allow-downloads"
+              src="/static/pptist/index.html?mode=embed&submode=preview"></iframe>
+      <div class="stage-empty"><i class="bi bi-easel"></i><p>选择左侧课件开始放映</p></div>
+      {% if is_teacher and session.get('teacher_mode') != 'readonly' %}
+      <div class="pptist-editbar" id="pptistEditBar">
+        <button class="tm-btn" id="pptistEditToggle"><i class="bi bi-pencil-square"></i> 编辑课件</button>
+        <button class="tm-btn primary hidden" id="pptistSaveBtn"><i class="bi bi-save"></i> 保存课件</button>
+      </div>
+      {% endif %}
+    </div>
+    <!-- 文档/图片 -->
+    <div class="stage-view" id="viewDoc">
+      <img id="docImage" class="hidden" alt="">
+      <iframe id="docFrame" class="hidden" sandbox="allow-scripts allow-forms allow-modals allow-same-origin allow-downloads"></iframe>
+      <div class="stage-empty"><i class="bi bi-file-earmark-text"></i><p>选择左侧文档查看</p></div>
+    </div>
+    <!-- 互动活动 -->
+    <div class="stage-view" id="viewActivity">
+      <div class="stage-empty"><i class="bi bi-controller"></i><p>本节为课堂互动活动</p></div>
+      <div class="activity-box">
+        <h4 id="activityTitle"></h4>
+        <a id="activityLink" class="btn-enter-activity" target="_blank" rel="noopener">进入活动 <i class="bi bi-arrow-right-circle"></i></a>
+      </div>
+    </div>
+    <!-- 外链 / HTML 课件 -->
+    <div class="stage-view" id="viewLink">
+      <!-- 上传 HTML 默认 opaque origin，防止课件读取课堂页 Cookie / 代发同源请求；
+           仅 /chem-lab、/hardware-sim、GeoGebra 播放器等平台自有页面由脚本
+           按来源动态恢复 allow-same-origin。 -->
+      <iframe id="linkFrame" class="hidden" sandbox="allow-scripts allow-forms allow-modals allow-downloads allow-popups"></iframe>
+      <div class="quickform-box hidden" id="quickFormBox">
+        <i class="bi bi-bar-chart-line"></i>
+        <h4 id="quickFormTitle">QuickForm 成绩</h4>
+        <p>QuickForm 数据结果页在外部打开，课堂内不加载其脚本。</p>
+        <a id="quickFormOpen" class="btn-enter-activity" target="_blank" rel="noopener">
+          打开 QuickForm 成绩页 <i class="bi bi-box-arrow-up-right"></i>
+        </a>
+      </div>
+      <div class="stage-empty"><i class="bi bi-link-45deg"></i><p>选择左侧内容打开</p></div>
+    </div>
+    <!-- 画笔层（透明标注） -->
+    <canvas id="drawCanvas" class="hidden"></canvas>
+  </main>
+</div>
+
+<!-- ══ 底部工具栏（可收起，避免遮挡视频/课件） ══ -->
+<div class="lesson-toolbar" id="lessonToolbar">
+  <div class="lesson-toolbar-items" id="lessonToolbarItems">
+    <button class="tool-btn" data-tool="blackboard"><i class="bi bi-chalkboard"></i><span>黑板</span></button>
+    <button class="tool-btn" data-tool="docs"><i class="bi bi-journal-bookmark"></i><span>电子文档</span></button>
+    <button class="tool-btn" data-tool="flow"><i class="bi bi-diagram-3"></i><span>流程拓扑图</span></button>
+    <button class="tool-btn" data-tool="mindmap"><i class="bi bi-diagram-2"></i><span>思维导图</span></button>
+    {% if is_teacher %}
+    <button class="tool-btn" data-tool="rollcall"><i class="bi bi-person-badge"></i><span>点名器</span></button>
+    {% endif %}
+    <button class="tool-btn" data-tool="timer"><i class="bi bi-stopwatch"></i><span>倒计时</span></button>
+    <button class="tool-btn" data-tool="draw" id="toolDraw"><i class="bi bi-brush"></i><span>画笔</span></button>
+  </div>
+  <button class="toolbar-toggle" id="lessonToolbarToggle" type="button"
+          title="收起工具栏" aria-label="收起工具栏" aria-expanded="true">
+    <i class="bi bi-chevron-down"></i>
+  </button>
+</div>
+
+<!-- ══ 黑板（护眼板书层） ══ -->
+<div id="blackboard" class="blackboard hidden">
+  <canvas id="blackboardCanvas"></canvas>
+  <div class="bb-toolbar">
+    <span class="bb-chalk" data-color="#FFFDE7" style="background:#FFFDE7" title="白粉笔"></span>
+    <span class="bb-chalk" data-color="#FFEB3B" style="background:#FFEB3B" title="黄粉笔"></span>
+    <span class="bb-chalk" data-color="#FF5252" style="background:#FF5252" title="红粉笔"></span>
+    <span class="bb-chalk" data-color="#80D8FF" style="background:#80D8FF" title="蓝粉笔"></span>
+    <span class="bb-sep"></span>
+    <button class="bb-btn" data-width="6" title="粗粉笔"><i class="bi bi-pencil-fill"></i></button>
+    <button class="bb-btn" data-width="2.5" title="细粉笔"><i class="bi bi-pencil"></i></button>
+    <button class="bb-btn" id="bbEraser" title="板擦"><i class="bi bi-eraser-fill"></i></button>
+    <button class="bb-btn" id="bbClear" title="清空当前页"><i class="bi bi-trash"></i></button>
+    <span class="bb-sep"></span>
+    <button class="bb-btn" id="bbPrev" title="上一页"><i class="bi bi-chevron-left"></i></button>
+    <span class="bb-page" id="bbPageInfo">1 / 1</span>
+    <button class="bb-btn" id="bbNext" title="下一页"><i class="bi bi-chevron-right"></i></button>
+    <button class="bb-btn" id="bbNew" title="新建一页"><i class="bi bi-plus-lg"></i></button>
+    <span class="bb-sep"></span>
+    <button class="bb-btn" id="bbClose" title="退出黑板"><i class="bi bi-x-lg"></i></button>
+  </div>
+  <div class="bb-drawer" id="bbDrawer"><i class="bi bi-chevron-up"></i></div>
+</div>
+
+<!-- ══ 电子文档抽屉 ══ -->
+<div id="docsDrawer" class="docs-drawer hidden">
+  <div class="docs-head"><strong>电子文档</strong><button class="tb-btn" id="docsClose" aria-label="关闭电子文档"><i class="bi bi-x-lg"></i></button></div>
+  <div class="docs-body" id="docsBody"><!-- JS 渲染文档分类 --></div>
+</div>
+
+<!-- ══ 倒计时 ══ -->
+<div id="timerModal" class="tool-modal hidden">
+  <div class="tool-modal-box timer-box">
+    <div class="tm-head"><strong>倒计时 / 计时</strong><span class="tm-mode" id="timerModeLabel">倒计时</span><button class="tb-btn" data-close="timerModal"><i class="bi bi-x-lg"></i></button></div>
+    <div class="tm-display" id="timerDisplay">05:00</div>
+    <div class="tm-presets">
+      <button data-min="1">1分</button><button data-min="5">5分</button><button data-min="10">10分</button>
+      <button data-min="15">15分</button><button data-min="20">20分</button><button data-min="30">30分</button>
+    </div>
+    <div class="tm-actions">
+      <button class="tm-btn primary" id="timerStart"><i class="bi bi-play-fill"></i> 开始</button>
+      <button class="tm-btn" id="timerPause"><i class="bi bi-pause-fill"></i> 暂停</button>
+      <button class="tm-btn" id="timerReset"><i class="bi bi-arrow-counterclockwise"></i> 重置</button>
+      <button class="tm-btn" id="timerStopwatch" aria-pressed="false">秒表模式</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 点名器 ══ -->
+<div id="rollcallModal" class="tool-modal hidden">
+  <div class="tool-modal-box rollcall-box">
+    <div class="tm-head"><strong>随机点名</strong><button class="tb-btn" data-close="rollcallModal"><i class="bi bi-x-lg"></i></button></div>
+    <div class="rc-display" id="rollcallDisplay">准备就绪</div>
+    <div class="rc-actions">
+      <button class="tm-btn primary" id="rollcallStart"><i class="bi bi-shuffle"></i> 开始点名</button>
+      <label class="rc-norepeat"><input type="checkbox" id="rollcallNoRepeat" checked> 不重复抽取</label>
+      <button class="tm-btn" id="rollcallReset">重置记录</button>
+    </div>
+    <div class="rc-list" id="rollcallList"></div>
+  </div>
+</div>
+
+<!-- ══ 流程拓扑图画板（独立应用 iframe） ══ -->
+<div id="flowModal" class="tool-modal app-modal hidden">
+  <div class="tool-app-box">
+    <div class="tool-app-head">
+      <strong><i class="bi bi-diagram-3"></i> 流程拓扑图画板</strong>
+      <div class="tool-app-actions">
+        {% if is_teacher and session.get('teacher_mode') != 'readonly' %}
+        <button class="tm-btn primary" id="flowSaveBtn" disabled><i class="bi bi-save"></i> 保存到课件</button>
+        {% endif %}
+        <select id="flowOpenList" class="mm-select" disabled><option value="">从课件打开…</option></select>
+        <button class="tb-btn" data-close="flowModal" title="关闭"><i class="bi bi-x-lg"></i></button>
+      </div>
+    </div>
+    <iframe id="flowFrame" class="tool-app-frame" title="流程拓扑图画板"
+            data-src="{{ versioned_static('lesson-tools/flow/index.html') }}"></iframe>
+  </div>
+</div>
+
+<!-- ══ 思维导图（独立应用 iframe） ══ -->
+<div id="mindmapModal" class="tool-modal app-modal hidden">
+  <div class="tool-app-box">
+    <div class="tool-app-head">
+      <strong><i class="bi bi-diagram-2"></i> 思维导图</strong>
+      <div class="tool-app-actions">
+        {% if is_teacher and session.get('teacher_mode') != 'readonly' %}
+        <button class="tm-btn primary" id="mindmapSaveBtn" disabled><i class="bi bi-save"></i> 保存到课件</button>
+        {% endif %}
+        <select id="mindmapOpenList" class="mm-select" disabled><option value="">从课件打开…</option></select>
+        <button class="tb-btn" data-close="mindmapModal" title="关闭"><i class="bi bi-x-lg"></i></button>
+      </div>
+    </div>
+    <iframe id="mindmapFrame" class="tool-app-frame" title="思维导图"
+            data-src="{{ versioned_static('lesson-tools/mindmap/index.html') }}"></iframe>
+  </div>
+</div>
+
+<!-- ══ 保存到课件：名称输入 ══ -->
+<div id="toolNameModal" class="tool-modal hidden">
+  <div class="tool-name-box" role="dialog" aria-modal="true" aria-labelledby="toolNameTitle">
+    <div class="tool-name-head">
+      <strong id="toolNameTitle">保存到课件</strong>
+      <button class="tb-btn" id="toolNameClose" title="关闭"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <p class="tool-name-hint" id="toolNameHint">名称仅支持中文、字母、数字、- 和 _</p>
+    <input id="toolNameInput" class="tool-name-input" maxlength="60" autocomplete="off">
+    <div class="tool-name-actions">
+      <button class="tm-btn" id="toolNameCancel">取消</button>
+      <button class="tm-btn primary" id="toolNameOk">保存</button>
+    </div>
+  </div>
+</div>
+
+<div id="toolToast" class="tool-toast hidden"></div>
+
+{% if is_teacher and classroom_mode %}
+<script>
+  // 教师课堂模式：在线人数轮询（30s，轻量聚合查询）
+  (function () {
+    var badge = document.getElementById('onlineCount');
+    if (!badge) return;
+    function refresh() {
+      fetch('/study/lesson/{{ res.id }}/online', {
+        credentials: 'same-origin',
+        headers: { 'X-CSRFToken': window.CSRF_TOKEN || '' }
+      }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+        if (d && d.success) {
+          badge.textContent = d.online_count + '/' + d.total;
+          window.LESSON_STUDENTS = d.students || [];
+        }
+      }).catch(function () {});
+    }
+    refresh();
+    setInterval(refresh, 30000);
+  })();
+</script>
+{% endif %}
+
+{% if classroom_mode %}
+<script>
+  // 课堂时钟：每秒刷新，便于教师实时掌握课堂进度
+  (function () {
+    var timeEl = document.getElementById('lessonClockTime');
+    var dateEl = document.getElementById('lessonClockDate');
+    if (!timeEl) return;
+    var WEEK = ['日', '一', '二', '三', '四', '五', '六'];
+    function pad(n) { return n < 10 ? '0' + n : String(n); }
+    function tick() {
+      var now = new Date();
+      timeEl.textContent = pad(now.getHours()) + ':' + pad(now.getMinutes())
+        + ':' + pad(now.getSeconds());
+      dateEl.textContent = now.getFullYear() + '年' + (now.getMonth() + 1) + '月'
+        + now.getDate() + '日 星期' + WEEK[now.getDay()];
+    }
+    tick();
+    setInterval(tick, 1000);
+  })();
+</script>
+{% endif %}
+
+<script>
+  // CSRF Token 必须先于学生心跳脚本注入：心跳 IIFE 立即发起首次
+  // POST /api/heartbeat，本页无 ui-feedback.js 全局补丁兜底，
+  // 取不到 Token 时首次心跳被 CSRF 钩子 403（"最后活跃"晚 60 秒）
+  window.CSRF_TOKEN = {{ csrf_token|tojson }};
+</script>
+
+{% if session.get('student_id') %}
+<script>
+  // 学生心跳（维持在线状态，口径与 base.html 一致）
+  (function () {
+    function sendHeartbeat() {
+      fetch('/api/heartbeat', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': window.CSRF_TOKEN || '' },
+        credentials: 'same-origin'
+      }).catch(function () {});
+    }
+    sendHeartbeat();
+    setInterval(sendHeartbeat, 60000);
+  })();
+</script>
+{% endif %}
+
+<script>
+  window.LESSON_PAGE = {
+    resourceId: {{ res.id }},
+    resourceTitle: {{ res.title|tojson }},
+    dirName: {{ dir_name|tojson }},
+    isTeacher: {{ is_teacher|tojson }},
+    classroomMode: {{ classroom_mode|tojson }},
+    inClass: {{ in_class|tojson }},
+    tree: {{ lesson_tree|tojson }},
+    hasCustomTree: {{ lesson_tree_exists|tojson }}
+  };
+</script>
+<script src="{{ versioned_static('js/lesson_tools.js') }}"></script>
+<script src="{{ versioned_static('js/ggb-courseware-bridge.js') }}"></script>
+<script src="{{ versioned_static('js/courseware-worker-relay.js') }}"></script>
+<script src="{{ versioned_static('js/study_lesson.js') }}"></script>
+{% if session.get('student_id') or is_teacher %}
+<script src="{{ versioned_static('js/dompurify/purify.min.js') }}" defer></script>
+<script src="{{ versioned_static('js/ai-chat.js') }}" defer></script>
+{% endif %}
+</body>
+</html>

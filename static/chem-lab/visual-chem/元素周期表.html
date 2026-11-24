@@ -1,0 +1,1825 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="I3a3C1mCE9O3FEFTYz4KCL">
+<head data-page-node-id="HYVAFGbrQlA6RRk2uPXp7E">
+<meta charset="UTF-8" data-page-node-id="1RG0ySKKPvNTrsjlqILI3E">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" data-page-node-id="AXgPF0wEeQ2YeBJps6ckK6">
+<title>元素周期表 · 周期律探索 - 可视化化学</title>
+<link rel="icon" type="image/png" href="favicon.png">
+<style>
+:root { --ease-out: cubic-bezier(0.23,1,0.32,1); }
+* { box-sizing: border-box; }
+body { margin:0; font-family: "Microsoft YaHei", system-ui, sans-serif; overflow:auto !important; }
+#app-container {
+  min-width:1080px; min-height:100vh; display:flex; flex-direction:column;
+  background:#000 !important; color:#fff;
+  background-image:
+    radial-gradient(560px 420px at 10% 8%, rgba(70,130,255,0.22), transparent 65%),
+    radial-gradient(480px 360px at 92% 30%, rgba(80,220,150,0.10), transparent 65%),
+    radial-gradient(760px 540px at 50% 112%, rgba(45,170,190,0.18), transparent 70%) !important;
+}
+#app-container.light-bg {
+  background:#dcecf5 !important;
+  background-image:
+    radial-gradient(620px 460px at 6% 0%, rgba(120,185,255,0.55), transparent 66%),
+    radial-gradient(560px 460px at 84% 64%, rgba(120,220,170,0.45), transparent 68%),
+    radial-gradient(760px 540px at 52% 112%, rgba(90,195,205,0.35), transparent 70%) !important;
+}
+.glass, #topbar, .glass-panel, #cell-panel {
+  background: rgba(16,22,36,0.50);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border:1px solid rgba(255,255,255,0.16);
+  box-shadow: 0 12px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -1px 0 rgba(255,255,255,0.05);
+}
+#topbar {
+  flex-shrink:0; margin:10px 12px 8px; height:48px;
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:0 18px; border-radius:14px; z-index:200; position:relative;
+}
+.brand { display:flex; align-items:center; gap:12px; min-width:0; }
+.brand-logo { width:34px; height:34px; display:block;  object-fit:contain; }
+.brand-text { line-height:1.25; display:flex; align-items:baseline; gap:12px; }
+.brand-title { font-size:16px; font-weight:700; letter-spacing:1px; white-space:nowrap; color:#fff; }
+.brand-divider { color:#fff; opacity:.9; margin:0 6px; }
+.brand-sub { font-size:11px; color:#9fb3d1; letter-spacing:2px; white-space:nowrap; }
+.topbar-actions { display:flex; align-items:center; gap:8px; }
+.top-btn {
+  background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.18);
+  color:#eaf2ff; padding:7px 14px; border-radius:10px; font-size:12px;
+  cursor:pointer; text-decoration:none; transition:all .2s; white-space:nowrap; font-family:inherit;
+}
+.top-btn:hover { background:rgba(255,170,85,0.25); border-color:#ffaa66; color:#fff; }
+#main-row { flex:1; display:flex; min-height:0; padding:0 12px 14px; gap:10px; align-items:stretch; }
+#sidebar { width:226px; flex-shrink:0; position:relative; }
+#sidebar.collapsed { width:48px !important; overflow:visible; }
+#sidebar.collapsed #controls-panel { display:none; }
+#sidebar-rail { display:none; }
+#sidebar.collapsed #sidebar-rail {
+  display:flex; flex-direction:column; align-items:center; gap:8px;
+  padding:8px 0; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12);
+  border-radius:14px; backdrop-filter:blur(12px);
+}
+#app-container.light-bg #sidebar.collapsed #sidebar-rail { background:rgba(255,255,255,0.55); border-color:rgba(70,90,120,0.22); }
+.rail-btn, .rail-collapse {
+  width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center;
+  background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.16); color:#cfe0f5;
+  cursor:pointer; transition:background-color .18s, border-color .18s, color .18s; font-family:inherit;
+}
+.rail-btn svg, .rail-collapse svg { width:16px; height:16px; }
+.rail-btn:hover, .rail-collapse:hover { background:rgba(255,255,255,0.16); border-color:rgba(255,255,255,0.34); color:#fff; }
+.rail-expand { margin-bottom:2px; }
+.rail-collapse { align-self:flex-end; margin:0 0 2px auto; }
+#app-container.light-bg .rail-btn, #app-container.light-bg .rail-collapse { background:rgba(255,255,255,0.6); border-color:rgba(70,90,120,0.28); color:#33445c; }
+#app-container.light-bg .rail-btn:hover, #app-container.light-bg .rail-collapse:hover { background:#fff; border-color:rgba(70,90,120,0.45); color:#122; }
+.glass-panel.focus-hit { border-color:#ffaa55; box-shadow:0 0 0 2px rgba(255,170,85,0.25); }
+#controls-panel { display:flex; flex-direction:column; gap:10px; overflow-y:auto; }
+.glass-panel { border-radius:14px; padding:10px 10px 9px; display:flex; flex-direction:column; gap:6px; flex-shrink:0; }
+.glass-panel .panel-title {
+  font-size:12px; font-weight:700; color:#ffaa55; text-align:center; letter-spacing:3px;
+  border-bottom:1px solid rgba(255,255,255,0.12); padding-bottom:5px; margin:0 0 2px;
+}
+.control-section { display:flex; flex-direction:column; gap:4px; }
+.control-section + .control-section { margin-top:7px; padding-top:7px; border-top:1px dashed rgba(255,255,255,0.10); }
+#controls-panel h4 { font-size:10px; color:#ccdcf2; letter-spacing:1.5px; margin:0; font-weight:600; }
+.filter-btn, .mode-btn {
+  background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.16);
+  color:#dfe8f6; border-radius:9px; font-size:10.5px; padding:5px 4px;
+  cursor:pointer; font-family:inherit; transition:all .15s; line-height:1.25;
+}
+.filter-btn:hover, .mode-btn:hover { background:rgba(255,170,85,0.20); border-color:#ffaa66; }
+.filter-btn.active-filter, .mode-btn.active-filter { background:rgba(255,170,85,0.32); border-color:#ffaa66; color:#fff; font-weight:600; }
+.grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:4px; }
+.grid-3 { display:grid; grid-template-columns:repeat(3,1fr); gap:4px; }
+.grid-4 { display:grid; grid-template-columns:repeat(4,1fr); gap:4px; }
+.search-input, .sel-input {
+  width:100%; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.18);
+  border-radius:9px; color:#fff; padding:6px 9px; font-size:11.5px; outline:none; font-family:inherit;
+}
+.search-input:focus, .sel-input:focus { border-color:#ffaa66; }
+.sel-input option { color:#223; background:#fff; }
+.search-hint { font-size:9.5px; color:#b0c4dd; line-height:1.4; }
+.heat-legend { display:none; flex-direction:column; gap:3px; }
+.heat-legend.show { display:flex; }
+.heat-bar { height:10px; border-radius:5px; border:1px solid rgba(255,255,255,0.25); }
+.heat-labels { display:flex; justify-content:space-between; font-size:9.5px; color:#e2edfb; }
+#center-col { flex:1; min-width:0; display:flex; flex-direction:column; gap:10px; }
+#table-area {
+  position:relative; border-radius:16px; padding:46px 16px 16px;
+  background:rgba(10,14,24,0.35); border:1px solid rgba(255,255,255,0.10);
+  overflow:auto;
+}
+#cell-panel {
+  position:absolute; top:10px; left:12px; right:auto; z-index:120;
+  padding:3px 10px; border-radius:9px; pointer-events:none; max-width:75%;
+  border:2px solid rgba(150,190,255,0.6) !important;
+  box-shadow:0 0 12px rgba(120,180,255,0.28), 0 6px 18px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.10) !important;
+}
+.cell-panel-fn { font-size:11.5px; font-weight:600; color:#eaf5ff; white-space:nowrap; line-height:1.4; }
+/* ===== 顶栏模式切换（标准模式 / 电子层模式） ===== */
+.mode-switch { display:flex; border:1px solid rgba(255,255,255,0.20); border-radius:9px; overflow:hidden; }
+.mode-btn {
+  padding:4px 11px; font-size:11.5px; color:#cfe0f5; background:transparent; border:none;
+  cursor:pointer; font-family:inherit; white-space:nowrap; transition:background-color .18s, color .18s;
+}
+.mode-btn:hover { background:rgba(255,255,255,0.10); color:#fff; }
+.mode-btn.active { background:rgba(255,170,85,0.30); color:#ffd9a0; }
+.mode-btn[data-mode="orbit"].active { background:rgba(103,232,249,0.26); color:#9decfb; }
+#app-container.light-bg .mode-switch { border-color:rgba(70,110,170,0.35); }
+#app-container.light-bg .mode-btn { color:#145c8a; }
+#app-container.light-bg .mode-btn.active { background:rgba(240,160,60,0.25); color:#7a4a06; }
+#app-container.light-bg .mode-btn[data-mode="orbit"].active { background:rgba(60,160,220,0.22); color:#0a5a86; }
+#wm { position:absolute; right:14px; bottom:7px; font-size:10px; color:rgba(255,255,255,0.30); letter-spacing:2px; pointer-events:none; }
+/* ===== 分类图例（悬浮于表格左上凹陷带，兼作类别筛选） ===== */
+#legend-panel {
+  position:absolute; z-index:55; display:none; padding:calc(4px * var(--lg,1)) calc(8px * var(--lg,1)) calc(5px * var(--lg,1));
+  border-radius:12px; box-shadow:0 8px 26px rgba(0,0,0,0.5); background:rgba(10,14,24,0.90);
+}
+#legend-panel.show { display:block; }
+#app-container.light-bg #legend-panel { background:rgba(248,250,253,0.95); box-shadow:0 8px 22px rgba(60,80,110,0.22); }
+.lg-head { display:flex; align-items:center; gap:8px; margin-bottom:calc(2px * var(--lg,1)); }
+.lg-hint { font-size:calc(8.5px * var(--lg,1)); color:#8fa3bf; letter-spacing:.3px; }
+#app-container.light-bg .lg-hint { color:#6b7c91; }
+.lg-reset { margin-left:auto; font-size:calc(8.5px * var(--lg,1)); padding:0 calc(5px * var(--lg,1));
+  border-radius:calc(4px * var(--lg,1)); border:1px solid rgba(255,212,127,0.45); cursor:pointer;
+  background:rgba(255,170,85,0.14); color:#ffd9a0; font-family:inherit; line-height:1.5; }
+#app-container.light-bg .lg-reset { color:#8a4a00; border-color:rgba(160,110,30,0.45); background:rgba(240,160,60,0.16); }
+.lg-reset:hover { background:rgba(255,170,85,0.3); }
+#legend-bar.lg-blocks { display:flex; flex-wrap:wrap; gap:3px 8px; }
+#legend-bar.lg-groups { display:flex; align-items:flex-start; gap:calc(11px * var(--lg,1)); }
+.lg-group { display:flex; flex-direction:column; gap:calc(2px * var(--lg,1)); }
+.lg-gtitle { font-size:calc(9.5px * var(--lg,1)); font-weight:700; text-align:center; letter-spacing:1px;
+  padding-bottom:calc(1px * var(--lg,1)); border-bottom:1px solid currentColor; cursor:pointer;
+  white-space:nowrap; opacity:.9; border-radius:calc(3px * var(--lg,1)); }
+.lg-gtitle:hover { opacity:1; }
+.lg-chips { display:grid; grid-auto-flow:column; gap:calc(2px * var(--lg,1)) calc(4px * var(--lg,1)); }
+.lg-chip { display:flex; align-items:center; gap:calc(3px * var(--lg,1)); padding:calc(1px * var(--lg,1)) calc(3px * var(--lg,1));
+  border-radius:calc(4px * var(--lg,1)); font-size:calc(9px * var(--lg,1)); white-space:nowrap; cursor:pointer;
+  border:1px solid transparent; color:#e8f1fb; }
+#app-container.light-bg .lg-chip { color:#1f2b38; }
+.lg-chip:hover { background:rgba(255,255,255,0.14); }
+#app-container.light-bg .lg-chip:hover { background:rgba(0,0,0,0.07); }
+.lg-chip.active-filter, .lg-gtitle.active-filter { background:rgba(255,170,85,0.28); border:1px solid rgba(255,212,127,0.85); opacity:1; }
+#state-legend { display:flex; flex-wrap:wrap; gap:12px; margin-bottom:8px; font-size:11px; color:#cfe0f5; align-items:center; }
+.sl-item { display:flex; align-items:center; gap:4px; }
+.sl-item i { width:9px; height:9px; border-radius:2px; display:inline-block; border:1px solid rgba(0,0,0,0.35); }
+.ie-tip { font-size:10px; color:#8fa3bf; margin-top:5px; }
+#ie-level-sec { padding-top:2px; }
+.sl-note { color:#8fa3bf; }
+/* ===== 轨道排布填充：电子层模式下贴合表格左上凹陷悬浮展开（不遮族标签行） ===== */
+#orbit-panel {
+  display:none; position:absolute; z-index:60; margin:0; padding:5px 8px 6px; border-radius:12px;
+  box-shadow:0 8px 26px rgba(0,0,0,0.5); background:rgba(10,14,24,0.92);
+}
+#orbit-panel.open { display:block; }
+#orbit-head { display:flex; align-items:center; gap:6px; font-size:calc(10.5px * var(--os,1)); margin-bottom:2px; color:#cfe0f5; }
+#orbit-name { font-weight:600; color:#ffd9a0; white-space:nowrap; }
+#orbit-conf { color:#8fa3bf; font-size:calc(9.5px * var(--os,1)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.orbit-close { margin-left:auto; width:calc(16px * var(--os,1)); height:calc(16px * var(--os,1)); border-radius:5px; border:none; cursor:pointer;
+  background:rgba(255,255,255,0.1); color:#cfe0f5; font-size:calc(12px * var(--os,1)); line-height:1; font-family:inherit; }
+.orbit-close:hover { background:rgba(255,80,80,0.4); color:#fff; }
+.orbit-grid { display:flex; flex-direction:column-reverse; overflow:auto; }   /* 1s 在最底 */
+.orbit-grid::-webkit-scrollbar { width:4px; height:4px; }
+.orbit-grid::-webkit-scrollbar-thumb { background:rgba(255,170,85,0.4); border-radius:3px; }
+.lvl-row { display:flex; align-items:center; flex-wrap:nowrap; }
+.orb-row { display:flex; align-items:center; margin:0 calc(5px * var(--os,1)) 0 0; }
+.orb-row:last-child { margin-right:0; }
+.orb-label { width:calc(15px * var(--os,1)); font-size:calc(8px * var(--os,1)); color:#9fb3d1; text-align:right; margin-right:calc(2px * var(--os,1)); flex-shrink:0; letter-spacing:0.3px; }
+.orb-holder { display:flex; gap:calc(1.5px * var(--os,1)); }
+.ob { min-width:calc(11px * var(--os,1)); height:calc(13px * var(--os,1)); padding:0 0.5px; border:1px solid rgba(255,255,255,0.35); border-radius:3px;
+      display:flex; align-items:center; justify-content:center; font-size:calc(8.5px * var(--os,1)); color:#ffd47f;
+      background:rgba(255,255,255,0.03); line-height:1; }
+.ob.f { border-color:#ffaa55; background:rgba(255,170,85,0.16); }
+.ob b { font-weight:400; font-size:calc(7.5px * var(--os,1)); }
+#app-container.light-bg #orbit-panel { box-shadow:0 8px 22px rgba(60,80,110,0.25); background:rgba(248,250,253,0.96); }
+#app-container.light-bg #orbit-panel .orb-label { color:#556; }
+#app-container.light-bg #orbit-conf { color:#667; }
+#app-container.light-bg #orbit-name { color:#8a4a00; }
+#geog-bar { display:flex; gap:14px; margin-bottom:8px; font-size:11px; color:#cfe0f5; flex-wrap:wrap; }
+.geog-label { display:flex; align-items:center; gap:4px; cursor:pointer; user-select:none; }
+.geog-label input { accent-color:#ffaa55; cursor:pointer; }
+#table-overlay { position:absolute; pointer-events:none; z-index:3; }
+#table-overlay svg { display:block; }
+.lg-item { display:flex; align-items:center; gap:5px; font-size:10.5px; color:#f2f7ff; }
+.lg-dot { width:calc(8px * var(--lg,1)); height:calc(8px * var(--lg,1)); border-radius:2px; flex-shrink:0; display:inline-block;
+  border:1px solid rgba(255,255,255,0.35); }
+#app-container.light-bg .lg-dot { border-color:rgba(0,0,0,0.30); }
+.ptable { display:grid; grid-template-columns:22px repeat(18,minmax(38px,1fr)); grid-auto-rows:50px; gap:3px; width:100%; }
+.ptable.size-s { grid-template-columns:18px repeat(18,minmax(30px,1fr)); grid-auto-rows:40px; gap:2px; }
+.ptable.size-s .t-sym { font-size:calc(12.5px * var(--ts,1)); }
+.ptable.size-s .t-zh { font-size:calc(8px * var(--ts,1)); }
+.ptable.size-s .t-mass { font-size:calc(6.5px * var(--ts,1)); }
+.ptable.size-s .t-num { font-size:calc(7.5px * var(--ts,1)); }
+.ptable.size-s .gh, .ptable.size-s .ph { font-size:calc(10px * var(--ts,1)); }
+.gh, .ph, .fh {
+  display:flex; align-items:center; justify-content:center;
+  font-size:calc(12px * var(--ts,1)); color:#ccdcf2; border-radius:6px;
+}
+.fh { font-size:calc(13px * var(--ts,1)); color:#f7cfe9; }
+.tile {
+  position:relative; border-radius:9px; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; cursor:pointer;
+  border:1px solid rgba(255,255,255,0.20);
+  padding-top:11px;   /* 内容整体下移，避开左上角的原子序数，避免与元素符号重叠 */
+  transition:transform .12s var(--ease-out), box-shadow .12s, opacity .25s, filter .25s;
+  user-select:none;
+}
+.tile:hover { transform:scale(1.10); z-index:6; box-shadow:0 0 14px rgba(255,255,255,0.30); }
+.t-num { position:absolute; top:2px; left:4px; font-size:calc(9px * var(--ts,1)); color:#fff; line-height:1; text-shadow:0 1px 2px rgba(0,0,0,0.85); }
+.t-mass { font-size:calc(7.5px * var(--ts,1)); color:#fff; line-height:1; margin-top:1.5px; text-shadow:0 1px 2px rgba(0,0,0,0.85); }
+.t-sym { font-size:calc(15px * var(--ts,1)); font-weight:700; color:#fff; line-height:1.05; text-shadow:0 0 2px rgba(0,0,0,0.95), 0 1px 3px rgba(0,0,0,0.9); }
+/* 元素符号颜色表示常温状态（固 / 液 / 气），描边保证在任何底色上都清晰 */
+.tile.st-s .t-sym { color:#ffffff; }
+.tile.st-l .t-sym { color:#67e8f9; }
+.tile.st-g .t-sym { color:#fde047; }
+.tile.st-u .t-sym { color:#e2e8f0; }
+.t-zh { font-size:calc(9.5px * var(--ts,1)); font-weight:600; color:#fff; margin-top:1px; text-shadow:0 1px 3px rgba(0,0,0,0.9); }
+.tile.row-hl { box-shadow:0 0 0 1.5px rgba(255,190,110,0.85), 0 0 10px rgba(255,190,110,0.35); }
+.tile.col-hl { box-shadow:0 0 0 1.5px rgba(120,200,255,0.85), 0 0 10px rgba(120,200,255,0.35); }
+.tile.row-hl.col-hl { box-shadow:0 0 0 2px rgba(255,215,160,0.95), 0 0 14px rgba(255,190,110,0.5); }
+.tile.selected { outline:2px solid #ffd47f; outline-offset:1px; z-index:4; }
+.tile.cmp-mark { outline:2px dashed #7fe0ff; outline-offset:1px; }
+.tile.dim { opacity:0.14; filter:grayscale(1); }
+.tile.nodata { background:#4a5262 !important; }
+.t-placeholder { display:flex; align-items:center; justify-content:center; font-size:10px; color:#c2d4ea; border:1px dashed rgba(255,255,255,0.18); border-radius:9px; }
+#chart-panel { min-height:0; }
+#chart-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.chart-toggle { background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); color:#eaf2ff; border-radius:7px; font-size:9.5px; padding:2px 8px; cursor:pointer; font-family:inherit; }
+.chart-toggle:hover { background:rgba(255,170,85,0.25); border-color:#ffaa66; }
+#chart-panel.folded #trend-svg { display:none; }
+#chart-title { font-size:12px; font-weight:600; color:#ffd9a0; margin:0 0 2px; }
+#trend-svg { width:100%; display:block; }
+#info-sidebar { width:240px; flex-shrink:0; display:flex; flex-direction:column; gap:10px; }
+#info-panel { flex:3 1 0; overflow-y:auto; min-height:0; }
+#teach-panel { flex:2 1 0; overflow-y:auto; min-height:0; }
+.info-item { display:flex; justify-content:space-between; gap:6px; padding:3px 0; border-bottom:1px dashed rgba(255,255,255,0.10); line-height:1.35; font-size:10.5px; }
+  .elem-photo { position:relative; margin:0 0 6px; border-radius:7px; overflow:hidden;
+             background:radial-gradient(ellipse at 50% 35%, rgba(255,255,255,0.06) 0%, rgba(0,0,0,0.18) 70%);
+             box-shadow:inset 0 0 0 1px rgba(255,255,255,0.07); aspect-ratio:1/1; }
+  .elem-photo img { display:block; width:100%; height:100%; object-fit:cover;
+                    background:#0d1220; opacity:0; transition:opacity .25s ease; }
+  .elem-photo img.loaded { opacity:1; }
+  .elem-photo .ph-fake { position:absolute; right:4px; top:4px; background:rgba(190,90,90,.88);
+                          color:#fff; font-size:9.5px; padding:1px 5px; border-radius:4px;
+                          letter-spacing:0.5px; }
+  .elem-photo .ph-cap { position:absolute; left:0; right:0; bottom:0; padding:3px 6px;
+                        font-size:9px; color:#cbd8ec; background:linear-gradient(transparent,rgba(0,0,0,0.55));
+                        text-align:right; opacity:0; transition:opacity .2s ease; }
+  .elem-photo:hover .ph-cap { opacity:1; }
+  #app-container.light-bg .elem-photo { background:radial-gradient(ellipse at 50% 35%, rgba(255,255,255,0.5) 0%, rgba(200,210,225,0.2) 70%);
+                                     box-shadow:inset 0 0 0 1px rgba(0,0,0,0.08); }
+  #app-container.light-bg .elem-photo img { background:#dde4ee; }
+  #app-container.light-bg .elem-photo .ph-cap { color:#445; background:linear-gradient(transparent,rgba(255,255,255,0.7)); }
+.info-item span { color:#cbd8ec; flex-shrink:0; }
+.info-item b { text-align:right; color:#fff; font-weight:600; }
+.el-bk { color:inherit; text-decoration:none; border-bottom:1px dashed rgba(255,212,127,0.45); }
+.el-bk:hover, .el-bk:focus-visible { color:#ffd47f; border-bottom-color:#ffd47f; }
+.el-bk .el-bk-ico { font-style:normal; font-size:10px; font-weight:400; color:#ffd47f; opacity:.72; margin-left:4px; white-space:nowrap; }
+.el-bk:hover .el-bk-ico { opacity:1; }
+#detail-empty { color:#b0c4dd; font-size:11px; line-height:1.7; }
+#teach-content { line-height:1.7; color:#f2f6ff; font-size:11.5px; }
+#teach-content strong { color:#ffcc88; }
+.cmp-row { margin:4px 0 7px; }
+.cmp-label { display:flex; justify-content:space-between; font-size:10px; color:#c6d4e8; margin-bottom:2px; }
+.cmp-bar-track { height:9px; border-radius:5px; background:rgba(255,255,255,0.08); overflow:hidden; }
+.cmp-bar { height:100%; border-radius:5px; }
+body::-webkit-scrollbar, #controls-panel::-webkit-scrollbar, #table-area::-webkit-scrollbar,
+#info-panel::-webkit-scrollbar, #teach-panel::-webkit-scrollbar { width:5px; height:6px; }
+body::-webkit-scrollbar-track, #controls-panel::-webkit-scrollbar-track, #table-area::-webkit-scrollbar-track,
+#info-panel::-webkit-scrollbar-track, #teach-panel::-webkit-scrollbar-track { background:transparent; }
+body::-webkit-scrollbar-thumb, #controls-panel::-webkit-scrollbar-thumb, #table-area::-webkit-scrollbar-thumb,
+#info-panel::-webkit-scrollbar-thumb, #teach-panel::-webkit-scrollbar-thumb { background:rgba(255,170,0,0.45); border-radius:4px; }
+body::-webkit-scrollbar-thumb:hover, #controls-panel::-webkit-scrollbar-thumb:hover, #table-area::-webkit-scrollbar-thumb:hover,
+#info-panel::-webkit-scrollbar-thumb:hover, #teach-panel::-webkit-scrollbar-thumb:hover { background:rgba(255,170,0,0.8); }
+#app-container.light-bg #topbar, #app-container.light-bg .glass-panel {
+  background:rgba(235,240,248,0.80); border-color:rgba(120,140,175,0.35);
+  box-shadow:0 10px 30px rgba(30,50,80,0.18);
+}
+#app-container.light-bg .brand-title { color:#223; }
+#app-container.light-bg .brand-sub { color:#556; }
+#app-container.light-bg .top-btn { color:#223; border-color:rgba(70,90,120,0.35); background:rgba(255,255,255,0.5); }
+#app-container.light-bg .top-btn:hover { background:rgba(255,170,85,0.25); color:#223; }
+#app-container.light-bg .glass-panel .panel-title { color:#b06a00; border-color:rgba(70,90,120,0.25); }
+#app-container.light-bg #controls-panel h4 { color:#667; }
+#app-container.light-bg .filter-btn, #app-container.light-bg .mode-btn { color:#223; border-color:rgba(70,90,120,0.35); background:rgba(255,255,255,0.5); }
+#app-container.light-bg .filter-btn.active-filter, #app-container.light-bg .mode-btn.active-filter { background:rgba(255,170,85,0.4); border-color:#c07818; color:#223; }
+#app-container.light-bg .search-input, #app-container.light-bg .sel-input { color:#223; border-color:rgba(70,90,120,0.35); background:rgba(255,255,255,0.65); }
+#app-container.light-bg .search-hint { color:#667; }
+#app-container.light-bg #table-area { background:rgba(240,246,252,0.55); border-color:rgba(70,110,170,0.30); }
+#app-container.light-bg .gh, #app-container.light-bg .ph { color:#556; }
+#app-container.light-bg .fh { color:#8a4a78; }
+#app-container.light-bg .lg-item { color:#334; }
+#app-container.light-bg .cell-panel-fn { color:#145c8a; }
+#app-container.light-bg #cell-panel { background:rgba(235,240,248,0.78); border-color:rgba(70,110,170,0.8) !important; }
+#app-container.light-bg .info-item span { color:#556; }
+#app-container.light-bg .info-item b { color:#112; }
+#app-container.light-bg #detail-box .dt-name { color:#112; }
+#app-container.light-bg .el-bk { border-bottom-color:rgba(160,90,0,0.40); }
+#app-container.light-bg .el-bk:hover, #app-container.light-bg .el-bk:focus-visible { color:#a05a00; border-bottom-color:#a05a00; }
+#app-container.light-bg .el-bk .el-bk-ico { color:#a05a00; }
+#app-container.light-bg .info-item { border-color:rgba(0,0,0,0.10); }
+#app-container.light-bg #teach-content { color:#334; }
+#app-container.light-bg #teach-content strong { color:#a05a00; }
+#app-container.light-bg #detail-empty { color:#667; }
+#app-container.light-bg #chart-title { color:#8a4a00; }
+.nt-law { color:#ffd47f; }          /* 规律 */
+.nt-why { color:#9decfb; }          /* 成因 */
+#app-container.light-bg .nt-law { color:#a05a00; }
+#app-container.light-bg .nt-why { color:#0a6a86; }
+#app-container.light-bg .cmp-label { color:#445; }
+#app-container.light-bg .cmp-bar-track { background:rgba(0,0,0,0.10); }
+#app-container.light-bg .chart-toggle { color:#223; border-color:rgba(70,90,120,0.35); background:rgba(255,255,255,0.5); }
+#app-container.light-bg #wm { color:rgba(30,50,80,0.35); }
+#app-container.light-bg .t-placeholder { color:#556; border-color:rgba(70,90,120,0.35); }
+@media (orientation:portrait) {
+  #main-row { flex-direction:column; }
+  #sidebar:not(.collapsed), #info-sidebar { width:100% !important; }
+  #app-container { min-width:0 !important; }
+}
+
+/* ============ 打印讲义 ============ */
+@media print {
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  body, #app-container { background:#fff !important; min-width:0 !important; }
+  #topbar .top-btn, #btn-print, .back-home-btn, #sidebar, #sidebar-rail, #info-sidebar,
+  #chart-panel, #geog-bar, #table-overlay, #cell-panel, #orbit-panel, #wm, .user-actions, .top-btn {
+    display:none !important;
+  }
+  #topbar { border-bottom:1px solid #ccc; }
+  #main-row { display:block; }
+  #center-col { display:block; width:100% !important; }
+  #table-area {
+    box-shadow:none !important; border:none !important; background:#fff !important;
+    padding:0 4px !important; overflow:visible !important; border-radius:0 !important;
+  }
+  .ptable { width:100% !important; transform:none !important; }
+  .tile { border:1px solid rgba(0,0,0,0.35) !important; border-radius:4px !important; box-shadow:none !important; }
+  .t-sym, .t-zh, .t-num, .t-mass { text-shadow:none !important; }
+  .gh, .ph, .fh { color:#333 !important; }
+  /* 图例改为静态块，印在表格下方作为讲义图例 */
+  #legend-panel {
+    --lg:1 !important; position:static !important; display:block !important; margin:10px 0 0 !important;
+    background:#fff !important; box-shadow:none !important; border:1px solid #bbb !important; border-radius:6px !important;
+  }
+  #legend-panel .lg-chip, #legend-panel .lg-gtitle, #legend-panel .lg-hint { color:#222 !important; }
+  #legend-panel .lg-chip.active-filter, #legend-panel .lg-gtitle.active-filter { background:transparent !important; border-color:#999 !important; }
+  #legend-panel .lg-dot { border:1px solid rgba(0,0,0,0.45) !important; }
+  #legend-panel .lg-reset { display:none !important; }
+  .lg-item { color:#333; }
+}
+</style>
+
+<style id="chem-lab-embed-style">
+  /* ITstudy 化学仿真统一壳：隐藏原站顶栏/品牌/版权水印。
+     不强制页面高度与 overflow —— 各页面自有布局（周期表需要滚动，
+     3D 页需要全屏），统一覆盖会把周期表底部裁掉。 */
+  #topbar, #copyright, .wm-copyright, #btn-home,
+  .topbar-actions, .back-home-btn,
+  .brand, .brand-title, #brand-logo { display: none !important; }
+  canvas { max-width: 100%; }
+  /* 课堂 iframe 高度较小时：周期表隐藏趋势图、压缩行高，保证 118 元素可见 */
+  @media (max-height: 720px) {
+    #chart-panel { display: none !important; }
+    .ptable.size-s { grid-auto-rows: 32px !important; }
+    #info-sidebar { width: 220px; }
+  }
+</style>
+</head>
+<body data-page-node-id="TYbdP7gWZ7vSU83Grgh6aj">
+<div id="app-container" data-page-node-id="MJUVr8fxtn5d4TdlBSAN6h">
+  <div id="topbar" class="glass" data-page-node-id="Sm4aAELlj2CnSpy8Frthr6">
+    <div class="brand" data-page-node-id="PGQ8HOJylbrHT3SIAuEfdN">
+      <img class="brand-logo" src="favicon.png" alt="可视化化学" data-page-node-id="b72qCo40tFtIEwKVpP9sEA">
+      <div class="brand-text" data-page-node-id="jhR3ikSyT2AKtgdp9ULhCb">
+        <div class="brand-title" data-page-node-id="F8FEgi1dTy66LCuTkSEXAW">可视化化学<span class="brand-divider" data-page-node-id="WqRXBvHRXHH7cO7AMvDwz9">·</span>可视化学</div>
+        <div class="brand-sub" data-page-node-id="2mOx9k1pUskQh3ojKn7Tso">元素周期表 · 周期律探索 <span style="opacity:.55;" data-page-node-id="K15tpj71z1q0lVxDFVxUfW">v2.4</span></div>
+      </div>
+    </div>
+    <div class="topbar-actions" data-page-node-id="LZCFFUhJPixDvJvvYivnwg">
+      <a class="top-btn" href="index.html" target="_top" data-page-node-id="CA0YjnUUlNaqBIrfKH9t21">主页</a>
+      <div class="mode-switch" id="mode-switch" role="group" aria-label="显示模式" data-page-node-id="ySvbPMKD8SuKwecYqEXkdI">
+        <button class="mode-btn active" data-mode="std" title="着色、元素信息、周期律趋势" data-page-node-id="sajXdDWHgf5rVGb0ciglEX">标准模式</button>
+        <button class="mode-btn" data-mode="orbit" title="查看各元素的轨道填充（泡利原理与洪特规则）" data-page-node-id="305IGO7ViHXP1iwFHhcRTj">电子层模式</button>
+      </div>
+      <button class="top-btn" id="btn-reset" data-page-node-id="6kOrQphmRH4ogWNRnsQmcE">重置显示</button>
+      <button class="top-btn" id="btn-print" data-page-node-id="oqasVEFilUFsxzlHG20gd7">打印讲义</button>
+      <button class="top-btn" id="btn-bg-toggle" data-page-node-id="cy2D9xlwHXxLNZCS8PEovm">切换浅色背景</button>
+    </div>
+  </div>
+
+  <div id="main-row" data-page-node-id="RsAWUxQph36bjXyYzaR47U">
+    <div id="sidebar" class="collapsed" data-page-node-id="Y5GARA0oXNG1HxsMoZEERJ">
+      <div id="sidebar-rail" data-page-node-id="u4BplTzEnRZbTcVd2A7MYn">
+        <button class="rail-btn rail-expand" id="rail-expand" title="展开工具栏" aria-label="展开工具栏" data-page-node-id="GmCe5rtZsj0nH06igCXFhX">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="cnSYu3oBNMaDA1qHEVGYCM"><path d="M9 6l6 6-6 6" data-page-node-id="sbtZ4NQ5FgGGTY5r7oynIT"/></svg>
+        </button>
+        <button class="rail-btn" data-panel="panel-func" title="搜索 / 筛选 / 对比" data-page-node-id="ejrjYU3tAgng7xuba1IBBr">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" data-page-node-id="iyznuRVau8cT3x3M648Etg"><circle cx="11" cy="11" r="7" data-page-node-id="poKlP8sFSA3buV2HUD3d7P"/><line x1="16.5" y1="16.5" x2="21" y2="21" data-page-node-id="e8Wc3mbC5z93i1XAeKNJ6d"/></svg>
+        </button>
+        <button class="rail-btn" data-panel="panel-color" title="着色模式" data-page-node-id="2IA24MWOQS6TPY6AJOYA9W">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" data-page-node-id="YsfDKsUMLescv8a4peGNFb"><path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.8-.9 1.8-1.8 0-1.3-1-1.7-1-2.7 0-.9.7-1.5 1.7-1.5H16a2 2 0 0 0 2-2A9 9 0 0 0 12 3z" data-page-node-id="6Qg8ZVczNXGsyzinwiEOa4"/><circle cx="8" cy="9" r="1.1" fill="currentColor" stroke="none" data-page-node-id="GkPxspyC0aAaJY20C6LDwB"/><circle cx="12" cy="7.5" r="1.1" fill="currentColor" stroke="none" data-page-node-id="ong1K9pkv3WlGYd0h0ZnYT"/><circle cx="16" cy="10" r="1.1" fill="currentColor" stroke="none" data-page-node-id="fI1AzXEy2lhYQBhnZNLjhA"/></svg>
+        </button>
+        <button class="rail-btn" data-panel="panel-trend" title="周期律趋势图" data-page-node-id="3lGAu0gpAaYVSd8EN72tDG">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="di3vMKVba5Vxk2nwvHH7tj"><path d="M3 20V4M3 20h18" data-page-node-id="2wA9ClfSJ9pIMCOKzqoge2"/><path d="M6.5 16l3.5-5 3 3L20 6" data-page-node-id="YPiB9HZkOed9bjylZNNe9a"/></svg>
+        </button>
+      </div>
+      <div id="controls-panel" data-page-node-id="JvzAeoCgg9W7bz1dQIT0lJ">
+        <button class="rail-collapse" id="btn-collapse-sidebar" title="收起侧栏" aria-label="收起侧栏" data-page-node-id="EkMnFxD2d3VBlHEBCaFZE2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="yQ1NMWKLuhN61EVEHkzjOq"><path d="M15 6l-6 6 6 6" data-page-node-id="Dp2y9SuSzx1haXyDNpDsJr"/></svg>
+        </button>
+        <div class="glass-panel" id="panel-func" data-page-node-id="zTSVzOAIAAQwodXoJnxSye">
+          <div class="panel-title" data-page-node-id="GXYkKo6Sb4GO033HTYeRmu">功能模块</div>
+          <div class="control-section" data-page-node-id="XUEhCWfGaTuxpyTKRBERAW">
+            <h4 data-page-node-id="41HWCqag2e4jMQXLLG0Bx7">搜索元素（名称 / 符号 / 序数）</h4>
+            <input class="search-input" id="search" type="text" placeholder="如：钠 / Na / 11" autocomplete="off" data-page-node-id="WIpspoeDOGjxMj9D1EQbIn">
+            <div class="search-hint" data-page-node-id="LBxMloOTThA0kxMbmhJPnl">回车选中第一个匹配元素，实时淡化不匹配项</div>
+          </div>
+          <div class="control-section" data-page-node-id="rzUDTLxBMKNeHEEOvD3aJS">
+            <h4 data-page-node-id="xvzkZYpozC8Jx6VcyxlpA8">元素对比模式</h4>
+            <button class="filter-btn" id="btn-compare" style="width:100%;" data-page-node-id="9mOfjW9F4DGbdvlE0mq3mn">开启对比模式（选两个元素）</button>
+            <div class="search-hint" id="cmp-hint" data-page-node-id="3bM4QHt55IAYEejJ8pUBtQ">开启后依次点击两个元素，将在右侧给出属性对比与金属性强弱判断。</div>
+          </div>
+        </div>
+
+        <div class="glass-panel" id="panel-color" data-page-node-id="2lFeJIN499PPc71sBENxQR">
+          <div class="panel-title" data-page-node-id="59KqCcm7EDIZXHBSkgHlHI">着色模式</div>
+          <div class="control-section" data-page-node-id="4OxaBNbyZ7cPqELIx8yvTv">
+            <div class="grid-2" id="color-modes" data-page-node-id="F5Z79CeW3eZkzZV4AGxLJz"></div>
+          </div>
+          <div class="heat-legend" id="heat-legend" data-page-node-id="02nm0o8donYA26MPqjVJeA">
+            <div class="heat-bar" id="heat-bar" data-page-node-id="63dmHwcK6vl4CjofXAIWqS"></div>
+            <div class="heat-labels" data-page-node-id="4X4A770Xrfw8hzsxXpr6nr"><span id="heat-min" data-page-node-id="ECOL4qlKxsMjqDSbTi28CZ"></span><span id="heat-max" data-page-node-id="8AnlUoG9s5P4WM8Rfr31PO"></span></div>
+          </div>
+        </div>
+
+        <div class="glass-panel" id="panel-trend" data-page-node-id="eskjEJ5dES8wmcDSOf3gNQ">
+          <div class="panel-title" data-page-node-id="6dL6TJC4e2g3tPFq7jGjXF">周期律趋势图</div>
+          <div class="control-section" data-page-node-id="kFFR8uP8ddQwYb5NVECwJR">
+            <h4 data-page-node-id="RjyYaxeP2S2Nmo2U96JQ1u">选择范围</h4>
+            <select class="sel-input" id="sel-range" data-page-node-id="JRqGgTWJxsQIF5zIuNGA9d"></select>
+          </div>
+          <div class="control-section" data-page-node-id="ykmaMcGHnX3pK7fto9AtH6">
+            <h4 data-page-node-id="CVHx71s7FWM5fE9LuBe9CN">选择属性</h4>
+            <select class="sel-input" id="sel-prop" data-page-node-id="TzhHRG50bmmMc4m08Noqmd">
+              <option value="r" data-page-node-id="NF7pLlYCOXBu0Gz6nwAcOD">原子半径（pm）</option>
+              <option value="en" data-page-node-id="7fqng3wVYlw8IjN2Y40C1l">电负性（Pauling）</option>
+              <option value="ie1" data-page-node-id="X28dWCxUKBxOH1NnbEPnmD">第一电离能（kJ/mol）</option>
+              <option value="ie2">第二电离能（kJ/mol）</option>
+              <option value="ie3">第三电离能（kJ/mol）</option>
+              <option value="ie4">第四电离能（kJ/mol）</option>
+              <option value="ea">电子亲和能（kJ/mol）</option>
+              <option value="acid">最高价氧化物对应水化物 · 酸性</option>
+              <option value="base">最高价氧化物对应水化物 · 碱性</option>
+              <option value="hyd">气态氢化物稳定性</option>
+              <option value="met" data-page-node-id="SeStc5KOCP4T4luQajJO0F">金属性（以电负性衡量）</option>
+              <option value="nonmet">非金属性（以电负性衡量）</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="center-col" data-page-node-id="lxJMuaEYzzw3XAyMoSFZAB">
+      <div id="table-area" data-page-node-id="BVCSGq0rdNcz95JAL0fjDU">
+        <div id="cell-panel" class="glass" data-page-node-id="7a1v2GfeCyDcQU7FMH3exF"><div class="cell-panel-fn" id="cell-fn-label" data-page-node-id="lldLoML84F0ykm1J0u62ps">分类着色 · 悬停查看同周期/同族趋势</div></div>
+        <div id="state-legend" data-page-node-id="cJ19jFx0W3jaCD4ZnhU3Sh">
+          <span class="sl-item" data-page-node-id="VYR6MhBxygUbo7UdaVpoUG"><i style="background:#ffffff" data-page-node-id="GxcgP7NuhFugewigGaf5Px"></i>固态</span>
+          <span class="sl-item" data-page-node-id="usyK5puVgdOq9BcP7ZXrbI"><i style="background:#67e8f9" data-page-node-id="sFeEQZt7QluEHPjZ7hFxbg"></i>液态</span>
+          <span class="sl-item" data-page-node-id="JbGSbV6FeH1LxZBHJyxZrh"><i style="background:#fde047" data-page-node-id="k26e5VxbbRUFROirSC8Wwg"></i>气态</span>
+          <span class="sl-note" data-page-node-id="qR2YNlozc1YeJZMOMF6eew">元素符号颜色 = 常温状态</span>
+        </div>
+        <div id="geog-bar" data-page-node-id="pkt8jXd6yJW2y3tNBFCCY2">
+          <label class="geog-label" data-page-node-id="kViJ7iXSMtTaIpfGcsTZvG"><input type="checkbox" id="sw-boundary" checked data-page-node-id="YVBULVMaQk3rohD8MS2n5N"> 金属 / 非金属分界</label>
+          <label class="geog-label" data-page-node-id="kklWYSeHDN6ETjTyRQwwr6"><input type="checkbox" id="sw-diag" data-page-node-id="IosmWW3Y6VCHG34hBFkBEq"> 对角线规则</label>
+        </div>
+        <div id="table-overlay" data-page-node-id="KVs6ejoTbYJtHcw0cERRLV"></div>
+        <div class="ptable size-s" id="ptable" data-page-node-id="9kEDmF4UquRa7azoMKmY67"></div>
+        <div id="wm" data-page-node-id="IIEn6B09k4zEn0qDMrtmMH">可视化化学 · 可视化学</div>
+        <div id="orbit-panel" class="glass" data-page-node-id="kjYwRa9afd5VEZQAWk3H2h">
+          <div id="orbit-head" data-page-node-id="uSWaPO2QkqHIhmhyNuoG3g">
+            <span id="orbit-name" data-page-node-id="vjatqPZhks8lkeA5pUZXG8">点击元素查看轨道填充</span>
+            <span id="orbit-conf" data-page-node-id="rXHjQAzEDp6ZcYhVXNgXgS"></span>
+            <button class="orbit-close" id="orbit-close" title="收起" data-page-node-id="1HtYHFxGfRWsJlZdA1g7er">×</button>
+          </div>
+          <div class="orbit-grid" id="orbit-grid" data-page-node-id="ijXYt5K6l94QoFDDRfsYwj"></div>
+        </div>
+        <div id="legend-panel" class="show">
+          <div class="lg-head">
+            <span class="lg-hint">元素分类图例 · 点击筛选</span>
+            <button class="lg-reset" id="btn-lg-reset">全部</button>
+          </div>
+          <div id="legend-bar" data-page-node-id="sXnPeI5sQLEprQMIPwq6c8"></div>
+        </div>
+      </div>
+      <div class="glass-panel" id="chart-panel" data-page-node-id="iHXqrm9FCvSVOBl30zh4NI">
+        <div id="chart-head" data-page-node-id="LdIfVtUbVBHmjEwbnOI6Am"><div id="chart-title" data-page-node-id="EAnCN6xHAyZJ2t1iLpEd7V">周期律趋势图</div><button class="chart-toggle" id="btn-chart-toggle" data-page-node-id="lDamJGyf5KmXCjscxayBf1">收起</button></div>
+        <svg id="trend-svg" viewBox="0 0 960 250" preserveAspectRatio="xMidYMid meet" data-page-node-id="4ZMqx7PJMGGoxW3j3w1uZx"></svg>
+      </div>
+    </div>
+
+    <div id="info-sidebar" data-page-node-id="RseM6ByNNF3ksoGpSvVKxt">
+      <div id="info-panel" class="glass-panel" data-page-node-id="NUY13fcvmFu9qDn2YZKitY">
+        <div class="panel-title" data-page-node-id="M94CPQubBhzfzouwsSHnnF">元素信息</div>
+        <div id="detail-empty" data-page-node-id="WE8pFFwx3EWPhQ7rdKeC9a">点击任意元素查看详细信息，<br data-page-node-id="sGGIUockZureSX1FmDrRm1">悬停可高亮同周期（行）与同族（列）。<br data-page-node-id="n9dgWT2tOtKHyEsGPY1LcD"><br data-page-node-id="sdwJjOMaYxev7OGvcQnbCs">半径口径：共价半径（稀有气体为范德华半径）。<br data-page-node-id="lYeGg8eyCV7B3lsQoiuaiz">电负性：Pauling 标度。</div>
+        <div id="detail-box" style="display:none;" data-page-node-id="P9deNoWLAWMBhUdQsCEAPh"></div>
+      </div>
+      <div id="teach-panel" class="glass-panel" data-page-node-id="DsIpEV5vzKxZKcXIAcDIHR">
+        <div class="panel-title" data-page-node-id="bPAYI2WJU6DoLE5A50pJIy">教学解析 · 周期律</div>
+        <div id="teach-content" data-page-node-id="SDRWwFHc9GxSH1YpTc3YPY"><strong data-page-node-id="xNebkeOQYOlauYdlQZEp4E">元素周期律</strong><br data-page-node-id="U2Qa904t6MWnWICQordJhw">元素性质随原子序数递增呈周期性变化，根源在于电子层结构的周期性重复。<br data-page-node-id="MPiQ66kyOqJ78AFGBANH4K"><br data-page-node-id="p3XF5YDsBQ9n6VTxpi0qpH"><strong data-page-node-id="1lDuLwj1NdU85HtOGBAANf">同周期（左→右）</strong><br data-page-node-id="moAWldqz2i7bYt8wRRv27F">原子半径逐渐减小，电负性与第一电离能总体增大，金属性逐渐减弱、非金属性逐渐增强。<br data-page-node-id="60tOHtPHToCWn3H9yEjyKA"><br data-page-node-id="FkE61drXJEJwTHjaM5TwQV"><strong data-page-node-id="Lp747I850N8OIXdUHHlbji">同族（上→下）</strong><br data-page-node-id="rED0lmZhSnBngEeecRmSdC">电子层数增多，半径增大，电负性减小，金属性逐渐增强、非金属性逐渐减弱。<br data-page-node-id="ONGnDtNeJ5NiGhdVcfMVJC"><br data-page-node-id="8VJMhdoVzOGzPRTjLas5Mf"><strong data-page-node-id="rri5h3wAEigz4kfbfLHXXd">左下 → 右上</strong><br data-page-node-id="ARqnshYV2iuzSgbstrGWTQ">金属性最强：Cs（Fr 放射性极强）；非金属性最强：F。沿 B–Si–As–Te–At 一线为金属与非金属分界。<br data-page-node-id="nDzVJtzdw4brnxbQCqMqn4"><br data-page-node-id="XLI5X19gyelWmsnwo3UZ3O"><span style="color:#8fa3bf;" data-page-node-id="E4BFV27dbotdU91oRp9yKZ">点击元素可查看针对该元素的周期律解析（含第一电离能反常讲解）。</span></div>
+      </div>
+  </div>
+</div>
+</div>
+
+<script>
+"use strict";
+const CAT = {
+  al:{name:"碱金属", c:"#e05656"},
+  ae:{name:"碱土金属", c:"#e8973d"},
+  tm:{name:"过渡金属", c:"#ddd05a"},
+  pt:{name:"其他金属", c:"#94a7bd"},
+  md:{name:"类金属", c:"#4fb8a8"},
+  nm:{name:"非金属", c:"#4fc26b"},
+  hal:{name:"卤素", c:"#4f9be8"},
+  ng:{name:"稀有气体", c:"#9b7fd4"},
+  ln:{name:"镧系元素", c:"#e07ab8"},
+  an:{name:"锕系元素", c:"#b05590"}
+};
+// 分类图例分组：金属（左）· 类金属（中）· 非金属（右）；大类在上、小类在下，点击即筛选
+// c 为单色；含空格表示双色，渲染为对角拼接（用于合并的小类）
+const CAT_GROUPS = [
+  { name:"金属", c:"#e8b45a", rows:3, items:[
+    { name:"碱金属",   cats:["al"],        c:"#e05656" },
+    { name:"碱土金属", cats:["ae"],        c:"#e8973d" },
+    { name:"过渡金属", cats:["tm"],        c:"#ddd05a" },
+    { name:"镧系·锕系", cats:["ln","an"],   c:"#e07ab8 #b05590" },
+    { name:"其他金属", cats:["pt"],        c:"#94a7bd" }
+  ]},
+  { name:"类金属", c:"#4fb8a8", rows:1, items:[
+    { name:"类金属", cats:["md"], c:"#4fb8a8" }
+  ]},
+  { name:"非金属", c:"#5ecb7a", rows:2, items:[
+    { name:"活泼非金属", cats:["nm","hal"], c:"#4fc26b #4f9be8" },
+    { name:"稀有气体",   cats:["ng"],       c:"#9b7fd4" }
+  ]}
+];
+const GNAME = {1:"ⅠA",2:"ⅡA",3:"ⅢB",4:"ⅣB",5:"ⅤB",6:"ⅥB",7:"ⅦB",8:"Ⅷ",9:"Ⅷ",10:"Ⅷ",11:"ⅠB",12:"ⅡB",13:"ⅢA",14:"ⅣA",15:"ⅤA",16:"ⅥA",17:"ⅦA",18:"ⅧA"};
+const RAW = [
+[1,"H","氢",1.008,"nm",1,1,2.20,31,1312,"1",14,20,"最轻元素，恒星聚变燃料，清洁能源载体"],
+[2,"He","氦",4.0026,"ng",18,1,null,28,2372,"2",null,4,"飞艇与深潜混合气，液氦用于超导磁体"],
+[3,"Li","锂",6.94,"al",1,2,0.98,128,520,"2,1",454,1615,"最轻金属，锂电池核心材料"],
+[4,"Be","铍",9.0122,"ae",2,2,1.57,96,899,"2,2",1560,2742,"轻质刚性金属，X射线窗口材料"],
+[5,"B","硼",10.81,"md",13,2,2.04,84,801,"2,3",2349,4200,"硼硅玻璃、硼砂，半导体掺杂剂"],
+[6,"C","碳",12.011,"nm",14,2,2.55,76,1087,"2,4",3823,4098,"有机物骨架，金刚石、石墨与石墨烯"],
+[7,"N","氮",14.007,"nm",15,2,3.04,71,1402,"2,5",63,77,"大气78%，合成氨与保护气"],
+[8,"O","氧",15.999,"nm",16,2,3.44,66,1314,"2,6",54,90,"呼吸与燃烧必需，地壳含量最高"],
+[9,"F","氟",18.998,"hal",17,2,3.98,57,1681,"2,7",53,85,"电负性最大，特氟龙与含氟牙膏"],
+[10,"Ne","氖",20.180,"ng",18,2,null,58,2081,"2,8",25,27,"霓虹灯红光，低温制冷剂"],
+[11,"Na","钠",22.990,"al",1,3,0.93,166,496,"2,8,1",371,1156,"食盐成分，典型活泼金属"],
+[12,"Mg","镁",24.305,"ae",2,3,1.31,141,738,"2,8,2",923,1363,"轻合金，叶绿素中心原子"],
+[13,"Al","铝",26.982,"pt",13,3,1.61,121,578,"2,8,3",933,2792,"地壳最丰富金属，轻量化材料"],
+[14,"Si","硅",28.085,"md",14,3,1.90,111,787,"2,8,4",1687,3538,"芯片与光伏的基础元素"],
+[15,"P","磷",30.974,"nm",15,3,2.19,107,1012,"2,8,5",317,554,"磷肥，DNA骨架，火柴"],
+[16,"S","硫",32.06,"nm",16,3,2.58,105,1000,"2,8,6",388,718,"硫酸制造，橡胶硫化"],
+[17,"Cl","氯",35.45,"hal",17,3,3.16,102,1251,"2,8,7",172,239,"自来水消毒，PVC塑料"],
+[18,"Ar","氩",39.95,"ng",18,3,null,106,1521,"2,8,8",84,87,"焊接保护气，灯泡填充"],
+[19,"K","钾",39.098,"al",1,4,0.82,203,419,"2,8,8,1",337,1032,"神经信号传递，钾肥"],
+[20,"Ca","钙",40.078,"ae",2,4,1.00,176,590,"2,8,8,2",1115,1757,"骨骼牙齿，水泥石灰"],
+[21,"Sc","钪",44.956,"tm",3,4,1.36,170,633,"2,8,9,2",1814,3109,"铝合金添加剂，燃料电池材料"],
+[22,"Ti","钛",47.867,"tm",4,4,1.54,160,659,"2,8,10,2",1941,3560,"强度高质量轻，人工关节与航天"],
+[23,"V","钒",50.942,"tm",5,4,1.63,153,651,"2,8,11,2",2183,3680,"微量即强化钢材，钒液流电池"],
+[24,"Cr","铬",51.996,"tm",6,4,1.66,139,653,"2,8,13,1",2180,2944,"不锈钢与电镀，红宝石呈色"],
+[25,"Mn","锰",54.938,"tm",7,4,1.55,139,717,"2,8,13,2",1519,2095,"炼钢脱氧剂，干电池正极"],
+[26,"Fe","铁",55.845,"tm",8,4,1.83,132,763,"2,8,14,2",1811,3134,"地核主要成分，钢铁工业基石"],
+[27,"Co","钴",58.933,"tm",9,4,1.88,126,760,"2,8,15,2",1768,3200,"锂电池正极，高强度磁体"],
+[28,"Ni","镍",58.693,"tm",10,4,1.91,124,737,"2,8,16,2",1728,3186,"不锈钢，硬币，催化剂"],
+[29,"Cu","铜",63.546,"tm",11,4,1.90,132,746,"2,8,18,1",1358,2835,"优良导体，电线与青铜器"],
+[30,"Zn","锌",65.38,"tm",12,4,1.65,122,906,"2,8,18,2",693,1180,"镀锌防腐，干电池"],
+[31,"Ga","镓",69.723,"pt",13,4,1.81,123,579,"2,8,18,3",303,2477,"低熔点金属(约30°C)，半导体GaAs"],
+[32,"Ge","锗",72.630,"md",14,4,2.01,120,762,"2,8,18,4",1211,3106,"早期晶体管材料，红外光学"],
+[33,"As","砷",74.922,"md",15,4,2.18,119,947,"2,8,18,5",1090,887,"砷化镓半导体，剧毒砒霜成分"],
+[34,"Se","硒",78.971,"nm",16,4,2.55,120,941,"2,8,18,6",494,958,"光敏材料，抗氧化微量元素"],
+[35,"Br","溴",79.904,"hal",17,4,2.96,120,1140,"2,8,18,7",266,332,"常温唯一液态非金属，阻燃剂"],
+[36,"Kr","氪",83.798,"ng",18,4,3.00,116,1351,"2,8,18,8",116,120,"曾用于定义米的标准，高性能灯泡"],
+[37,"Rb","铷",85.468,"al",1,5,0.82,220,403,"2,8,18,8,1",312,961,"原子钟，光电管"],
+[38,"Sr","锶",87.62,"ae",2,5,0.95,195,549,"2,8,18,8,2",1050,1655,"红色烟花，钛酸锶电子陶瓷"],
+[39,"Y","钇",88.906,"tm",3,5,1.22,190,600,"2,8,18,9,2",1799,3609,"LED荧光粉(YAG)，超导材料"],
+[40,"Zr","锆",91.224,"tm",4,5,1.33,175,640,"2,8,18,10,2",2128,4682,"核燃料包壳，锆石宝石"],
+[41,"Nb","铌",92.906,"tm",5,5,1.60,146,652,"2,8,18,12,1",2750,5017,"超导腔体，合金强化"],
+[42,"Mo","钼",95.95,"tm",6,5,2.16,139,684,"2,8,18,13,1",2896,4912,"高温合金，酶的必需微量元素"],
+[43,"Tc","锝",98,"tm",7,5,1.90,138,702,"2,8,18,13,2",2430,4538,"第一个人造元素，医学显像剂"],
+[44,"Ru","钌",101.07,"tm",8,5,2.20,134,710,"2,8,18,15,1",2607,4423,"硬盘记录层，催化剂"],
+[45,"Rh","铑",102.91,"tm",9,5,2.28,134,720,"2,8,18,16,1",2237,3968,"三元催化成分，镜面镀层"],
+[46,"Pd","钯",106.42,"tm",10,5,2.20,133,804,"2,8,18,18",1828,3236,"储氢与催化，钯碳加氢"],
+[47,"Ag","银",107.87,"tm",11,5,1.93,145,731,"2,8,18,18,1",1235,2435,"导电导热最佳，货币与摄影"],
+[48,"Cd","镉",112.41,"tm",12,5,1.69,144,868,"2,8,18,18,2",594,1040,"镍镉电池，量子点，剧毒"],
+[49,"In","铟",114.82,"pt",13,5,1.78,146,558,"2,8,18,18,3",430,2345,"ITO触摸屏透明电极"],
+[50,"Sn","锡",118.71,"pt",14,5,1.96,139,709,"2,8,18,18,4",505,2875,"焊料，青铜，马口铁"],
+[51,"Sb","锑",121.76,"md",15,5,2.05,139,834,"2,8,18,18,5",904,1860,"阻燃剂，铅酸电池板栅"],
+[52,"Te","碲",127.60,"md",16,5,2.10,138,869,"2,8,18,18,6",723,1261,"薄膜太阳能电池，热电材料"],
+[53,"I","碘",126.90,"hal",17,5,2.66,139,1008,"2,8,18,18,7",387,457,"碘伏消毒，加碘盐防甲状腺肿"],
+[54,"Xe","氙",131.29,"ng",18,5,2.60,140,1170,"2,8,18,18,8",161,165,"氙灯，离子推进器工质"],
+[55,"Cs","铯",132.91,"al",1,6,0.79,244,376,"2,8,18,18,8,1",302,944,"最活泼稳定金属，原子钟定义秒"],
+[56,"Ba","钡",137.33,"ae",2,6,0.89,215,503,"2,8,18,18,8,2",1000,2170,"钡餐造影，烟花绿光"],
+[57,"La","镧",138.91,"ln",3,6,1.10,207,538,"2,8,18,18,9,2",1193,3737,"镜头玻璃，储氢合金"],
+[58,"Ce","铈",140.12,"ln",0,6,1.12,204,534,"2,8,18,19,9,2",1068,3716,"打火石，抛光粉，尾气催化"],
+[59,"Pr","镨",140.91,"ln",0,6,1.13,202,527,"2,8,18,21,8,2",1208,3793,"钕铁硼磁体添加，焊接护目镜"],
+[60,"Nd","钕",144.24,"ln",0,6,1.14,201,533,"2,8,18,22,8,2",1297,3347,"最强永磁体NdFeB，风电电机"],
+[61,"Pm","钷",145,"ln",0,6,1.13,199,540,"2,8,18,23,8,2",1315,3273,"放射性镧系，夜光涂料"],
+[62,"Sm","钐",150.36,"ln",0,6,1.17,198,545,"2,8,18,24,8,2",1345,2067,"钐钴高温磁体"],
+[63,"Eu","铕",151.96,"ln",0,6,1.20,198,547,"2,8,18,25,8,2",1099,1802,"红色荧光粉，纸币防伪"],
+[64,"Gd","钆",157.25,"ln",0,6,1.20,197,593,"2,8,18,25,9,2",1585,3546,"MRI造影剂，中子吸收"],
+[65,"Tb","铽",158.93,"ln",0,6,1.20,196,566,"2,8,18,27,8,2",1629,3503,"绿色荧光粉，磁致伸缩材料"],
+[66,"Dy","镝",162.50,"ln",0,6,1.22,195,573,"2,8,18,28,8,2",1680,2840,"钕磁体耐热添加，反应堆控制棒"],
+[67,"Ho","钬",164.93,"ln",0,6,1.23,194,581,"2,8,18,29,8,2",1734,2993,"磁矩最强，医用激光"],
+[68,"Er","铒",167.26,"ln",0,6,1.24,192,589,"2,8,18,30,8,2",1802,3141,"光纤放大器(EDFA)，粉色玻璃"],
+[69,"Tm","铥",168.93,"ln",0,6,1.25,190,597,"2,8,18,31,8,2",1818,2223,"便携X光源，激光材料"],
+[70,"Yb","镱",173.05,"ln",0,6,1.26,187,603,"2,8,18,32,8,2",1097,1469,"镱原子钟，光纤材料"],
+[71,"Lu","镥",174.97,"ln",0,6,1.27,187,524,"2,8,18,32,9,2",1925,3675,"PET扫描晶体，催化剂"],
+[72,"Hf","铪",178.49,"tm",4,6,1.30,175,659,"2,8,18,32,10,2",2506,4876,"反应堆控制棒，芯片栅极材料"],
+[73,"Ta","钽",180.95,"tm",5,6,1.50,170,761,"2,8,18,32,11,2",3290,5731,"手机电容，人体植入材料"],
+[74,"W","钨",183.84,"tm",6,6,2.36,162,770,"2,8,18,32,12,2",3695,5828,"熔点最高金属，灯丝与穿甲弹"],
+[75,"Re","铼",186.21,"tm",7,6,1.90,159,760,"2,8,18,32,13,2",3459,5869,"喷气发动机叶片，最晚发现的稳定元素"],
+[76,"Os","锇",190.23,"tm",8,6,2.20,144,840,"2,8,18,32,14,2",3306,5285,"密度最大的元素，笔尖"],
+[77,"Ir","铱",192.22,"tm",9,6,2.20,141,880,"2,8,18,32,15,2",2719,4701,"抗腐蚀最强，标准米尺与铱合金"],
+[78,"Pt","铂",195.08,"tm",10,6,2.28,136,870,"2,8,18,32,17,1",2041,4098,"催化转化器，首饰与标准砝码"],
+[79,"Au","金",196.97,"tm",11,6,2.54,136,890,"2,8,18,32,18,1",1337,3129,"化学性质最稳定的金属，芯片键合"],
+[80,"Hg","汞",200.59,"tm",12,6,2.00,132,1007,"2,8,18,32,18,2",234,630,"常温唯一液态金属，体温计(已淘汰)"],
+[81,"Tl","铊",204.38,"pt",13,6,1.62,145,589,"2,8,18,32,18,3",577,1746,"剧毒，红外光学材料"],
+[82,"Pb","铅",207.2,"pt",14,6,2.33,146,716,"2,8,18,32,18,4",601,2022,"铅酸电池，防辐射屏蔽"],
+[83,"Bi","铋",208.98,"pt",15,6,2.02,148,703,"2,8,18,32,18,5",544,1837,"低熔点合金，胃药，彩虹色晶体"],
+[84,"Po","钋",209,"md",16,6,2.00,146,812,"2,8,18,32,18,6",527,1235,"放射性极强，中子源"],
+[85,"At","砹",210,"hal",17,6,2.20,147,890,"2,8,18,32,18,7",575,610,"天然存在最稀少，靶向α治疗研究"],
+[86,"Rn","氡",222,"ng",18,6,2.20,150,1037,"2,8,18,32,18,8",202,211,"地下放射性气体，肺癌诱因"],
+[87,"Fr","钫",223,"al",1,7,0.70,260,380,"2,8,18,32,18,8,1",300,950,"极不稳定，存在时间以分钟计"],
+[88,"Ra","镭",226,"ae",2,7,0.90,221,509,"2,8,18,32,18,8,2",973,2010,"居里夫人发现，曾用于夜光表"],
+[89,"Ac","锕",227,"an",3,7,1.10,215,499,"2,8,18,32,18,9,2",1323,3471,"放射性，中子源研究"],
+[90,"Th","钍",232.04,"an",0,7,1.30,206,587,"2,8,18,32,18,10,2",2115,5061,"潜在核燃料(钍基熔盐堆)"],
+[91,"Pa","镤",231.04,"an",0,7,1.50,200,568,"2,8,18,32,20,9,2",1841,4300,"天然放射性元素"],
+[92,"U","铀",238.03,"an",0,7,1.38,196,598,"2,8,18,32,21,9,2",1405,4404,"核电站燃料"],
+[93,"Np","镎",237,"an",0,7,1.36,190,605,"2,8,18,32,22,9,2",917,4273,"首个超铀元素"],
+[94,"Pu","钚",244,"an",0,7,1.28,187,585,"2,8,18,32,24,8,2",913,3501,"核电池(旅行者号)"],
+[95,"Am","镅",243,"an",0,7,1.13,180,578,"2,8,18,32,25,8,2",1449,2880,"烟雾探测器电离源"],
+[96,"Cm","锔",247,"an",0,7,1.28,169,581,"2,8,18,32,25,9,2",1613,3383,"火星车成分分析光源"],
+[97,"Bk","锫",247,"an",0,7,null,null,601,"2,8,18,32,27,8,2",1259,2900,"用于人工合成更重元素"],
+[98,"Cf","锎",251,"an",0,7,null,null,608,"2,8,18,32,28,8,2",1173,1743,"中子源，极其昂贵"],
+[99,"Es","锿",252,"an",0,7,null,null,619,"2,8,18,32,29,8,2",1133,1269,"为纪念爱因斯坦命名"],
+[100,"Fm","镄",257,"an",0,7,null,null,627,"2,8,18,32,30,8,2",1800,null,"为纪念费米命名"],
+[101,"Md","钔",258,"an",0,7,null,null,635,"2,8,18,32,31,8,2",1100,null,"为纪念门捷列夫命名"],
+[102,"No","锘",259,"an",0,7,null,null,642,"2,8,18,32,32,8,2",1100,null,"为纪念诺贝尔命名"],
+[103,"Lr","铹",266,"an",0,7,null,null,470,"2,8,18,32,32,8,3",1900,null,"为纪念劳伦斯命名"],
+[104,"Rf","𬬻",267,"tm",4,7,null,null,null,"2,8,18,32,32,10,2",null,null,"为纪念卢瑟福命名，人工合成"],
+[105,"Db","𬭊",268,"tm",5,7,null,null,null,"2,8,18,32,32,11,2",null,null,"为纪念杜布纳实验室命名"],
+[106,"Sg","𬭳",269,"tm",6,7,null,null,null,"2,8,18,32,32,12,2",null,null,"为纪念西博格命名"],
+[107,"Bh","𬭛",270,"tm",7,7,null,null,null,"2,8,18,32,32,13,2",null,null,"为纪念玻尔命名"],
+[108,"Hs","𬭶",269,"tm",8,7,null,null,null,"2,8,18,32,32,14,2",null,null,"以德国黑森州命名"],
+[109,"Mt","鿏",278,"tm",9,7,null,null,null,"2,8,18,32,32,15,2",null,null,"为纪念迈特纳命名"],
+[110,"Ds","𬭸",281,"tm",10,7,null,null,null,"2,8,18,32,32,16,2",null,null,"以达姆施塔特命名"],
+[111,"Rg","鿔",282,"tm",11,7,null,null,null,"2,8,18,32,32,17,2",null,null,"为纪念伦琴命名"],
+[112,"Cn","鎶",285,"tm",12,7,null,null,null,"2,8,18,32,32,18,2",null,null,"为纪念哥白尼命名"],
+[113,"Nh","鿭",286,"pt",13,7,null,null,null,"2,8,18,32,32,18,3",null,null,"日本理研团队合成"],
+[114,"Fl","𫓧",289,"pt",14,7,null,null,null,"2,8,18,32,32,18,4",null,null,"为纪念弗廖罗夫命名"],
+[115,"Mc","镆",290,"pt",15,7,null,null,null,"2,8,18,32,32,18,5",null,null,"以莫斯科命名"],
+[116,"Lv","𫟷",293,"pt",16,7,null,null,null,"2,8,18,32,32,18,6",null,null,"为纪念利弗莫尔实验室命名"],
+[117,"Ts","鿬",294,"hal",17,7,null,null,null,"2,8,18,32,32,18,7",null,null,"以田纳西州命名，性质为预测"],
+[118,"Og","鿫",294,"ng",18,7,null,null,null,"2,8,18,32,32,18,8",null,null,"最重元素，为纪念奥加涅相命名"]
+];
+const ELS = RAW.map(a => ({z:a[0], sym:a[1], zh:a[2], mass:a[3], cat:a[4], g:a[5], p:a[6], en:a[7], r:a[8], ie:a[9], shells:a[10], mp:a[11], bp:a[12], desc:a[13]}));
+
+// ---------- 分区判定：镧系锕系 f 区；ⅠAⅡA s 区；ⅢB~Ⅷ d 区；ⅠBⅡB ds 区；ⅢA~0 族 p 区 ----------
+function blockOf(el) {
+  if (el.cat === 'ln' || el.cat === 'an') return 'f';
+  if (el.z === 1 || el.z === 2) return 's';
+  const g = el.g;
+  if (g === 1 || g === 2) return 's';
+  if (g >= 3 && g <= 10) return 'd';
+  if (g === 11 || g === 12) return 'ds';
+  return 'p';
+}
+// 注意：el.ec / el.blk 的赋值延后到脚本末尾（configStr 依赖的 SUBSHELLS 常量在其后才定义）
+const EXTRA = [
+["Hydrogen","-1、+1","1766年 · 卡文迪什"],
+["Helium","0（惰性）","1868年 · 扬森、洛克耶"],
+["Lithium","+1","1817年 · 阿尔弗德松"],
+["Beryllium","+2","1798年 · 沃克兰"],
+["Boron","+3","1808年 · 戴维、盖-吕萨克"],
+["Carbon","-4、+2、+4","古代即已认识"],
+["Nitrogen","-3、+3、+5","1772年 · 丹尼尔·卢瑟福"],
+["Oxygen","-2","1774年 · 普里斯特利、舍勒"],
+["Fluorine","-1","1886年 · 莫瓦桑"],
+["Neon","0","1898年 · 拉姆齐、特拉弗斯"],
+["Sodium","+1","1807年 · 戴维"],
+["Magnesium","+2","1808年 · 戴维"],
+["Aluminium","+3","1825年 · 奥斯特"],
+["Silicon","+4、-4","1824年 · 贝采利乌斯"],
+["Phosphorus","-3、+3、+5","1669年 · 布兰德"],
+["Sulfur","-2、+4、+6","古代即已认识"],
+["Chlorine","-1、+1、+5、+7","1774年 · 舍勒"],
+["Argon","0","1894年 · 瑞利、拉姆齐"],
+["Potassium","+1","1807年 · 戴维"],
+["Calcium","+2","1808年 · 戴维"],
+["Scandium","+3","1879年 · 尼尔松"],
+["Titanium","+2、+3、+4","1791年 · 格雷戈尔"],
+["Vanadium","+2、+3、+4、+5","1801年 · 里奥"],
+["Chromium","+2、+3、+6","1794年 · 沃克兰"],
+["Manganese","+2、+4、+6、+7","1774年 · 加恩"],
+["Iron","+2、+3","古代即已认识"],
+["Cobalt","+2、+3","1735年 · 布兰特"],
+["Nickel","+2","1751年 · 克龙斯泰特"],
+["Copper","+1、+2","古代即已认识"],
+["Zinc","+2","古代即已认识"],
+["Gallium","+3","1875年 · 布瓦博德朗"],
+["Germanium","+2、+4","1886年 · 温克勒"],
+["Arsenic","-3、+3、+5","1250年 · 大阿尔伯特"],
+["Selenium","-2、+4、+6","1817年 · 贝采利乌斯"],
+["Bromine","-1、+1、+5","1826年 · 巴拉尔"],
+["Krypton","0、+2","1898年 · 拉姆齐、特拉弗斯"],
+["Rubidium","+1","1861年 · 本生、基尔霍夫"],
+["Strontium","+2","1790年 · 霍普"],
+["Yttrium","+3","1794年 · 加多林"],
+["Zirconium","+4","1789年 · 克拉普罗特"],
+["Niobium","+3、+5","1801年 · 哈切特"],
+["Molybdenum","+4、+6","1778年 · 舍勒"],
+["Technetium","+4、+7","1937年 · 佩里埃、塞格雷"],
+["Ruthenium","+3、+4","1844年 · 克劳斯"],
+["Rhodium","+3","1803年 · 沃拉斯顿"],
+["Palladium","+2、+4","1803年 · 沃拉斯顿"],
+["Silver","+1","古代即已认识"],
+["Cadmium","+2","1817年 · 施特罗迈尔"],
+["Indium","+3","1863年 · 赖希、里希特"],
+["Tin","+2、+4","古代即已认识"],
+["Antimony","+3、+5","古代即已认识"],
+["Tellurium","-2、+4、+6","1782年 · 赖兴施泰因"],
+["Iodine","-1、+1、+5、+7","1811年 · 库尔图瓦"],
+["Xenon","0、+2、+4、+6","1898年 · 拉姆齐、特拉弗斯"],
+["Caesium","+1","1860年 · 本生、基尔霍夫"],
+["Barium","+2","1808年 · 戴维"],
+["Lanthanum","+3","1839年 · 莫桑德尔"],
+["Cerium","+3、+4","1803年 · 克拉普罗特、贝采利乌斯"],
+["Praseodymium","+3","1885年 · 韦尔斯巴赫"],
+["Neodymium","+3","1885年 · 韦尔斯巴赫"],
+["Promethium","+3","1945年 · 马林斯基等"],
+["Samarium","+3","1879年 · 布瓦博德朗"],
+["Europium","+2、+3","1901年 · 德马尔凯"],
+["Gadolinium","+3","1880年 · 马里尼亚克"],
+["Terbium","+3、+4","1843年 · 莫桑德尔"],
+["Dysprosium","+3","1886年 · 布瓦博德朗"],
+["Holmium","+3","1878年 · 索雷特"],
+["Erbium","+3","1843年 · 莫桑德尔"],
+["Thulium","+3","1879年 · 克莱夫"],
+["Ytterbium","+2、+3","1878年 · 马里尼亚克"],
+["Lutetium","+3","1907年 · 于尔班"],
+["Hafnium","+4","1923年 · 科斯特、赫维西"],
+["Tantalum","+5","1802年 · 埃克贝里"],
+["Tungsten","+6","1783年 · 埃尔胡亚尔兄弟"],
+["Rhenium","+4、+7","1925年 · 诺达克夫妇、柏格"],
+["Osmium","+4、+8","1803年 · 特南特"],
+["Iridium","+3、+4","1803年 · 特南特"],
+["Platinum","+2、+4","1735年 · 乌略亚"],
+["Gold","+1、+3","古代即已认识"],
+["Mercury","+1、+2","古代即已认识"],
+["Thallium","+1、+3","1861年 · 克鲁克斯"],
+["Lead","+2、+4","古代即已认识"],
+["Bismuth","+3","1753年 · 热弗鲁瓦"],
+["Polonium","+4","1898年 · 居里夫妇"],
+["Astatine","-1","1940年 · 科尔森、麦肯齐、塞格雷"],
+["Radon","0","1900年 · 多恩"],
+["Francium","+1","1939年 · 佩雷"],
+["Radium","+2","1898年 · 居里夫妇"],
+["Actinium","+3","1899年 · 德比埃尔内"],
+["Thorium","+4","1829年 · 贝采利乌斯"],
+["Protactinium","+5","1913年 · 法扬斯、戈林"],
+["Uranium","+4、+6","1789年 · 克拉普罗特"],
+["Neptunium","+5","1940年 · 麦克米伦"],
+["Plutonium","+4","1940年 · 西博格团队"],
+["Americium","+3","1944年 · 西博格团队"],
+["Curium","+3","1944年 · 西博格团队"],
+["Berkelium","+3、+4","1949年 · 汤普森、吉奥索"],
+["Californium","+3","1950年 · 汤普森等"],
+["Einsteinium","+3","1952年 · 吉奥索团队"],
+["Fermium","+3","1952年 · 吉奥索团队"],
+["Mendelevium","+3","1955年 · 吉奥索团队"],
+["Nobelium","+2、+3","1958年 · 吉奥索团队"],
+["Lawrencium","+3","1961年 · 吉奥索团队"],
+["Rutherfordium","—","1964/1969年 · 杜布纳、伯克利"],
+["Dubnium","—","1967/1970年 · 杜布纳、伯克利"],
+["Seaborgium","—","1974年 · 杜布纳、伯克利"],
+["Bohrium","—","1981年 · 达姆施塔特GSI"],
+["Hassium","—","1984年 · 达姆施塔特GSI"],
+["Meitnerium","—","1982年 · 达姆施塔特GSI"],
+["Darmstadtium","—","1994年 · 达姆施塔特GSI"],
+["Roentgenium","—","1994年 · 达姆施塔特GSI"],
+["Copernicium","—","1996年 · 达姆施塔特GSI"],
+["Nihonium","—","2004年 · 日本理研"],
+["Flerovium","—","1999年 · 杜布纳"],
+["Moscovium","—","2003年 · 杜布纳"],
+["Livermorium","—","2000年 · 杜布纳"],
+["Tennessine","—","2010年 · 杜布纳"],
+["Oganesson","—","2002年 · 杜布纳"]
+];
+const $ = id => document.getElementById(id);
+const byZ = z => ELS[z-1];
+const fmt = v => v==null ? "—" : v;
+
+let colorMode = "cat";
+// 表格网格参数（fitTable 写入）。必须提前声明：buildTable → renderLegend → positionLegend
+// 会读取它，声明若留在 fitTable 之后会触发 TDZ，导致初始化中断（白屏）
+let _pg = null;
+let activeCats = [];        // 当前筛选的类别集合；空数组 = 全部
+let compareOn = false, cmpA = null;
+let selectedZ = null;
+
+const GROUP_LABELS = ["","ⅠA","ⅡA","ⅢB","ⅣB","ⅤB","ⅥB","ⅦB","Ⅷ","Ⅷ","Ⅷ","ⅠB","ⅡB","ⅢA","ⅣA","ⅤA","ⅥA","ⅦA","ⅧA"];
+
+// 连续量着色色阶：单色由浅到深（比彩虹渐变更易读出大小趋势）
+const RAMP = {
+  r:  [[199,210,254],[99,102,241],[49,46,129]],   // 原子半径：蓝紫
+  en: [[254,215,170],[234,88,12],[124,45,18]],    // 电负性：橙
+  ie: [[153,246,228],[13,148,136],[19,78,74]],    // 第一电离能：青绿
+  met:[[185,28,28],[107,114,128],[29,78,216]]     // 金属性：红(强) → 灰(类金属) → 蓝(非金属性强)
+};
+function heatColor(t, stops) {
+  const st = stops || RAMP.r;
+  const x = Math.min(Math.max(t,0),1) * 2;
+  const i = Math.min(Math.floor(x),1), f = x - i;
+  const a = st[i], b = st[i+1];
+  const c = a.map((v,k) => Math.round(v + (b[k]-v)*f));
+  return "rgb(" + c.join(",") + ")";
+}
+
+// 分区配色（s / p / d / ds / f）
+const BLOCK_COLOR = {
+  s:  { name: "s 区（ⅠA、ⅡA）", c: "#e2584d" },
+  p:  { name: "p 区（ⅢA~0 族）", c: "#f0c04a" },
+  d:  { name: "d 区（ⅢB~Ⅷ）", c: "#3fae8f" },
+  ds: { name: "ds 区（ⅠB、ⅡB）", c: "#4b8fe0" },
+  f:  { name: "f 区（镧系、锕系）", c: "#a274d8" }
+};
+
+// ---------- 格子文字：统一白字 + 黑色阴影（用户选定方案） ----------
+
+// 常温状态判定（mp / bp 单位为 K，常温取 298 K）
+const ROOM_K = 298;
+function stateOf(el) {
+  const mp = el.mp, bp = el.bp;
+  if (bp != null && bp <= ROOM_K) return "g";                                  // 气态
+  if (mp != null && mp > ROOM_K) return "s";                                   // 固态
+  if (mp != null && bp != null && mp <= ROOM_K && bp > ROOM_K) return "l";     // 液态
+  return "u";
+}
+function buildTable() {
+  const pt = $("ptable");
+  let html = "";
+  html += "<div></div>";
+  for (let g=1; g<=18; g++) html += "<div class='gh' style='grid-column:"+(g+1)+";grid-row:1;'>"+GROUP_LABELS[g]+"</div>";
+  for (let p=1; p<=7; p++) html += "<div class='ph' style='grid-column:1;grid-row:"+(p+1)+";'>"+p+"</div>";
+  html += "<div class='fh' style='grid-column:1;grid-row:9;'>镧系</div><div class='fh' style='grid-column:1;grid-row:10;'>锕系</div>";
+  ELS.forEach(el => {
+    let row, col;
+    if (el.g === 0) { row = (el.cat==="ln" ? 9 : 10); col = el.z - (el.cat==="ln" ? 58 : 90) + 4; }
+    else { row = el.p + 1; col = el.g + 1; }
+    html += "<div class='tile st-"+stateOf(el)+"' id='tile-"+el.z+"' data-z='"+el.z+"' style='grid-column:"+col+";grid-row:"+row+";background:"+CAT[el.cat].c+"'>"
+      + "<span class='t-num'>"+el.z+"</span>"
+      + "<div class='t-sym'>"+el.sym+"</div><div class='t-zh'>"+el.zh+"</div><div class='t-mass'>"+el.mass+"</div></div>";
+  });
+  pt.innerHTML = html;
+
+  renderLegend();
+}
+
+// 图例：分类图例＝可点击的筛选器（金属 / 类金属 / 非金属 三列）；分区着色时显示分区色
+function dotBg(c) {
+  const p = c.split(" ");
+  return p.length > 1
+    ? "background:linear-gradient(135deg,"+p[0]+" 0 50%,"+p[1]+" 50% 100%)"
+    : "background:"+c;
+}
+function renderLegend() {
+  const bar = $("legend-bar");
+  if (!bar) return;
+  if (colorMode === "block") {
+    bar.className = "lg-blocks";
+    bar.innerHTML = Object.keys(BLOCK_COLOR).map(k =>
+      "<span class='lg-chip'><i class='lg-dot' style='background:"+BLOCK_COLOR[k].c+"'></i>"+BLOCK_COLOR[k].name+"</span>").join("");
+  } else {
+    bar.className = "lg-groups";
+    const gCats = g => g.items.reduce((a, it) => a.concat(it.cats), []);
+    bar.innerHTML = CAT_GROUPS.map(g =>
+      "<div class='lg-group'>"
+      + "<div class='lg-gtitle' style='color:"+g.c+"' data-cats='"+gCats(g).join(",")+"'>"+g.name+"</div>"
+      + "<div class='lg-chips' style='grid-template-rows:repeat("+g.rows+",auto)'>"
+      + g.items.map(it => "<span class='lg-chip' data-cats='"+it.cats.join(",")+"' title='点击筛选："+it.name+"'>"
+          + "<i class='lg-dot' style='"+dotBg(it.c)+"'></i>"+it.name+"</span>").join("")
+      + "</div></div>").join("");
+  }
+  applyCatFilter();
+  positionLegend();
+}
+const TILES = () => document.querySelectorAll(".tile");
+function tileEl(z) { return $("tile-"+z); }
+
+function applyColorMode() {
+  const legend = $("heat-legend");
+  document.querySelectorAll("#color-modes .filter-btn").forEach(b =>
+    b.classList.toggle("active-filter", b.dataset.mode === colorMode));
+  renderLegend();
+  if (colorMode === "block") {
+    legend.classList.remove("show");
+    ELS.forEach(el => {
+      const t = tileEl(el.z);
+      t.style.background = BLOCK_COLOR[el.blk].c;
+      t.classList.remove("nodata");
+      t.querySelector(".t-zh").textContent = el.zh;
+      t.querySelector(".t-sym").style.display = "";
+    });
+    return;
+  }
+  if (colorMode === "cat") {
+    legend.classList.remove("show");
+    ELS.forEach(el => {
+      const t = tileEl(el.z);
+      t.style.background = CAT[el.cat].c;
+      t.classList.remove("nodata");
+      t.querySelector(".t-zh").textContent = el.zh;
+      t.querySelector(".t-sym").style.display = "";
+    });
+    return;
+  }
+  const conf = {
+    r:  {key:"r",  label:"原子半径", minL:"小", maxL:"大 (pm)", stops:RAMP.r},
+    en: {key:"en", label:"电负性",   minL:"小", maxL:"大", stops:RAMP.en},
+    ie: {key:"ie", label:"第一电离能", minL:"小", maxL:"大 (kJ/mol)", stops:RAMP.ie},
+    met:{key:"en", label:"金属性强弱", minL:"金属性强", maxL:"非金属性强", stops:RAMP.met}
+  }[colorMode];
+  const vals = ELS.map(el => modeVal(el, conf)).filter(v => v!=null);
+  const mn = Math.min(...vals), mx = Math.max(...vals);
+  legend.classList.add("show");
+  const g = "linear-gradient(90deg," + conf.stops.map(c => "rgb("+c.join(",")+")").join(",") + ")";
+  $("heat-bar").style.background = g;
+  const fmtd = v => (mx-mn<10 && mn>=0 ? v.toFixed(2) : Math.round(v));
+  $("heat-min").textContent = conf.minL + " ≈ " + fmtd(mn);
+  $("heat-max").textContent = conf.maxL + " ≈ " + fmtd(mx);
+  ELS.forEach(el => {
+    const t = tileEl(el.z);
+    const v = modeVal(el, conf);
+    if (v == null) {
+      t.style.background = ""; t.classList.add("nodata");
+      t.querySelector(".t-zh").textContent = "—";
+    } else {
+      const tt = (v - mn) / (mx - mn);
+      t.style.background = heatColor(tt, conf.stops);
+      t.classList.remove("nodata");
+      t.querySelector(".t-zh").textContent = (mx-mn<10 && mn>=0) ? v.toFixed(2) : Math.round(v);
+    }
+  });
+}
+
+function applyCatFilter() {
+  const key = activeCats.join(",");
+  document.querySelectorAll("#legend-bar [data-cats]").forEach(b =>
+    b.classList.toggle("active-filter", activeCats.length > 0 && b.dataset.cats === key));
+  const set = new Set(activeCats);
+  ELS.forEach(el => tileEl(el.z).classList.toggle("dim", activeCats.length > 0 && !set.has(el.cat)));
+}
+
+function buildControls() {
+  // 分类图例即筛选器（事件委托，图例重绘后依然有效）
+  const bar = $("legend-bar");
+  bar.addEventListener("click", e => {
+    const b = e.target.closest("[data-cats]"); if (!b) return;
+    const cats = b.dataset.cats.split(",");
+    activeCats = (activeCats.join(",") === b.dataset.cats) ? [] : cats;   // 再点一次取消
+    applyCatFilter();
+  });
+  $("btn-lg-reset").addEventListener("click", () => { activeCats = []; applyCatFilter(); });
+  const cm = $("color-modes");
+  cm.innerHTML = [["cat","分类着色"],["block","分区 s·p·d·f"],["r","原子半径"],["en","电负性"],["ie","第一电离能"],["met","金属性强弱"]]
+    .map(m => "<button class='filter-btn"+(m[0]==="cat"?" active-filter":"")+"' data-mode='"+m[0]+"'>"+m[1]+"</button>").join("");
+  cm.addEventListener("click", e => {
+    const b = e.target.closest(".filter-btn"); if (!b) return;
+    colorMode = b.dataset.mode; applyColorMode();
+  });
+  const sr = $("sel-range");
+  let opts = "";
+  for (let p=1; p<=7; p++) opts += "<option value='p"+p+"'>第 "+p+" 周期</option>";
+  for (let g=1; g<=18; g++) opts += "<option value='g"+g+"'>第 "+g+" 族（"+GROUP_LABELS[g]+"）</option>";
+  sr.innerHTML = opts; sr.value = "p3";
+
+  $("sel-range").addEventListener("change", drawChart);
+  $("sel-prop").addEventListener("change", drawChart);
+  drawChart();
+}
+
+function searchMatch(el, q) {
+  if (!q) return true;
+  return el.zh.indexOf(q) >= 0 || el.sym.toLowerCase().indexOf(q.toLowerCase()) === 0 || String(el.z) === q;
+}
+
+$("search").addEventListener("input", function() {
+  const q = this.value.trim();
+  ELS.forEach(el => tileEl(el.z).classList.toggle("dim", !searchMatch(el, q)));
+});
+$("search").addEventListener("keydown", function(e) {
+  if (e.key !== "Enter") return;
+  const q = this.value.trim(); if (!q) return;
+  const hit = ELS.find(el => searchMatch(el, q));
+  if (hit) selectElement(hit.z);
+});
+function clearHover() {
+  TILES().forEach(t => t.classList.remove("row-hl","col-hl"));
+  setCellFn();
+}
+function setCellFn(txt) {
+  $("cell-fn-label").textContent = txt ||
+    (compareOn ? "对比模式：已选 " + (cmpA ? byZ(cmpA).zh : "0") + " / 2" :
+     (colorMode==="cat" ? "分类着色 · 悬停查看同周期/同族趋势" : "着色模式：" + $("heat-bar").textContent || colorMode));
+}
+function hoverElement(el) {
+  clearHover();
+  TILES().forEach(t => {
+    const o = byZ(+t.dataset.z);
+    if (o.p === el.p && o.g > 0) t.classList.add("row-hl");
+    if (o.g === el.g && el.g > 0) t.classList.add("col-hl");
+  });
+  if (el.g > 0) {
+    setCellFn("第 "+el.p+" 周期 · 第 "+el.g+" 族（"+GROUP_LABELS[el.g]+"）｜行：半径↓ 电负性↑ ｜列：向下半径↑ 电负性↓");
+  } else {
+    setCellFn("第 "+el.p+" 周期 · "+CAT[el.cat].name+"（f 区）｜镧系/锕系元素性质极为相近");
+  }
+}
+
+function stateRow(label, val) {
+  return "<div class='info-item'><span>"+label+"</span><b>"+val+"</b></div>";
+}
+// ===== 轨道排布填充：7 行能级图（1s…7s，由下往上），点击元素填充 =====
+// 每行 = 鲍林能级一行，行内从左到右 s→p→d→f；空轨道常驻，电子按泡利/洪特填入
+const ORBIT_LINES = [
+  ["1s"], ["2s","2p"], ["3s","3p"], ["4s","4p","3d"],
+  ["5s","5p","4d"], ["6s","6p","5d","4f"], ["7s","7p","6d","5f"]
+];
+// 洪特规则：每子层轨道数 cap(1/3/5/7) 先各得 1 个自旋相同电子，多余电子再成对
+function orbFill(cap, n) {
+  const pairs = Math.max(0, n - cap);
+  const res = [];
+  for (let i = 0; i < cap; i++) res.push(i < pairs ? 2 : (i < n ? 1 : 0));
+  return res;
+}
+function orbBoxHTML(e) {
+  if (e === 2) return "<span class='ob f'><b>↑</b><b>↓</b></span>";     // 双电子水平并排
+  if (e === 1) return "<span class='ob f'>↑</span>";
+  return "<span class='ob'></span>";
+}
+function renderOrbit(el) {
+  const grid = $("orbit-grid");
+  if (!grid) return;
+  $("orbit-name").textContent = el.zh + "（" + el.sym + " · Z=" + el.z + "）轨道填充";
+  $("orbit-conf").textContent = "电子排布式：" + configStr(el.z);
+  const counts = {};
+  let rem = el.z;
+  for (const [ss, cap] of SUBSHELLS) { if (rem <= 0) break; const t = Math.min(cap, rem); counts[ss] = t; rem -= t; }
+  if (EXC[el.z]) for (const k in EXC[el.z]) counts[k] = EXC[el.z][k];
+  const subHTML = ss => {
+    const capBox = { s:1, p:3, d:5, f:7 }[ss[1]];
+    const fills = orbFill(capBox, counts[ss] || 0);
+    return "<span class='orb-row'><span class='orb-label'>"+ss+"</span><span class='orb-holder'>"
+      + fills.map(orbBoxHTML).join("") + "</span></span>";
+  };
+  // DOM 顺序 1s→7s，容器 column-reverse 使其由下往上；第 1 行在底部
+  grid.innerHTML = ORBIT_LINES.map(line => "<div class='lvl-row'>" + line.map(subHTML).join("") + "</div>").join("");
+}
+const SUBSHELLS = [["1s",2],["2s",2],["2p",6],["3s",2],["3p",6],["4s",2],["3d",10],["4p",6],["5s",2],["4d",10],["5p",6],["6s",2],["4f",14],["5d",10],["6p",6],["7s",2],["5f",14],["6d",10],["7p",14]];
+const EXC = {24:{"3d":5,"4s":1},29:{"3d":10,"4s":1},41:{"4d":4,"5s":1},42:{"4d":5,"5s":1},44:{"4d":7,"5s":1},45:{"4d":8,"5s":1},46:{"4d":10,"5s":0},47:{"4d":10,"5s":1},57:{"4f":0,"5d":1},58:{"4f":1,"5d":1},64:{"4f":7,"5d":1},78:{"5d":9,"6s":1},79:{"5d":10,"6s":1},89:{"5f":0,"6d":1},90:{"5f":0,"6d":2},91:{"5f":2,"6d":1},92:{"5f":3,"6d":1},93:{"5f":4,"6d":1},96:{"5f":7,"6d":1},103:{"6d":0,"7p":1}};
+const NOBLE = {2:"He",10:"Ne",18:"Ar",36:"Kr",54:"Xe",86:"Rn"};
+const SUP = "⁰¹²³⁴⁵⁶⁷⁸⁹";
+function sup(n){ return String(n).split("").map(d => SUP[+d]).join(""); }
+function configStr(z) {
+  let counts = {}, rem = z;
+  for (const [ss,cap] of SUBSHELLS) { if (rem<=0) break; const t = Math.min(cap,rem); counts[ss] = t; rem -= t; }
+  if (EXC[z]) for (const k in EXC[z]) counts[k] = EXC[z][k];
+  let core = "";
+  const nz = [86,54,36,18,10,2].find(n => n < z);
+  if (nz) {
+    let strip = nz;
+    for (const [ss] of SUBSHELLS) { if (strip<=0) break; const have = counts[ss]||0; const take = Math.min(have,strip); counts[ss] = have-take; strip -= take; }
+    core = "["+NOBLE[nz]+"] ";
+  }
+  const lo = {s:0,p:1,d:2,f:3};
+  return core + Object.keys(counts).filter(k => counts[k]>0)
+    .sort((a,b) => (+a[0])-b[0] || lo[a[1]]-lo[b[1]])
+    .map(k => k+sup(counts[k])).join(" ");
+}
+function phaseOf(el) {
+  if (el.mp == null && el.bp == null) return "—";
+  if (el.bp != null && el.bp < 298) return "气态";
+  if (el.mp != null && el.mp < 298 && el.bp != null && el.bp > 298) return "液态";
+  if (el.mp != null && el.mp > 298) return "固态";
+  return "—";
+}
+// ===== 百度百科词条链接 =====
+// 多数元素直接用中文名即可命中「https://baike.baidu.com/item/氢」；
+// 个别中文名有歧义（「金」会跳到「金朝」词条），需按百度百科实际 slug 指定别名。
+// 别名存的是 URL 路径片段，允许包含 “/”（如 gold/6088951）。
+const BAIKE_ALIAS = { 79: "gold/6088951" };   // 金（金属化学元素）
+function baikeUrl(el) {
+  const key = BAIKE_ALIAS[el.z] || el.zh;
+  return "https://baike.baidu.com/item/" + encodeURIComponent(key).replace(/%2F/gi, "/");
+}
+
+function fillDetails(el) {
+  const ex = EXTRA[el.z-1];
+  $("detail-empty").style.display = "none";
+  const box = $("detail-box");
+  box.style.display = "";
+  const catName = CAT[el.cat].name + (el.z >= 104 ? "（性质多为预测）" : "");
+  const pos = el.g > 0 ? "第 "+el.p+" 周期 · 第 "+el.g+" 族（"+GROUP_LABELS[el.g]+"）" : "第 "+el.p+" 周期 · "+CAT[el.cat].name;
+  const cfg = configStr(el.z);
+  const photo = '';
+  box.innerHTML = photo +
+    "<div style='display:flex;align-items:center;gap:8px;margin-bottom:4px;'>"
+    + "<div class='lg-dot' style='background:"+CAT[el.cat].c+";width:14px;height:14px;'></div>"
+    + "<b class='dt-name' style='font-size:14px;color:#fff;'><a class='el-bk' href='"+baikeUrl(el)+"' target='_blank' rel='noopener' title='百度百科：查看「"+el.zh+"」词条'>"+el.zh+"（"+el.sym+"）<span class='el-bk-ico'>百科↗</span></a></b></div>"
+    + "<div style='font-size:10px;color:#9fb3d1;margin-bottom:6px;'>"+ex[0]+" · "+el.desc+"</div>"
+    + stateRow("原子序数", el.z)
+    + stateRow("位置", pos)
+    + stateRow("类别", catName)
+    + stateRow("所属分区", "<span style='display:inline-flex;align-items:center;gap:5px;'>"
+        + "<span class='lg-dot' style='background:"+BLOCK_COLOR[el.blk].c+";width:10px;height:10px;'></span>"
+        + el.blk.toUpperCase()+" 区</span>")
+    + stateRow("相对原子质量", el.mass)
+    + stateRow("电子排布式", "<span style='letter-spacing:0.5px;'>"+el.ec+"</span>")
+    + stateRow("电子层排布", (el.shells||"—").split(",").join(" · "))
+    + stateRow("常见化合价", ex[1])
+    + stateRow("电负性", el.en==null?"—":el.en)
+    + stateRow(el.cat==="ng"?"范德华半径 (pm)":"共价半径 (pm)", fmt(el.r))
+    + stateRow("第一电离能 (kJ/mol)", fmt(el.ie))
+    + (el.ea != null
+        ? stateRow("电子亲和能 (kJ/mol)", el.ea + (el.ea < 0 ? "（吸热）" : "（放热）"))
+        : "")
+    + ((el.ies && el.ies.length > 1)
+        ? stateRow("逐级电离能 (kJ/mol)",
+            el.ies.map((v, i) => "I<sub>"+(i+1)+"</sub> " + v).join("  ·  "))
+        : "")
+    + stateRow("熔点 (K)", fmt(el.mp)) + stateRow("沸点 (K)", fmt(el.bp))
+    + stateRow("常温物态", phaseOf(el))
+    + stateRow("发现", ex[2])
+    + stateRow("用途与意义", el.desc);
+}
+
+function neighbor(p, g) { return ELS.find(e => e.p===p && e.g===g); }
+// 同周期内按原子序数取真正相邻的元素。
+// 不能用 g±1：第 2、3 周期没有第 3~12 族，用族号找邻居会得到 undefined（如 Mg 的右邻应为 Al 而非“第 3 族”）
+function rowNeighbor(el, dz) {
+  const row = ELS.filter(e => e.p === el.p && e.g > 0).sort((a, b) => a.z - b.z);
+  const i = row.findIndex(e => e.z === el.z);
+  return i < 0 ? null : (row[i + dz] || null);
+}
+// 会产生“第一电离能反常高”的稳定构型族：ⅡA(ns² 全满)、ⅤA(np³ 半满)、ⅡB((n-1)d¹⁰ns² 全满)
+// 过渡区的小锯齿（如 Co>Ni、Pd>Ag）不属于此列，故按族过滤，避免误标
+const STABLE_G = [2, 15, 12];
+// 主族最外层电子数（过渡金属返回 null）
+function valenceOf(g) { if (!g) return null; if (g <= 2) return g; if (g >= 13) return g - 10; return null; }
+const WHY = "<span class='nt-why'>为什么？</span>";
+const TEACH_DEFAULT = "<strong>元素周期律</strong><br>元素性质随原子序数递增呈周期性变化，根源在于<b>电子层结构的周期性重复</b>。"
+  + "<br><br><strong>同周期（左→右）</strong><br>原子半径减小，电负性与第一电离能总体增大，金属性减弱、非金属性增强。"
+  + "<br>" + WHY + "电子层数相同，核电荷数依次 +1、原子半径减小 → 原子核对最外层电子吸引增强：<b>失电子变难、得电子变易</b>。"
+  + "<br><br><strong>同族（上→下）</strong><br>电子层数增多，半径增大，电负性减小，金属性增强、非金属性减弱。"
+  + "<br>" + WHY + "最外层电子数相同，而电子层数依次增多、内层屏蔽增强 → 核对外层电子吸引减弱：<b>越往下越易失电子、越难得电子</b>。"
+  + "<br><br><strong>左下 → 右上</strong><br>金属性最强：Cs（Fr 放射性极强）；非金属性最强：F。沿 B–Si–As–Te–At 一线为金属与非金属分界。"
+  + "<br><br><span style='color:#8fa3bf;'>点击任意元素查看针对该元素的解析（含电离能反常、电负性成因）；开启对比模式可比较两个元素。</span>";
+function anomalyReason(el) {
+  if (el.g === 2) return "其 ns² 价电子构型为全充满稳定结构，失第一个电子所需能量额外升高";
+  if (el.g === 15) return "其 np³ 价电子构型为半充满稳定结构，失第一个电子所需能量额外升高";
+  if (el.g === 12) return "其 (n-1)d¹⁰ns² 价电子构型为全充满稳定结构，失第一个电子所需能量额外升高";
+  return "其价电子构型处于全充满或半充满的稳定状态";
+}
+function teachElement(el) {
+  let h = "<strong>"+el.zh+"（"+el.sym+"，Z="+el.z+"）的周期律解读</strong><br>";
+  if (el.g > 0) {
+    const left = rowNeighbor(el, -1), right = rowNeighbor(el, +1);
+    const up = neighbor(el.p-1, el.g), down = neighbor(el.p+1, el.g);
+    h += "<br><strong>同周期比较（第 "+el.p+" 周期）</strong><br>";
+    if (el.en != null && left && left.en != null && right && right.en != null) {
+      h += "同周期从左到右半径减小、电负性增大、金属性减弱。"+el.zh+" 电负性 "+el.en
+        +"，高于左邻 "+left.zh+"（"+left.en+"）、低于右邻 "+right.zh+"（"+right.en+"），恰处于递变趋势之中。";
+    } else {
+      h += "同周期从左到右原子半径逐渐减小，电负性与第一电离能总体增大，金属性减弱、非金属性增强。";
+    }
+    h += "<br><span style='color:#9decfb;'>为什么？</span>同周期内电子层数相同（都排到第 "+el.p
+      + " 层），从左到右核电荷数依次 +1，而新增电子进入同一层、屏蔽增加不多 → 有效核电荷增大、原子半径减小，"
+      + "原子核对最外层电子越拉越紧。<b>结果就是：失电子变难（第一电离能增大）、得电子变易（电负性增大）</b>，"
+      + "所以金属性减弱、非金属性增强。";
+    h += "<br><br><strong>同族比较（"+GROUP_LABELS[el.g]+"）</strong><br>";
+    const vOut = valenceOf(el.g);
+    if (el.en != null && (up && up.en != null || down && down.en != null)) {
+      const parts = [];
+      if (up && up.en != null) parts.push("上方 "+up.zh+"（"+up.en+"）");
+      if (down && down.en != null) parts.push("下方 "+down.zh+"（"+down.en+"）");
+      h += "同族从上到下电子层数增多、半径增大、电负性减小、金属性增强。与"+el.zh+"同族的有："+parts.join("、")+"。";
+    } else {
+      h += "同族从上到下电子层数依次增多，原子半径逐渐增大，失电子能力增强，金属性逐渐增强。";
+    }
+    h += "<br><span style='color:#9decfb;'>为什么？</span>同族"+(vOut ? "最外层电子数相同（都是 "+vOut+" 个）" : "价电子构型相似")
+      + "，从上到下电子层数依次增多、原子半径增大，内层电子把核电荷“挡住”（屏蔽增强），"
+      + "最外层电子受核吸引越来越弱。<b>结果就是：越往下越容易失电子（电离能减小、金属性增强）、越难得电子（电负性减小、非金属性减弱）</b>。";
+    // 第一电离能反常：① 本元素反常高（Mg、P…）；② 本元素“显得低”（Al、S…）——两种视角都要讲
+    if (right && el.ie != null && right.ie != null && el.ie > right.ie && STABLE_G.indexOf(el.g) >= 0) {
+      h += "<br><br><strong style='color:#ff8888;'>⚠ 第一电离能反常高</strong><br>"
+        + el.zh+"（I₁ = "+el.ie+" kJ/mol）反常地高于右邻 "+right.zh+"（"+right.ie+" kJ/mol）：因为"+anomalyReason(el)
+        + "。<b>是 "+el.zh+" 特别稳定，而不是 "+right.zh+" 特别容易失电子</b>——这是考试高频考点。";
+    } else if (left && left.ie != null && el.ie != null && left.ie > el.ie && STABLE_G.indexOf(left.g) >= 0) {
+      h += "<br><br><strong style='color:#ff8888;'>⚠ 第一电离能“显得偏低”</strong><br>"
+        + el.zh+"（I₁ = "+el.ie+" kJ/mol）低于左邻 "+left.zh+"（"+left.ie+" kJ/mol）。"
+        + "注意：并非 "+el.zh+" 特别容易失电子，而是 "+left.zh+" 因"+anomalyReason(left)
+        + "，第一电离能反常偏高，才显得 "+el.zh+" 偏低。这是最易失分的陷阱。";
+    }
+  } else {
+    h += "<br><strong>f 区元素（"+CAT[el.cat].name+"）</strong><br>"
+      + (el.cat==="ln"
+        ? "镧系元素电子依次填入 4f 轨道，性质极为相近。随原子序数增大，原子半径和离子半径总体逐渐减小的现象称为<strong>镧系收缩</strong>，它使镧系后各族第五、第六周期元素性质（如 Zr/Hf、Nb/Ta）极为相似。"
+        : "锕系元素电子依次填入 5f 轨道，均为放射性元素，随原子序数增大同样存在锕系收缩。");
+  }
+  if (el.z === 1) h += "<br><br><strong>氢的特殊性</strong><br>氢只有 1 个电子，既能像碱金属一样失电子（+1 价），又能像卤素一样得电子（-1 价），位置长期存在争议。";
+  if (el.z === 2) h += "<br><br>氦虽属 ⅧA，但只有 2 个电子（1s² 全充满），化学性质极不活泼。";
+  $("teach-content").innerHTML = h;
+}
+
+function selectElement(z) {
+  selectedZ = z;
+  const el = byZ(z);
+  TILES().forEach(t => t.classList.remove("selected"));
+  tileEl(z).classList.add("selected");
+  fillDetails(el);
+  teachElement(el);
+  renderOrbit(el);
+}
+
+function bar(label, va, vb, ea, eb, unit) {
+  const mx = Math.max(va, vb);
+  const row = (v, c, name) => "<div class='cmp-label'><span>"+name+"</span><span>"+v+(unit||"")+"</span></div>"
+    + "<div class='cmp-bar-track'><div class='cmp-bar' style='width:"+Math.round(v/mx*100)+"%;background:"+c+";'></div></div>";
+  return "<div class='cmp-row'><div class='cmp-label' style='color:#ffcc88;font-weight:600;'>"+label+"</div>"
+    + row(va, CAT[ea.cat].c, ea.zh+"（"+ea.sym+"）") + row(vb, CAT[eb.cat].c, eb.zh+"（"+eb.sym+"）") + "</div>";
+}
+// 原子半径比较规则：同周期 / 同族 / 启发式 三段判定
+function radiusRuleText(a, b) {
+  if (a.r == null || b.r == null) return "两种元素中至少一方缺乏半径数据，无法比较原子半径。";
+  const ngNote = (a.cat === "ng" || b.cat === "ng") ?
+    "<span style='color:#8fa3bf;'>(稀有气体为范德华半径，数值偏大，与共价半径不宜直接比较)</span>" : "";
+  let rule = "", big, small;
+  if (a.p === b.p) {                                 // 同周期
+    big = a.z < b.z ? a : b; small = a.z < b.z ? b : a;
+    rule = "两元素处于<b>同一周期</b>（第 "+a.p+" 周期）。同周期从左到右，电子层数相同而核电荷增大，原子核对电子引力增强，半径<b>逐渐减小</b>。";
+    return "【原子半径】<b>" + big.zh + "（"+big.sym+"）＞ "+small.zh+"（"+small.sym+"）</b><br>" + rule + ngNote;
+  }
+  if (a.g === b.g && a.g > 0) {                       // 同族
+    big = a.p > b.p ? a : b; small = a.p > b.p ? b : a;
+    rule = "两元素处于<b>同一族</b>（"+GROUP_LABELS[a.g]+"）。同族从上到下电子层数增多，半径<b>逐渐增大</b>。";
+    return "【原子半径】<b>" + big.zh + "（"+big.sym+"）＞ "+small.zh+"（"+small.sym+"）</b><br>" + rule + ngNote;
+  }
+  // 既不同周期也不同族：启发式 —— 电子层数多者大；层数相同核大径小
+  const la = a.p, lb = b.p;
+  if (la !== lb) {
+    big = la > lb ? a : b; small = la > lb ? b : a;
+    rule = "两元素既不同周期也不同族。粗略比较（非精确判据）：电子层数<b>多</b>者半径通常更<b>大</b>（" + big.zh + " 有 "+Math.max(la,lb)+" 层电子，"+small.zh+" 有 "+Math.min(la,lb)+" 层）。";
+  } else {
+    big = a.z > b.z ? b : a; small = a.z > b.z ? a : b;
+    rule = "两元素既不同周期也不同族（恰在同一行附近）。粗略比较：电子层数相同时，核电荷<b>大</b>者半径<b>小</b>。";
+  }
+  return "【原子半径（粗略）】<b>" + big.zh + "（"+big.sym+"）＞ "+small.zh+"（"+small.sym+"）</b><br>" + rule + ngNote + "<br><span style='color:#8fa3bf;'>跨周期跨族比较严格需逐对分析，此判据仅作辅助。</span>";
+}
+function compareElements(za, zb) {
+  const a = byZ(za), b = byZ(zb);
+  let h = "<strong>元素对比："+a.zh+"（"+a.sym+"） vs "+b.zh+"（"+b.sym+"）</strong><br><br>";
+  h += bar("电负性", a.en==null?0:a.en, b.en==null?0:b.en, a, b, "") + bar("共价半径 (pm)", a.r==null?0:a.r, b.r==null?0:b.r, a, b, "")
+     + bar("第一电离能 (kJ/mol)", a.ie==null?0:a.ie, b.ie==null?0:b.ie, a, b, "");
+  h += "<br>" + radiusRuleText(a, b);
+  let concl = "";
+  if (a.en != null && b.en != null) {
+    const m = a.en < b.en ? a : b, n = a.en < b.en ? b : a;
+    concl = m.zh+" 的电负性（"+m.en+"）低于 "+n.zh+"（"+n.en+"），故 <strong>"+m.zh+" 的金属性更强</strong>，"
+      + n.zh+" 的非金属性更强。失电子能力："+m.sym+" &gt; "+n.sym+"。";
+  } else {
+    concl = "其中一种元素缺乏电负性数据（多为人工合成元素），无法直接比较金属性强弱。";
+  }
+  h += "<br><strong>结论</strong><br>"+concl;
+  h += "<br><span style='color:#8fa3bf;'>提示：还可结合半径与电离能判断——半径大、电离能小的元素更易失电子，金属性更强。</span>";
+  $("teach-content").innerHTML = h;
+}
+
+$("ptable").addEventListener("mouseover", e => {
+  const t = e.target.closest(".tile"); if (!t) return;
+  hoverElement(byZ(+t.dataset.z));
+});
+$("ptable").addEventListener("mouseleave", clearHover);
+$("ptable").addEventListener("click", e => {
+  const t = e.target.closest(".tile"); if (!t) return;
+  const z = +t.dataset.z;
+  if (compareOn) {
+    if (cmpA == null) {
+      cmpA = z; tileEl(z).classList.add("cmp-mark");
+      $("cmp-hint").innerHTML = "已选第一个元素：<b>"+byZ(z).zh+"</b>，请再点击第二个元素。";
+      setCellFn();
+    } else if (cmpA === z) {
+      tileEl(z).classList.remove("cmp-mark"); cmpA = null;
+      $("cmp-hint").textContent = "已取消，请重新选择两个元素。";
+      setCellFn();
+    } else {
+      compareElements(cmpA, z);
+      tileEl(cmpA).classList.remove("cmp-mark"); cmpA = null;
+    }
+  } else {
+    selectElement(z);
+  }
+});
+
+$("btn-compare").addEventListener("click", function() {
+  compareOn = !compareOn;
+  this.classList.toggle("active-filter", compareOn);
+  this.textContent = compareOn ? "关闭对比模式" : "开启对比模式（选两个元素）";
+  if (cmpA != null) { tileEl(cmpA).classList.remove("cmp-mark"); cmpA = null; }
+  if (!compareOn) { $("cmp-hint").textContent = "开启后依次点击两个元素，将在右侧给出属性对比与金属性强弱判断。"; }
+  setCellFn();
+});
+
+$("btn-bg-toggle").addEventListener("click", function() {
+  const on = $("app-container").classList.toggle("light-bg");
+  this.textContent = on ? "切换深色背景" : "切换浅色背景";
+});
+
+$("btn-print").addEventListener("click", () => window.print());
+
+$("btn-reset").addEventListener("click", () => {  $("search").value = ""; activeCats = []; colorMode = "cat";
+  applyCatFilter(); applyColorMode(); clearHover();
+  TILES().forEach(t => t.classList.remove("selected","cmp-mark"));
+  selectedZ = null; cmpA = null;
+  $("detail-box").style.display = "none";
+  $("detail-empty").style.display = "";
+  $("teach-content").innerHTML = TEACH_DEFAULT;
+  $("sel-range").value = "p3"; $("sel-prop").value = "r"; drawChart();
+});
+function drawChart() {
+  const rv = $("sel-range").value, prop = $("sel-prop").value;
+  const isP = rv[0] === "p";
+  const n = parseInt(rv.slice(1), 10);
+  const series = ELS.filter(el => isP ? el.p === n : el.g === n).sort((a,b) => a.z - b.z);
+  const getIE = k => el => (el.ies && el.ies[k-1] != null) ? el.ies[k-1] : null;
+  const propInfo = {
+    r:      {name:"原子半径",   unit:" pm",      get: el => el.r},
+    en:     {name:"电负性",     unit:"",         get: el => el.en},
+    ie1:    {name:"第一电离能", unit:" kJ/mol",  get: getIE(1)},
+    ie2:    {name:"第二电离能", unit:" kJ/mol",  get: getIE(2)},
+    ie3:    {name:"第三电离能", unit:" kJ/mol",  get: getIE(3)},
+    ie4:    {name:"第四电离能", unit:" kJ/mol",  get: getIE(4)},
+    ea:     {name:"电子亲和能", unit:" kJ/mol",  get: el => el.ea},
+    acid:   {name:"最高价氧化物对应水化物的酸性", unit:"", get: el => el.oa,
+             tip: (el, v) => v + "　" + hydrateOf(el) + " · " + acidTag(v)},
+    base:   {name:"最高价氧化物对应水化物的碱性", unit:"", get: el => el.ob,
+             tip: (el, v) => v + "　" + hydrateOf(el) + " · " + baseTag(v)},
+    hyd:    {name:"气态氢化物稳定性", unit:"", get: el => el.hyd,
+             tip: (el, v) => v + "　" + hydrideOf(el) + " · " + stabTag(v)},
+    // 金属性：电负性越小金属性越强。若直接画电负性，曲线会随金属性增强而“走低”，
+    // 且与非金属性曲线完全重合，读图极易误解 → 改用「金属性指数 = 4.0 − 电负性」，
+    // 曲线随金属性增强而上升，与非金属性互为镜像。
+    met:    {name:"金属性指数（4.0 − 电负性）", unit:"", get: el => el.en == null ? null : +(4 - el.en).toFixed(2),
+             tip: (el, v) => v + "（电负性 " + el.en + "，指数越大金属性越强）"},
+    nonmet: {name:"非金属性（以电负性衡量）", unit:"", get: el => el.en,
+             tip: (el, v) => v + "（电负性越大非金属性越强）"}
+  }[prop];
+  const pts = series.map(el => ({el:el, v:propInfo.get(el)})).filter(p => p.v != null);
+  const title = (isP ? "第 "+n+" 周期" : "第 "+n+" 族（"+GROUP_LABELS[n]+"）") + " · " + propInfo.name + "变化趋势";
+  $("chart-title").textContent = title;
+  const NT = (law, why) => "<b class='nt-law'>规律</b>　"+law
+    + "<br><b class='nt-why'>成因</b>　"+why;
+  const ieStep = {ie2:"第 <sub>2</sub> 级在 I₁→I₂ 之间突增（如 Na：496→4562），",
+                  ie3:"第 <sub>3</sub> 级在 I₂→I₃ 之间突增（如 Mg：1451→7733），",
+                  ie4:"第 <sub>4</sub> 级在 I₃→I₄ 之间突增（如 Al：2745→11577），"}[prop] || "";
+  const notes = {
+    "p,r":NT("同周期从左到右原子半径逐渐减小（稀有气体为范德华半径，明显偏大；第 6 周期可见镧系收缩）。",
+            "电子层数相同，核电荷数依次 +1，而增加的电子进入同一层、屏蔽作用增加不多 → 有效核电荷增大，原子核对核外电子吸引增强，电子云被“拉紧”，半径减小。"),
+    "g,r":NT("同族从上到下原子半径逐渐增大。",
+            "电子层数依次增多，外层电子离核更远；虽然核电荷也增大，但内层电子的屏蔽作用同步增强，层数增多的影响占主导 → 半径增大。"),
+    "p,en":NT("同周期从左到右电负性逐渐增大，非金属性增强（稀有气体多数无数据，已跳过）。",
+            "电子层数相同、核电荷数增大、半径减小 → 原子在分子中吸引成键电子的能力增强。这正是“失电子变难、得电子变易”的定量体现，也是金属性减弱、非金属性增强的根源。"),
+    "g,en":NT("同族从上到下电负性逐渐减小，金属性增强、非金属性减弱。",
+            "电子层数增多、半径增大，内层电子屏蔽增强，原子核对成键电子的吸引减弱 → 得电子能力下降。"),
+    "p,ie1":NT("同周期从左到右第一电离能总体增大；⚠ 标在“反常高”的元素上——ⅡA（Be、Mg）与 ⅤA（N、P、As）以及 ⅡB（Zn、Cd、Hg）。",
+            "核电荷增大、半径减小 → 失电子越来越难，I₁ 总体上升；而 ns² 全充满（ⅡA）、np³ 半充满（ⅤA）、(n-1)d¹⁰ns² 全充满（ⅡB）是稳定构型，破坏它需额外能量，故其 I₁ 高于右邻。注意是它们“特别高”，不是右邻“特别低”。"),
+    "g,ie1":NT("同族从上到下第一电离能总体减小，失电子能力增强、金属性增强。",
+            "电子层数增多、半径增大，最外层电子离核更远且受内层屏蔽，受核吸引减弱 → 更容易失去。"),
+    "p,ie2":NT("同周期从左到右第二电离能总体增大；⚠ 标在 I₂ 相对 I₁ 突增的元素上。",
+            "同一元素逐级电离能必然递增（失电子后离子正电荷增多，再失更难）。"+ieStep+"说明第 2 个电子已来自内层 → 最外层只有 1 个电子，可据此判断主族序数。"),
+    "g,ie2":NT("同族从上到下第二电离能总体减小（数据覆盖 1~20 号元素）。","成因同第一电离能：半径增大、核对外层电子吸引减弱。"),
+    "p,ie3":NT("第三电离能总体增大；⚠ 标在 I₃ 相对 I₂ 突增的元素上。",
+            "逐级电离能递增；"+ieStep+"说明第 3 个电子已来自内层 → 最外层有 2 个电子（ⅡA 族的判据）。"),
+    "g,ie3":NT("同族从上到下第三电离能总体减小（数据覆盖 1~20 号元素）。","成因同第一电离能：半径增大、屏蔽增强，失电子更容易。"),
+    "p,ie4":NT("第四电离能总体增大；⚠ 标在 I₄ 相对 I₃ 突增的元素上。",
+            "逐级电离能递增；"+ieStep+"说明第 4 个电子已来自内层 → 最外层有 3 个电子（ⅢA 族的判据）。"),
+    "g,ie4":NT("同族从上到下第四电离能总体减小（数据覆盖 1~20 号元素）。","成因同第一电离能：半径增大、屏蔽增强，失电子更容易。"),
+    "p,ea":NT("同周期从左到右电子亲和能（放热为正）总体增大，得电子能力增强；卤素最大；稀有气体为负值。",
+            "核电荷增大、半径减小 → 原子结合外来电子时释放能量更多。稀有气体最外层已达稳定结构，硬塞一个电子需吸热，故为负值。（F 因半径过小、电子间斥力大，实测小于 Cl。）"),
+    "g,ea":NT("同族从上到下电子亲和能总体减小（第 2 周期的 F、O 因半径过小反而小于同族的 Cl、S）。",
+            "电子层数增多、半径增大，原子核对外来电子的吸引被内层屏蔽而减弱，放出的能量减少。"),
+    "p,met":NT("同周期从左到右金属性逐渐减弱（图中<b>曲线越高金属性越强</b>；指数 = 4.0 − 电负性）。",
+            "核电荷增大、半径减小 → 最外层电子受核束缚更紧，失电子变难（电离能增大），还原性减弱，故金属性减弱。"),
+    "g,met":NT("同族从上到下金属性逐渐增强（图中<b>曲线越高金属性越强</b>；指数 = 4.0 − 电负性）。",
+            "电子层数增多、半径增大、屏蔽增强 → 最外层电子更易失去，故金属性增强、还原性增强。"),
+    "p,nonmet":NT("同周期从左到右非金属性逐渐增强（图中<b>曲线越高非金属性越强</b>，稀有气体通常不参与比较）。",
+            "核电荷增大、半径减小 → 得电子能力增强（电负性、电子亲和能增大），氧化性增强，故非金属性增强。"),
+    "g,nonmet":NT("同族从上到下非金属性逐渐减弱（图中<b>曲线越高非金属性越强</b>）。",
+            "半径增大、屏蔽增强 → 得电子能力下降，故非金属性减弱、金属性增强。"),
+    "p,acid":NT("同周期从左到右，最高价氧化物对应水化物的<b>酸性逐渐增强</b>（金属元素处为 0，只显碱性；Al、Ga 等为两性）。O、F 无正价，不讨论其最高价氧化物对应水化物。",
+            "中心原子的非金属性增强、电负性增大 → R—O—H 中 R 对 O 的电子吸引增强，O—H 键更易电离出 H⁺。典型链条：NaOH(强碱) → Al(OH)₃(两性) → H₂SiO₃(弱酸) → H₃PO₄(中强酸) → H₂SO₄(强酸) → HClO₄(最强酸)。"),
+    "g,acid":NT("同族从上到下，最高价氧化物对应水化物的<b>酸性逐渐减弱</b>。",
+            "中心原子半径增大、非金属性减弱 → R—O 键极性减小，O—H 更难电离出 H⁺。例：HClO₄ > HBrO₄ > HIO₄；HNO₃ > H₃PO₄ > H₃AsO₄。"),
+    "p,base":NT("同周期从左到右，最高价氧化物对应水化物的<b>碱性逐渐减弱</b>。",
+            "中心原子金属性减弱、半径减小而电荷升高（离子势增大）→ R—O 键共价性增强，R—O—H 更倾向于酸式电离出 H⁺ 而不是碱式电离出 OH⁻，故碱性减弱。"),
+    "g,base":NT("同族从上到下，最高价氧化物对应水化物的<b>碱性逐渐增强</b>。",
+            "金属性增强、半径增大 → R—O—H 更易碱式电离出 OH⁻。例：LiOH < NaOH < KOH < RbOH < CsOH（CsOH 是最强碱）；Be(OH)₂ 两性 < Mg(OH)₂ 中强碱 < Ca(OH)₂ 强碱。"),
+    "p,hyd":NT("同周期从左到右（ⅣA~ⅦA），气态氢化物的<b>稳定性逐渐增强</b>。金属元素不形成共价型气态氢化物，已跳过。",
+            "中心原子非金属性增强、原子半径减小 → R—H 键键长缩短、键能增大，分子更难分解。例：SiH₄ < PH₃ < H₂S < HCl。"),
+    "g,hyd":NT("同族从上到下（ⅣA~ⅦA），气态氢化物的<b>稳定性逐渐减弱</b>。",
+            "原子半径增大 → R—H 键键长增大、键能减小，分子更易分解。例：HF > HCl > HBr > HI；H₂O > H₂S > H₂Se > H₂Te；CH₄ > SiH₄。")
+  };
+  // 注意键名用方向（p/g）而非具体周期号：rv 形如 "p3"，若用 rv 查表永远命中不了
+  // 解析移入右侧「教学解析」面板：折线图因此获得更大纵向空间
+  const noteHtml = notes[(isP ? "p" : "g") + "," + prop] || "";
+  $("teach-content").innerHTML = "<strong>周期律解析 · "+title+"</strong><br>"+noteHtml
+    + "<br><span style='color:#8fa3bf;'>悬停折线上的点可看具体数值；点元素格可切回该元素的解析。</span>";
+  $("teach-panel").scrollTop = 0;
+
+  const svg = $("trend-svg");
+  if (pts.length < 2) {
+    const tip = /^ie[2-4]$/.test(prop) ? "该范围内有效数据不足，无法绘图<br/>（逐级电离能数据目前覆盖 1~20 号元素）"
+              : prop === "ea" ? "该范围内有效数据不足，无法绘图<br/>（该区间多数元素无电子亲和能数据）"
+              : prop === "hyd" ? "该范围内无气态氢化物数据<br/>（ⅠA / ⅡA 为离子型氢化物，不参与稳定性比较）"
+              : (prop === "acid" || prop === "base") ? "该范围内无最高价氧化物对应水化物数据<br/>（多为过渡元素或稀有气体）"
+              : "该范围内有效数据不足，无法绘图";
+    svg.innerHTML = "<text x='480' y='140' text-anchor='middle' fill='#8fa3bf' font-size='13'>"
+      + tip.split("<br/>")[0] + "</text>"
+      + (tip.indexOf("<br/>") > 0 ? "<text x='480' y='164' text-anchor='middle' fill='#7d90ab' font-size='12'>" + tip.split("<br/>")[1] + "</text>" : "");
+    return;
+  }
+  const L=56, R=20, T=20, B=32, W=960-L-R, H=250-T-B;
+  const vals = pts.map(p => p.v);
+  const QUAL = {acid:1, base:1, hyd:1};                 // 定性 0~6 序数标度：纵轴取整数
+  let mn = Math.min(...vals), mx = Math.max(...vals);
+  const flat = vals.every(v => Math.abs(v - vals[0]) < 1e-9);
+  if (Math.abs(mx - mn) < 1e-9) {
+    if (QUAL[prop] && Math.abs(mx) < 1e-9) { mn = 0; mx = 4; } else { mn = mx - 1; mx = mx + 1; }
+  } else {
+    const pad = (mx - mn) * 0.08; mn -= pad; mx += pad;
+    if (QUAL[prop]) { mn = Math.max(0, Math.floor(mn)); mx = Math.ceil(mx); }
+  }
+  const X = i => L + (pts.length===1 ? W/2 : i/(pts.length-1)*W);
+  const Y = v => T + (1-(v-mn)/(mx-mn))*H;
+  let s = "";
+  for (let k=0;k<=3;k++) {
+    const gy = T + k*H/3, gv = mx - k*(mx-mn)/3;
+    s += "<line x1='"+L+"' y1='"+gy+"' x2='"+(L+W)+"' y2='"+gy+"' stroke='rgba(255,255,255,0.10)' stroke-width='0.5'/>";
+    s += "<text x='"+(L-6)+"' y='"+gy+"' text-anchor='end' dominant-baseline='central' fill='#9fb3d1' font-size='12'>"+(mx-mn<10?(Math.round(gv*10)/10):Math.round(gv))+"</text>";
+  }
+  const linePts = pts.map((p,i) => X(i)+","+Y(p.v)).join(" ");
+  s += "<polyline points='"+linePts+"' fill='none' stroke='#ffaa55' stroke-width='2'/>";
+  if (flat) {
+    const flatTip = {acid:"该范围内所有元素的最高价氧化物对应水化物都不显酸性（只显碱性）",
+                     base:"该范围内所有元素的最高价氧化物对应水化物都不显碱性（只显酸性）",
+                     hyd:"该范围内所有元素的气态氢化物稳定性相同"}[prop];
+    if (flatTip) s += "<text x='480' y='"+(T+H/2-18)+"' text-anchor='middle' fill='#9decfb' font-size='12'>"+flatTip+"</text>";
+  }
+  const step = Math.ceil(pts.length/16);
+  const ieK = {ie1:1, ie2:2, ie3:3, ie4:4}[prop] || 0;
+  // 逐级电离能「突增」：取本周期内 Iₖ/Iₖ₋₁ 最大的元素，≥2.5 倍才认定
+  // （同一周期同一级上最多只有一个元素发生突增，即最外层电子恰好在第 k-1 个用完的那个）
+  let jumpIdx = -1, jumpRatio = 0;
+  if (ieK >= 2 && isP) {
+    pts.forEach((p, i) => {
+      const pv = p.el.ies ? p.el.ies[ieK-2] : null;
+      if (pv != null && pv > 0 && p.v / pv > jumpRatio) { jumpRatio = p.v / pv; jumpIdx = i; }
+    });
+    if (jumpRatio < 2.5) jumpIdx = -1;
+  }
+  pts.forEach((p,i) => {
+    let extra = "";
+    const next = i < pts.length - 1 ? pts[i+1] : null;
+    // 第一电离能：⚠ 标在“反常高”的元素本身（Mg、P…），而不是偏低的右邻（Al、S…）
+    if (ieK === 1 && isP && next && p.v > next.v && STABLE_G.indexOf(p.el.g) >= 0) {
+      s += "<text x='"+X(i)+"' y='"+(Y(p.v)-13)+"' text-anchor='middle' fill='#ff8888' font-size='14' font-weight='bold'>⚠</text>";
+      extra = " ⚠ 反常高：I₁ = "+p.v+"，高于右邻 "+next.el.zh+"（"+next.v+"）——"+anomalyReason(p.el);
+    } else if (ieK >= 2 && i === jumpIdx) {
+      const pv = p.el.ies[ieK-2];
+      s += "<text x='"+X(i)+"' y='"+(Y(p.v)-13)+"' text-anchor='middle' fill='#ff8888' font-size='14' font-weight='bold'>⚠</text>";
+      extra = " ⚠ 突增：I"+ieK+"/I"+(ieK-1)+" = "+jumpRatio.toFixed(1)+" 倍（"+pv+" → "+p.v+"）"
+        + "，第 "+ieK+" 个电子已来自内层 → 最外层有 "+(ieK-1)+" 个电子";
+    }
+    s += "<circle cx='"+X(i)+"' cy='"+Y(p.v)+"' r='3.6' fill='#ffd47f' stroke='#b06a00' stroke-width='0.8'>"
+      + "<title>"+p.el.zh+" "+p.el.sym+"（"+p.el.z+"）： "+(propInfo.tip ? propInfo.tip(p.el, p.v) : p.v + propInfo.unit)+extra+"</title></circle>";
+    if (i % step === 0) s += "<text x='"+X(i)+"' y='"+(T+H+16)+"' text-anchor='middle' fill='#9fb3d1' font-size='12'>"+p.el.sym+"</text>";
+  });
+  s += "<line x1='"+L+"' y1='"+(T+H)+"' x2='"+(L+W)+"' y2='"+(T+H)+"' stroke='rgba(255,255,255,0.30)' stroke-width='1'/>";
+  s += "<line x1='"+L+"' y1='"+T+"' x2='"+L+"' y2='"+(T+H)+"' stroke='rgba(255,255,255,0.30)' stroke-width='1'/>";
+  s += "<text x='"+(L+W)+"' y='"+(T-8)+"' text-anchor='end' fill='#ffcc88' font-size='12'>原子序数增大 →</text>";
+  const UP_LABEL = {met:"金属性越强（电负性越小）", nonmet:"非金属性越强（电负性越大）",
+                    acid:"酸性越强", base:"碱性越强", hyd:"氢化物越稳定"};
+  if (UP_LABEL[prop]) {
+    s += "<text x='"+(L+2)+"' y='"+(T-7)+"' text-anchor='start' fill='#9decfb' font-size='11'>↑ 曲线越高，"+UP_LABEL[prop]+"</text>";
+  }
+  svg.innerHTML = s;
+}
+
+$("btn-chart-toggle").addEventListener("click", function() {
+  const folded = $("chart-panel").classList.toggle("folded");
+  this.textContent = folded ? "展开" : "收起";
+});
+
+// 定位轨道面板：顶对齐族标签行之下（不遮罗马数字），水平落在凹陷空带内（列 4..13 三行皆空）
+// 随格子尺寸(_pg)动态计算，折叠/缩放后自动挪到合适位置
+function positionOrbit() {
+  const ov = $("orbit-panel"), pt = $("ptable"), ta = $("table-area");
+  if (!ov || !pt || !ta || !_pg) return;
+  if (!ov.classList.contains("open")) return;
+  const tr = ta.getBoundingClientRect(), pr = pt.getBoundingClientRect();
+  const { numCol, colW, gap, rowH } = _pg;
+  const cstep = colW + gap, rstep = rowH + gap;
+  const X = c => numCol + gap + (c - 2) * cstep;          // 元素列 c(2..19) 相对 ptable 的 x
+  const CX = c => X(c) + colW / 2;                        // 元素列 c 的中心 x
+  const availH = 3 * rstep - 26;                          // 族标签行之下到钪行顶的净高
+  const emptyL = X(4), emptyR = X(14);                    // 三行皆空的列带（第 3~13 族）
+  // 右移量随格子大小按比例放大：基础 20px + 半格（大图自动按比例右移，小图再多半格）
+  const shift = 20 + colW * 0.5;
+  // 空带宽度需预留出偏移量，否则 left 会被边界夹死（偏移失效）
+  const availW = emptyR - emptyL - 8 - 60;
+  // 关键：先解除上一次留下的宽度限制并按 1 倍测量真实内容宽，否则残留 max-width 会让测量失真
+  ov.style.maxWidth = "none";
+  ov.style.setProperty("--os", "1");
+  const baseW = ov.offsetWidth || 300;
+  // 缩放：随格子放大，同时受可用高度与可用宽度约束，保证内容完整不出现内部滚动
+  const os = Math.max(0.7, Math.min(colW / 30, (availH - 24) / 91, availW / baseW));
+  ov.style.setProperty("--os", os.toFixed(3));
+  const w = ov.offsetWidth || baseW * os;
+  const panelW = Math.max(180, Math.min(w, availW));
+  ov.style.maxWidth = panelW + "px";
+  // 高度兜底（与上面 os 的垂直约束一致，正常情况不会触发滚动）
+  ov.querySelector(".orbit-grid").style.maxHeight = Math.max(70, availH - 24) + "px";
+  // 中心对齐“第 3 列与第 12 列的正中间”，并夹在空带内
+  const center = (CX(3) + CX(12)) / 2;
+  let left = center - panelW / 2 + shift;                 // 按比例右移（随格子同步放大）
+  left = Math.max(emptyL, Math.min(left, emptyR - panelW));
+  const top = rowH + gap + 1;                             // 表格顶 + 整行族标签高度（不遮罗马数字）
+  ov.style.left = (pr.left - tr.left + left) + "px";
+  ov.style.top = (pr.top - tr.top + top) + "px";
+}
+// 分类图例与轨道面板共用左上凹陷带，定位逻辑与轨道面板一致（按格子尺寸缩放）
+function positionLegend() {
+  const lp = $("legend-panel"), pt = $("ptable"), ta = $("table-area");
+  if (!lp || !pt || !ta || !_pg) return;
+  const tr = ta.getBoundingClientRect(), pr = pt.getBoundingClientRect();
+  const { numCol, colW, gap, rowH } = _pg;
+  const cstep = colW + gap, rstep = rowH + gap;
+  const X = c => numCol + gap + (c - 2) * cstep;      // 元素列 c 相对 ptable 的 x
+  const CX = c => X(c) + colW / 2;
+  const availH = 3 * rstep - 26;                      // 族标签行之下到钪行顶的净高
+  const emptyL = X(4), emptyR = X(14);                // 三行皆空的列带
+  // 整体右移一个小方格（＝列间距 cstep）：随格子尺寸等比放大，
+  // 折叠侧栏后 fitTable 会把 colW 放大，位移同步变大，视觉比例保持一致
+  const shift = cstep;
+  const availW = emptyR - emptyL - 10 - shift;        // 预留出位移量，否则会被右边界 clamp 吃掉
+  lp.style.setProperty("--lg", "1");                  // 先按 1 倍测量真实尺寸，避免残留缩放污染
+  const baseW = lp.offsetWidth || 250, baseH = lp.offsetHeight || 76;
+  const lg = Math.max(0.7, Math.min(1.35, colW / 30, (availH - 14) / baseH, availW / baseW));
+  lp.style.setProperty("--lg", lg.toFixed(3));
+  const w = lp.offsetWidth || baseW * lg;
+  const center = (CX(3) + CX(12)) / 2;
+  // 先求“未右移时的落点”（已夹在凹陷带内），再整体右移一格——保证相对当前位置正好挪一格，
+  // 而不是被左边界吃掉一部分位移
+  const base = Math.max(emptyL + 2, Math.min(center - w / 2, emptyR - w - 2));
+  const left = Math.min(base + shift, emptyR - w - 2);
+  lp.style.left = (pr.left - tr.left + left) + "px";
+  lp.style.top = (pr.top - tr.top + rowH + gap + 1) + "px";
+}
+let orbitOpen = false;
+function setMode(mode) {
+  const open = mode === "orbit";
+  orbitOpen = open;
+  $("orbit-panel").classList.toggle("open", open);
+  $("legend-panel").classList.toggle("show", !open);   // 电子层模式下让位给轨道面板
+  if (!open) positionLegend();
+  document.querySelectorAll("#mode-switch .mode-btn").forEach(b =>
+    b.classList.toggle("active", b.dataset.mode === mode));
+  if (open) {                        // 电子层模式
+    if (!selectedZ) { selectedZ = 1; fillDetails(byZ(1)); }
+    renderOrbit(byZ(selectedZ));
+    positionOrbit();
+  }
+}
+$("mode-switch").addEventListener("click", e => {
+  const b = e.target.closest(".mode-btn"); if (!b) return;
+  setMode(b.dataset.mode);
+});
+$("orbit-close").addEventListener("click", () => setMode("std"));
+
+// 逐级电离能（kJ/mol）：内置高考常考的 1~20 号元素；其余元素仅有第一电离能（来自 RAW）
+const IES = {
+  1:[1312], 2:[2372,5250], 3:[520,7298,11815], 4:[900,1757,14848,21006],
+  5:[801,2427,3659,25025,32826], 6:[1087,2352,4620,6222,37831,47277],
+  7:[1402,2856,4578,7475,9445,53266], 8:[1314,3388,5300,7469,10989,13326],
+  9:[1681,3374,6050,8407,11022,15164], 10:[2081,3952,6122,9370,12177,15238],
+  11:[496,4562,6910,9543,13353,16610], 12:[738,1451,7733,10542,13630,17995],
+  13:[578,1817,2745,11577,14842,18379], 14:[786,1577,3232,4356,16091,19805],
+  15:[1012,1907,2914,4956,6273,21267], 16:[1000,2252,3357,4556,7004,8495],
+  17:[1251,2298,3822,5158,6542,9362], 18:[1521,2666,3931,5771,7238,8781],
+  19:[419,3052,4420,5877,7975,9590], 20:[590,1145,4912,6491,8153,10495]
+};
+const IE_CN = ["一","二","三","四","五","六"];
+// 第一电子亲和能（kJ/mol，正值＝放热，负值＝吸热／难以结合电子）
+// 稀有气体、部分碱土金属与半充满构型元素为负值；未列出的元素留空（图中跳过）
+const EA = {
+  1:72.8, 2:-48, 3:59.6, 4:-48, 5:26.7, 6:122, 7:-7, 8:141, 9:328, 10:-116,
+  11:52.9, 12:-40, 13:42.5, 14:134, 15:72, 16:200, 17:349, 18:-96,
+  19:48.4, 20:2.4, 21:18.1, 22:7.6, 23:50.6, 24:64.3, 25:-50, 26:15.7, 27:63.7, 28:112, 29:119, 30:-58,
+  31:28.9, 32:119, 33:78, 34:195, 35:325, 36:-96,
+  37:46.9, 38:5.0, 39:29.6, 40:41.1, 41:86.1, 42:71.9, 43:53, 44:101, 45:110, 46:54, 47:126, 48:-68,
+  49:28.9, 50:107, 51:103, 52:190, 53:295, 54:-77,
+  55:45.5, 56:14.0, 57:48, 73:31, 74:79, 75:14.5, 76:106, 77:151, 78:205, 79:223, 80:-50,
+  81:19.2, 82:35.1, 83:91.2, 84:183, 85:270, 86:-68
+};
+
+// ===== 定性性质的“相对强弱指数”（0~6，越大越强）=====
+// 最高价氧化物对应水化物的酸性：同周期左→右增强、同族上→下减弱
+const OX_ACID = {   // 0=不显酸性；0~1.4 两性；1.4~3 弱酸；3~4.5 中强酸；4.5~5.4 强酸；5.4+ 最强酸
+  3:0,   4:1.0, 5:2.2, 6:2.5, 7:5.2,
+  11:0,  12:0,  13:1.2, 14:2.0, 15:4.0, 16:5.2, 17:6.0,
+  19:0,  20:0,  31:1.2, 32:1.8, 33:3.5, 34:5.0, 35:5.2,
+  37:0,  38:0,  49:1.0, 50:1.2, 51:2.5, 52:3.8, 53:4.6,
+  55:0,  56:0,  81:0,   82:1.0, 83:0
+};
+// 最高价氧化物对应水化物的碱性：同周期左→右减弱、同族上→下增强
+const OX_BASE = {   // 0=不显碱性；0~1.4 两性；1.4~3 弱碱；3~4.5 中强碱；4.5~5.4 强碱；5.4+ 最强碱
+  3:4.6, 4:1.2, 5:0, 6:0, 7:0,
+  11:5.0, 12:3.8, 13:1.2, 14:0, 15:0, 16:0, 17:0,
+  19:5.3, 20:4.5, 31:1.2, 32:1.0, 33:0, 34:0, 35:0,
+  37:5.6, 38:4.8, 49:2.5, 50:1.2, 51:1.0, 52:0, 53:0,
+  55:6.0, 56:5.2, 81:4.5, 82:1.2, 83:2.5
+};
+// 气态氢化物稳定性：同周期左→右增强、同族上→下减弱（ⅠA/ⅡA 为离子型氢化物，不计入）
+const HYD_STAB = {  // 仅 ⅣA~ⅦA：其氢化物为共价型气态氢化物，可比较热稳定性
+  6:5.0, 7:5.4, 8:5.7, 9:6.0,
+  14:4.0, 15:4.4, 16:4.7, 17:5.0,
+  32:3.2, 33:3.6, 34:3.9, 35:4.2,
+  50:2.4, 51:2.8, 52:3.1, 53:3.4,
+  82:1.6, 83:2.0, 84:2.1, 85:2.4
+};
+function hydrateOf(el) {                       // 最高价氧化物对应水化物的常见形式
+  const R = el.sym;
+  if (el.g === 1) return R + "OH";
+  if (el.g === 2) return R + "(OH)₂";
+  if (el.g === 13) return R + "(OH)₃";
+  if (el.g === 14) return "H₂" + R + "O₃";
+  if (el.g === 15) return el.z === 7 ? "HNO₃" : "H₃" + R + "O₄";
+  if (el.g === 16) return "H₂" + R + "O₄";
+  if (el.g === 17) return "H" + R + "O₄";
+  return "";
+}
+function hydrideOf(el) {                       // 氢化物的常见形式
+  const R = el.sym;
+  if (el.g === 15) return R + "H₃";
+  if (el.g === 14) return R + "H₄";
+  if (el.g === 16) return "H₂" + R;
+  if (el.g === 17) return "H" + R;
+  return "";
+}
+function acidTag(v) {
+  if (!v) return "不显酸性";
+  return v >= 5.4 ? "最强酸" : v >= 4.5 ? "强酸" : v >= 3 ? "中强酸" : v >= 1.4 ? "弱酸" : "两性（极弱酸）";
+}
+function baseTag(v) {
+  if (!v) return "不显碱性";
+  return v >= 5.4 ? "最强碱" : v >= 4.5 ? "强碱" : v >= 3 ? "中强碱" : v >= 1.4 ? "弱碱" : "两性（极弱碱）";
+}
+function stabTag(v) {
+  return v >= 5.4 ? "很稳定" : v >= 4.0 ? "稳定" : v >= 3.0 ? "较稳定" : v >= 2.0 ? "不稳定" : "极不稳定";
+}
+function modeVal(el, conf) { return el[conf.key]; }
+ELS.forEach(el => {            // 依赖 SUBSHELLS，须在此处（常量已就绪）
+  el.ec = configStr(el.z);
+  el.blk = blockOf(el);
+  el.ies = IES[el.z] || (el.ie != null ? [el.ie] : []);
+  el.ea = EA[el.z] != null ? EA[el.z] : null;
+  el.oa  = OX_ACID[el.z]  != null ? OX_ACID[el.z]  : null;
+  el.ob  = OX_BASE[el.z]  != null ? OX_BASE[el.z]  : null;
+  el.hyd = HYD_STAB[el.z] != null ? HYD_STAB[el.z] : null;
+});
+buildTable();
+buildControls();
+applyColorMode();
+applyCatFilter();
+$("teach-content").innerHTML = TEACH_DEFAULT;
+setCellFn();
+
+// ---------- 侧栏折叠 / 图标条 ----------
+const sidebarEl = $("sidebar");
+function setSidebarCollapsed(on) {
+  if (!sidebarEl) return;
+  sidebarEl.classList.toggle("collapsed", on);
+  if (on) document.querySelectorAll(".glass-panel.focus-hit").forEach(p => p.classList.remove("focus-hit"));
+  fitTable();
+}
+$("btn-collapse-sidebar").addEventListener("click", () => setSidebarCollapsed(true));
+$("rail-expand").addEventListener("click", () => setSidebarCollapsed(false));
+document.querySelectorAll("#sidebar-rail .rail-btn[data-panel]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    setSidebarCollapsed(false);
+    const target = $(btn.dataset.panel);
+    if (!target) return;
+    document.querySelectorAll(".glass-panel.focus-hit").forEach(p => p.classList.remove("focus-hit"));
+    target.scrollIntoView({ block: "nearest" });
+    target.classList.add("focus-hit");
+    setTimeout(() => target.classList.remove("focus-hit"), 1400);
+    if (btn.dataset.panel === "panel-func") { const s = $("search"); if (s) s.focus(); }
+  });
+});
+
+// ---------- 周期表自适应：按可用宽度直接计算格子尺寸 ----------
+// 用 grid 参数放缩而非 transform:scale —— 格子宽高按比例变大，但文字保持原字号，
+// 避免整体放大导致的"字太大"与格子内文字重叠。
+const SIZE_PARAM = {
+  "size-s": { numCol: 18, gap: 2, ratio: 40 / 30, baseW: 30, min: 26, max: 56 }
+};
+function fitTable() {
+  const area = $("table-area"), pt = $("ptable");
+  if (!area || !pt) return;
+  const avail = area.clientWidth - 34;
+  if (avail <= 0) return;
+  const key = "size-s";                            // 页面固定小格模式
+  const p = SIZE_PARAM[key];
+  let colW = (avail - p.numCol - 18 * p.gap) / 18;
+  colW = Math.max(p.min, Math.min(p.max, colW));
+  pt.style.gridTemplateColumns = p.numCol + "px repeat(18," + colW.toFixed(2) + "px)";
+  const rowH = Math.round(colW * p.ratio);
+  pt.style.gridAutoRows = rowH + "px";
+  _pg = { numCol: p.numCol, colW, rowH, gap: p.gap };
+  // 文字随格子适度放大（上限 1.28 倍，避免过大拥挤）
+  const ts = Math.max(0.92, Math.min(1.28, colW / p.baseW));
+  pt.style.setProperty("--ts", ts.toFixed(3));
+  redrawOverlay();
+  positionOrbit();   // 轨道面板展开时跟随重定位
+  positionLegend();  // 分类图例同处凹陷带，随格子尺寸缩放
+}
+
+// ---------- 金属/非金属分界线 + 对角线规则 叠加层 ----------
+function redrawOverlay() {
+  const ov = $("table-overlay");
+  if (!ov || !_pg) return;
+  const showB = $("sw-boundary").checked, showD = $("sw-diag").checked;
+  if (!showB && !showD) { ov.innerHTML = ""; return; }
+  const { numCol, colW, rowH, gap } = _pg;
+  const W = numCol + 18 * colW + 18 * gap, H = 10 * rowH + 9 * gap;
+  const gx = c => numCol + (c - 2) * (colW + gap) + colW / 2;
+  const gy = r => (r - 1) * (rowH + gap) + rowH / 2;
+  const cen = z => { const el = byZ(z); return [gx(el.g + 1), gy(el.p + 1)]; };
+  let svg = "<svg viewBox='0 0 " + W + " " + H + "' width='" + W + "' height='" + H + "'>";
+  if (showB) {
+    // 金属/非金属阶梯分界线：沿格子间隙走台阶（竖段贴分界元素右缘沟槽、横段贴行间沟槽）
+    const bndEls = [5, 14, 33, 52, 85].map(z => byZ(z));   // B → Si → As → Te → At
+    const colstep = colW + gap, rowstep = rowH + gap;
+    const X = c => numCol + gap + (c - 2) * colstep;        // 第 c 个元素列(2..19)左缘
+    const Y = r => (r - 1) * rowstep;                       // 第 r 行(1..10)顶
+    const pts = [];
+    bndEls.forEach(el => {
+      const c = el.g + 1, r = el.p + 1;
+      const x = X(c) + colW + gap / 2;                      // 该元素右侧沟槽中线
+      pts.push([x, Y(r) - gap / 2], [x, Y(r) + rowH + gap / 2]);
+    });
+    svg += "<path d='M" + pts.map(p => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" L")
+      + "' fill='none' stroke='#ffcc88' stroke-width='2.6' stroke-linejoin='round' stroke-dasharray='7 5' opacity='0.9'/>";
+  }
+  if (showD) {
+    const pairs = [[3, 12], [4, 13], [5, 14]];
+    const cols = ["#7fe0ff", "#c9a9ff", "#8fe8b8"];
+    pairs.forEach((pair, i) => {
+      const a = cen(pair[0]), b = cen(pair[1]);
+      svg += "<line x1='" + a[0] + "' y1='" + a[1] + "' x2='" + b[0] + "' y2='" + b[1] + "' stroke='" + cols[i] + "' stroke-width='2.2' stroke-dasharray='5 4' opacity='0.95'/>"
+        + "<circle cx='" + a[0] + "' cy='" + a[1] + "' r='4.5' fill='" + cols[i] + "'/>"
+        + "<circle cx='" + b[0] + "' cy='" + b[1] + "' r='4.5' fill='" + cols[i] + "'/>";
+    });
+  }
+  svg += "</svg>";
+  ov.innerHTML = svg;
+  const pt = $("ptable"), ta = $("table-area");
+  if (pt && ta) {
+    const tr = ta.getBoundingClientRect(), pr = pt.getBoundingClientRect();
+    ov.style.left = (pr.left - tr.left) + "px";
+    ov.style.top = (pr.top - tr.top) + "px";
+  }
+}
+let fitRaf = null;
+window.addEventListener("resize", () => {
+  if (fitRaf) cancelAnimationFrame(fitRaf);
+  fitRaf = requestAnimationFrame(fitTable);
+});
+["sw-boundary", "sw-diag"].forEach(id => {
+  const el = $(id);
+  if (el) el.addEventListener("change", redrawOverlay);
+});
+fitTable();
+</script>
+</body>
+</html>

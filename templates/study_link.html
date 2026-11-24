@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }} - AI 助手</title>
+<link rel="stylesheet" href="{{ versioned_static('bootstrap/css/bootstrap.min.css') }}">
+<link rel="stylesheet" href="{{ versioned_static('fontawesome/css/all.min.css') }}">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; background: #1a1a2e; }
+
+  /* 顶部工具栏 */
+  .toolbar {
+    display: flex; align-items: center; gap: 8px; padding: 8px 14px;
+    background: linear-gradient(135deg, #1a237e 0%, #283593 100%); color: #fff;
+    flex-shrink: 0; min-height: 48px; flex-wrap: wrap;
+  }
+  .toolbar .btn { font-size: 0.85rem; padding: 5px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.25); color: #fff; background: rgba(255,255,255,0.08); cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  .toolbar .btn:hover { background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.5); }
+  .toolbar .btn-back { font-weight: 600; }
+  .toolbar .url-display { flex: 1; min-width: 150px; font-size: 0.8rem; opacity: 0.85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .toolbar .title-display { font-weight: 600; font-size: 0.95rem; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* iframe 容器 */
+  .iframe-container { flex: 1; position: relative; background: #fff; }
+  .iframe-container iframe { width: 100%; height: 100%; border: none; }
+  .iframe-container .iframe-error { display: none; position: absolute; inset: 0; background: #16213e; color: #cdd6f4; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 30px; }
+  .iframe-container .iframe-error.show { display: flex; }
+  .iframe-container .iframe-error h3 { color: #f38ba8; margin-bottom: 12px; }
+  .iframe-container .iframe-error p { max-width: 500px; margin-bottom: 20px; line-height: 1.6; }
+  .iframe-container .iframe-error .actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  .iframe-container .quiz-hint { display: none; position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 10; background: #313244; color: #cdd6f4; border: 1px solid #45475a; padding: 6px 14px; border-radius: 8px; font-size: 0.85rem; }
+  .iframe-container .quiz-hint.show { display: block; }
+
+  /* Bookmarklet 拖拽区 */
+  .bookmarklet-zone { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; background: #313244; border-radius: 8px; border: 2px dashed #45475a; cursor: grab; user-select: none; }
+  .bookmarklet-zone:hover { border-color: #89b4fa; background: #3a3b52; }
+  .bookmarklet-zone a { color: #89b4fa; font-weight: 700; text-decoration: none; font-size: 1rem; cursor: grab; }
+
+  @media (max-width: 600px) {
+    .toolbar { padding: 6px 8px; gap: 4px; }
+    .toolbar .btn { font-size: 0.78rem; padding: 4px 8px; }
+    .toolbar .title-display { max-width: 150px; font-size: 0.85rem; }
+  }
+</style>
+<script src="{{ versioned_static('js/ui-feedback.js') }}" defer></script>
+<script>
+  // iframe 可能在本页底部脚本执行前就完成首次加载：先挂占位回调，
+  // 待 onIframeLoad 定义后补发，避免漏注入测验采集器或报未定义错误。
+  window.__frameOnLoad = function () {
+    if (window.__frameLoaded) window.__frameLoaded();
+    else window.__pendingFrameLoad = true;
+  };
+</script>
+</head>
+<body>
+
+<!-- 工具栏 -->
+<div class="toolbar">
+  <button class="btn btn-back" onclick="goBack()" title="返回">
+    <i class="fas fa-arrow-left me-1"></i>返回
+  </button>
+  <span class="title-display" title="{{ title }}">
+    <i class="fas fa-globe me-1"></i>{{ title }}
+  </span>
+  <span class="url-display" title="{{ url }}">{{ url }}</span>
+  <button class="btn" onclick="toggleFullscreen()" title="全屏">
+    <i class="fas fa-expand me-1"></i>全屏
+  </button>
+  <button class="btn" onclick="openOriginal()" title="在新标签页中打开原始页面">
+    <i class="fas fa-external-link-alt me-1"></i>原始页
+  </button>
+</div>
+
+<!-- iframe 区 -->
+<div class="iframe-container">
+  <!-- 默认不含 allow-same-origin：课件在 opaque origin 下运行，无法读取本应用
+       cookie / 向同源 API 代发请求（防课件存储型 XSS 会话接管）；
+       唯一例外是站内受信 GeoGebra 播放器（localStorage / 同源 postMessage 必需），
+       由 trusted_same_origin 条件放行；其他课件仍为 opaque origin。
+       allow-downloads/allow-modals：活动单等学习资源在 iframe 内导出/下载/打印。 -->
+  <!-- 移除 allow-top-navigation / allow-popups-to-escape-sandbox：课件（含
+       第三方外链资源）不可将顶层窗口导航至伪登录页或弹出脱离沙箱的窗口
+       （面向学生的钓鱼面）；如确需全屏等能力改用
+       allow-top-navigation-by-user-activation -->
+  <iframe id="mainFrame" src="{{ 'about:blank' if ggb_bridge_root else url }}"
+          sandbox="allow-scripts allow-forms allow-popups allow-downloads allow-modals{% if trusted_same_origin %} allow-same-origin{% endif %}"
+          loading="lazy" referrerpolicy="no-referrer"
+          onerror="window.__frameError && window.__frameError()"
+          onload="window.__frameOnLoad()"></iframe>
+  <div class="quiz-hint" id="quizHint">
+    <i class="fas fa-info-circle me-1"></i>当前资源为外部站点，不支持实时测验采集
+  </div>
+  <div class="iframe-error" id="iframeError">
+    <i class="fas fa-lock fa-3x mb-3" style="color:#f38ba8"></i>
+    <h3>此页面不支持内嵌显示</h3>
+    <p>{{ url }}</p>
+    <p>该网站设置了安全策略（X-Frame-Options），禁止在 iframe 中打开。请通过以下方式继续：</p>
+    <div class="actions">
+      <a href="{{ url }}" target="_blank" class="btn btn-primary">
+        <i class="fas fa-external-link-alt me-1"></i>在新标签页中打开
+      </a>
+    </div>
+  </div>
+</div>
+
+<script>
+var _resourceId = {{ resource_id|tojson }};
+var _quizMode = {{ quiz_mode|tojson }};
+
+function goBack() {
+  // 课件 iframe 的导航会进入联合会话历史，浏览器回退可能只回退到
+  // 课件内部甚至 about:blank，表现为页面空白；直接返回打开本页
+  // 的来源。来源是另一个封装页或跨域时回退到学习资源列表。
+  var target = '/study';
+  try {
+    if (document.referrer) {
+      var ref = new URL(document.referrer);
+      if (ref.origin === location.origin &&
+          !/^\/study\/link(?:[/?]|$)/.test(ref.pathname + ref.search)) {
+        target = ref.href;
+      }
+    }
+  } catch (e) { /* 非法 referrer 使用默认目标 */ }
+  location.href = target;
+}
+
+function toggleFullscreen() {
+  if (document.fullscreenElement) { document.exitFullscreen(); }
+  else { document.documentElement.requestFullscreen(); }
+}
+
+function openOriginal() {
+  window.open({{ url|tojson }}, '_blank');
+}
+
+function onIframeError() {
+  document.getElementById('iframeError').classList.add('show');
+}
+
+function onIframeLoad() {
+  if (_quizMode === 'runtime') {
+    var iframe = document.getElementById('mainFrame');
+    if (!iframe || !iframe.contentWindow) return;
+    // 同源检查：跨域 iframe 无法注入采集 SDK（访问 contentDocument 会抛 SecurityError），
+    // 此时给出明确提示而非静默失败
+    var isSameOrigin = false;
+    try {
+      isSameOrigin = iframe.contentWindow.location.origin === window.location.origin;
+    } catch (e) {
+      isSameOrigin = false; // 跨域访问抛 SecurityError
+    }
+    if (!isSameOrigin) {
+      var hint = document.getElementById('quizHint');
+      if (hint) hint.classList.add('show');
+      return;
+    }
+    try {
+      var iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+      if (iframeDoc && !iframeDoc.getElementById('ITSTUDY_QUIZ_COLLECTOR')) {
+        // 动态注入：先加载公共基类，再加载 quiz-collector
+        var baseScript = iframeDoc.createElement('script');
+        baseScript.src = '/static/sdk/collector-base.js';
+        iframeDoc.head.appendChild(baseScript);
+
+        var sdkScript = iframeDoc.createElement('script');
+        sdkScript.id = 'ITSTUDY_QUIZ_COLLECTOR';
+        sdkScript.src = '/static/sdk/quiz-collector.js';
+        sdkScript.onload = function () {
+          // SDK 加载完成后初始化
+          try {
+            iframeDoc.defaultView.__INJECT_RESOURCE_ID__ = _resourceId;
+            if (iframeDoc.defaultView.QuizCollector) {
+              iframeDoc.defaultView.QuizCollector.init(_resourceId);
+            }
+          } catch (e2) {}
+        };
+        iframeDoc.body.appendChild(sdkScript);
+      }
+    } catch(e) {}
+  }
+}
+
+window.__frameLoaded = onIframeLoad;
+window.__frameError = onIframeError;
+if (window.__pendingFrameLoad) {
+  window.__pendingFrameLoad = false;
+  onIframeLoad();
+}
+
+window.addEventListener('message', function(e) {
+  // 只接受本页 iframe 内注入的 SDK 上报：恶意站点可通过 window.open 本页
+  // 或向任意窗口 postMessage 伪造成绩提交，e.source 校验可阻断（跨域页面
+  // 拿不到本页 mainFrame 的 contentWindow 引用）。
+  // 外链课件帧也必须拒绝：sandbox 未开 allow-same-origin 时同源课件
+  // 的 origin 是 "null"，故仅当 iframe.src 本身同源时才接受 "null"。
+  var iframe = document.getElementById('mainFrame');
+  if (!iframe || !iframe.contentWindow || e.source !== iframe.contentWindow) return;
+  var frameSameOrigin = false;
+  try {
+    frameSameOrigin = new URL(iframe.dataset.sourceUrl || iframe.src, window.location.href).origin
+      === window.location.origin;
+  } catch (err) { frameSameOrigin = false; }
+  if (e.origin !== window.location.origin
+      && !(frameSameOrigin && e.origin === 'null')) return;
+  if (e.data && e.data.type === 'ITSTUDY_QUIZ_RESULT') {
+    var payload = e.data;
+    // 资源 id 一律以当前页面为准，不采信帧内自报
+    payload.resource_id = _resourceId;
+    // 携带 CSRF 头：父页与 API 同源，SDK 在 sandbox iframe 中无法自带
+    var csrfCookie = document.cookie.split('; ').filter(function (c) { return c.indexOf('csrf_token=') === 0; });
+    var csrfVal = csrfCookie.length ? decodeURIComponent(csrfCookie[0].slice('csrf_token='.length)) : (window.CSRF_TOKEN || '');
+    var headers = { 'Content-Type': 'application/json' };
+    if (csrfVal) headers['X-CSRFToken'] = csrfVal;
+    fetch('/api/resource_quiz/submit', {
+      method: 'POST',
+      headers: headers,
+      credentials: 'same-origin',
+      body: JSON.stringify(payload)
+    }).then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.success) {
+          console.log('[ITStudy] 测验成绩已提交');
+        }
+      }).catch(function () {});
+  }
+});
+</script>
+<script src="{{ versioned_static('js/courseware-worker-relay.js') }}"></script>
+<script>
+  (function () {
+    var frame = document.getElementById('mainFrame');
+    if (frame && window.CoursewareWorkerRelay) {
+      window.CoursewareWorkerRelay.mount(
+        frame, ['/study/courseware-view/', '/study/courseware/']);
+    }
+  })();
+</script>
+{% if ggb_bridge_root %}
+<script src="{{ versioned_static('js/ggb-courseware-bridge.js') }}"></script>
+<script>
+GGBCoursewareBridge.mount({
+  frame: document.getElementById('mainFrame'),
+  container: document.querySelector('.iframe-container'),
+  resourceId: {{ resource_id|int }},
+  resourceRoot: {{ ggb_bridge_root|tojson }},
+  access: {{ courseware_access|tojson }}
+}).load({{ url|tojson }}, {{ url|tojson }});
+</script>
+{% endif %}
+<link rel="stylesheet" href="{{ versioned_static('css/ai-chat.css') }}">
+<script src="{{ versioned_static('js/dompurify/purify.min.js') }}" defer></script>
+<script src="{{ versioned_static('js/ai-chat.js') }}" defer></script>
+</body>
+</html>

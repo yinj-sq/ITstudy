@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>化学仿真 · 3D 查看</title>
+<link rel="stylesheet" href="/static/chem-lab/vendor/molstar/molstar.css?v=6.1.0">
+<style>
+  html, body { width: 100%; height: 100%; margin: 0; padding: 0;
+    overflow: hidden; background: #0f1724; }
+  #molstar-container { width: 100%; height: 100%; }
+  #chem-viewer-loading {
+    position: fixed; inset: 0; display: flex; align-items: center;
+    justify-content: center; gap: 10px; color: #e2e8f0;
+    background: #0f1724; font-family: 'Microsoft YaHei', system-ui, sans-serif;
+    font-size: 14px; z-index: 10;
+  }
+  #chem-viewer-loading.hidden { display: none; }
+  #chem-viewer-error {
+    position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    max-width: 80%; padding: 18px 22px; border-radius: 12px;
+    background: #1e293b; color: #fecaca; border: 1px solid #7f1d1d;
+    font-family: 'Microsoft YaHei', system-ui, sans-serif; font-size: 14px;
+    line-height: 1.7; display: none; z-index: 20;
+  }
+  /* 隐藏 Molstar 自带的视口控件（英文 tooltip），统一使用本站中文工具栏 */
+  #molstar-container .msp-viewport-controls,
+  #molstar-container .msp-viewport-controls-buttons,
+  #molstar-container .msp-viewport-controls-panel,
+  #molstar-container .msp-viewport-top-left-controls {
+    display: none !important;
+  }
+</style>
+</head>
+<body>
+<div id="molstar-container"></div>
+<div id="chem-viewer-loading"><span>正在加载 3D 引擎…</span></div>
+<div id="chem-viewer-error"></div>
+<script src="/static/chem-lab/vendor/molstar/molstar.js?v=6.1.0"></script>
+<script src="/static/chem-lab/js/viewer-app.js?v=6.1.0-1117"></script>
+</body>
+</html>

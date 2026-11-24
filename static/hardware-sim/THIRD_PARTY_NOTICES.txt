@@ -1,0 +1,37 @@
+ITstudy 硬件仿真第三方组件声明
+================================
+
+本目录下的两个仿真应用来自外部开源项目，按其原许可证分发：
+
+1. 图形编程仿真（static/hardware-sim/mmake/）
+   - Mmake Block Studio / 掌控图形化编程
+     MIT License
+     https://github.com/Ixinlin/mmake-block-studio
+     许可证全文见 mmake/LICENSE。
+
+   - Google Blockly（vendor/blockly/）
+     Apache License 2.0
+     https://github.com/google/blockly
+     许可证全文见 mmake/vendor/blockly/LICENSE-APACHE-2.0.txt；
+     Blockly 的版权与许可证声明保留在其压缩脚本头部。
+
+2. ESP32-S3 仿真（static/hardware-sim/esp32-s3/）
+   - esp-labs / ESP32-S3 Bench Guide
+     MIT License
+     https://github.com/agharsallah/esp-labs
+     许可证全文见 esp32-s3/LICENSE。
+
+   - 打包进 dist 的前端依赖（React、React DOM、React Router、
+     TanStack Query、three.js、i18next、zod 等）均为 MIT License，
+     其许可证文本随各依赖源码分发。
+
+   - 芯片参考手册阅读器中的文字与图片摘自 Espressif Systems 的
+     ESP32-S3 Technical Reference Manual，版权归 Espressif Systems 所有，
+     仅用于课堂教学参考；完整手册请以 Espressif 官方发布为准。
+
+   - Archivo / IBM Plex Mono 字体（Latin 子集，自托管）
+     SIL Open Font License 1.1
+     许可证全文见 esp32-s3/fonts/OFL.txt，版权归属见
+     esp32-s3/fonts/FONT-NOTICES.txt。
+
+如用于对外再分发，请同时保留以上项目的版权与许可证声明。

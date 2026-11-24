@@ -1,0 +1,516 @@
+{% extends "base.html" %}
+
+{% block title %}编辑试题{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:800px;margin-top:60px;">
+    <div class="card p-4">
+        <h2 class="mb-4 text-primary"><i class="bi bi-pencil-square me-2"></i>编辑试题</h2>
+        <form method="post" id="editQuestionForm">
+            <!-- 来源卷（可选）：解耦后仅作溯源与快捷归属，改选即同步卷归属 -->
+            <div class="mb-3">
+                <label class="form-label">来源试卷（可选：选空=移出试卷仅留题库）</label>
+                <select name="exam_id" class="form-select">
+                    <option value="">— 仅存题库 —</option>
+                    {% for e in exams %}
+                    <option value="{{ e.id }}" {% if question.exam_id == e.id %}selected{% endif %}>{{ e.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <!-- 添加隐藏的question_id字段 -->
+            <input type="hidden" name="question_id" value="{{ question.id }}">
+            
+            <div class="mb-3">
+                <label class="form-label">题型</label>
+                <select name="question_type" class="form-select" id="questionType" onchange="handleQuestionTypeChange()" disabled>
+                    <option value="single" {% if question.question_type == 'single' %}selected{% endif %}>单选题</option>
+                    <option value="multiple" {% if question.question_type == 'multiple' %}selected{% endif %}>多选题</option>
+                    <option value="judge" {% if question.question_type == 'judge' %}selected{% endif %}>判断题</option>
+                    <option value="fill" {% if question.question_type == 'fill' %}selected{% endif %}>填空题</option>
+                    <option value="short_answer" {% if question.question_type == 'short_answer' %}selected{% endif %}>简答题</option>
+                    <option value="python_fill" {% if question.question_type == 'python_fill' %}selected{% endif %}>Python填空题</option>
+                    <option value="comprehensive" {% if question.question_type == 'comprehensive' %}selected{% endif %}>综合题</option>
+                    <option value="link" {% if question.question_type == 'link' %}selected{% endif %}>外链试卷</option>
+                </select>
+                <input type="hidden" name="question_type" value="{{ question.question_type }}">
+                <div class="form-text">题型不可更改，仅显示当前题型</div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">题目内容</label>
+                <textarea name="content" class="form-control" rows="5" required>{{ question.content }}</textarea>
+            </div>
+            <div class="mb-3" id="imgUploadGroup">
+                <label class="form-label">插入图片</label>
+                <input type="file" accept="image/*" id="imgUpload" class="form-control">
+                <div class="form-text">支持jpg/png/gif等格式，上传后自动插入图片链接到题干</div>
+            </div>
+            
+            <!-- 选择题字段 -->
+            <div id="choiceFields" class="mb-3" style="display: none;">
+                <label class="form-label">选项 <span class="text-muted">（选择题用竖线|分隔，支持图片）</span></label>
+                <div id="choiceOptions">
+                    {% if question.question_type == 'single' or question.question_type == 'multiple' %}
+                        {% set options = question.sorted_options.split('|') if question.sorted_options else [] %}
+                        {% for option in options %}
+                        <div class="option-item mb-2">
+                            <div class="input-group">
+                                <input type="text" class="form-control" name="options[]" value="{{ option }}" placeholder="选项内容">
+                                <input type="file" class="form-control" name="option_images[]" accept="image/*" onchange="previewOptionImage(this)">
+                                <button type="button" class="btn btn-outline-danger" onclick="removeOption(this)">删除</button>
+                            </div>
+                            <div class="option-preview mt-1">
+                                {% if question.image_options %}
+                                    {% set image_options = question.image_options_dict %}
+                                    {% set ol = (65 + loop.index0)|chr %}
+                                    {% if option in image_options and image_options[option] %}
+                                    <img src="{{ image_options[option] }}" class="img-thumbnail" style="max-height: 100px">
+                                    {% elif ol in image_options and image_options[ol] %}
+                                    <img src="{{ image_options[ol] }}" class="img-thumbnail" style="max-height: 100px">
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="option-item mb-2">
+                            <div class="input-group">
+                                <input type="text" class="form-control" name="options[]" placeholder="选项内容">
+                                <input type="file" class="form-control" name="option_images[]" accept="image/*" onchange="previewOptionImage(this)">
+                                <button type="button" class="btn btn-outline-danger" onclick="removeOption(this)">删除</button>
+                            </div>
+                            <div class="option-preview mt-1"></div>
+                        </div>
+                    {% endif %}
+                </div>
+                <button type="button" class="btn btn-outline-primary mt-2" onclick="addOption()">添加选项</button>
+                <div class="mt-2">
+                    <label class="form-label">正确答案</label>
+                    <input type="text" name="answer" class="form-control" value="{{ question.answer if question.question_type == 'single' or question.question_type == 'multiple' else '' }}" placeholder="单选题填A，多选题填ABC">
+                </div>
+            </div>
+            
+            <!-- 判断题字段 -->
+            <div class="mb-3" id="judgeFields" style="display: none;">
+                <label class="form-label">标准答案</label>
+                <div class="judge-options">
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="answer" id="judge_true" value="对" {% if question.answer == '对' %}checked{% endif %}>
+                        <label class="form-check-label" for="judge_true">对</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="answer" id="judge_false" value="错" {% if question.answer == '错' %}checked{% endif %}>
+                        <label class="form-check-label" for="judge_false">错</label>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Python填空题特有字段 -->
+            <div id="pythonFillFields" style="display: none;">
+                <div class="mb-3">
+                    <label for="pythonFile" class="form-label">Python文件</label>
+                    <input type="file" class="form-control" id="pythonFile" name="python_file" accept=".py">
+                    <div class="form-text">上传Python源文件，文件内容应包含填空标记(如①②③)。不修改Python文件则不需上传。</div>
+            </div>
+            <div class="mb-3">
+                    <label class="form-label">答案配置（JSON格式）</label>
+                    <textarea name="python_answers" class="form-control" rows="5">{{ question.python_answers }}</textarea>
+                    <div class="form-text">
+                        <p>JSON格式的答案，支持两种格式：</p>
+                        <p>1. 序号对应答案：<code>{"1":"答案1", "2":"答案2"}</code></p>
+                        <p>2. 序号+答案+分值：<code>[{"id": "1", "answer": "答案1", "score": 5}, {"id": "2", "answer": "答案2", "score": 5}]</code></p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 填空题特有字段 -->
+            <div id="fillFields" style="display: none;">
+                <div class="alert alert-info py-2">
+                    <i class="bi bi-info-circle me-1"></i><strong>出题提示：</strong>请在题目内容中使用 <code>____</code>（四个下划线）表示空白处。支持多行文本（如代码块），换行和缩进会被保留。
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">答案</label>
+                    <textarea name="fill_answer" id="fillAnswerInput" class="form-control" rows="3"
+                              placeholder="答案1|答案2|答案3（留空则为开放式试题，由教师批改）">{{ question.answer if question.question_type == 'fill' else '' }}</textarea>
+                    <div class="form-text">
+                        <i class="bi bi-info-circle me-1"></i>填空题答案格式说明：
+                        <ul class="mb-0 ps-3 mt-1">
+                            <li>多个空位：按题目中空位顺序填写，使用<code>|</code>分隔</li>
+                            <li>多个可接受答案：每个空位可设置多个可接受的答案，使用<code>//</code>分隔</li>
+                            <li class="text-info"><strong>留空</strong>则作为开放式试题，由教师在批改中心评阅</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 简答题特有字段 -->
+            <div id="shortAnswerFields" style="display: none;">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-1"></i>简答题无需设置答案，学生使用多行文本框作答，由教师在批改中心批改评分。
+                </div>
+            </div>
+
+            <!-- 综合题特有字段 -->
+            <div id="comprehensiveFields" style="display: none;">
+                <div class="mb-3">
+                    <label class="form-label">背景概述</label>
+                    <textarea name="background" class="form-control" rows="3">{{ question.background }}</textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">结尾说明（可选）</label>
+                    <textarea name="footer_content" class="form-control" rows="6">{{ question.footer_content or '' }}</textarea>
+                    <div class="form-text">在所有子题目之后显示的参考代码或说明文字。支持多行文本，换行和缩进会被保留。</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">子题目</label>
+                    <div class="form-text mb-2">保存题目后可以在
+                        <a href="{{ url_for('questions.manage_sub_questions', question_id=question.id) }}" target="_blank" class="link-primary">
+                            子题目管理页面
+                        </a> 进行管理
+                    </div>
+                    <div class="alert alert-info">
+                        <h5><i class="bi bi-info-circle me-2"></i>填空题提示：</h5>
+                        <p>1. 填空题内容中请使用"____"表示空白处</p>
+                        <p>2. 多空位填空题，答案格式为用"|"分隔的各空答案，如："答案1|答案2|答案3"</p>
+                        <p>3. 在子题目管理页，为每空位设置对应分值</p>
+                    </div>
+                    <div class="list-group">
+                        {% for sub in question.sub_questions %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <span class="badge bg-secondary me-2">{{ sub.question_type }}</span>
+                                    {{ sub.content[:50] }}{% if sub.content|length > 50 %}...{% endif %}
+                                </div>
+                                <span class="badge bg-primary">{{ sub.score }}分</span>
+                            </div>
+                            {% if sub.question_type == 'fill' and '|' in sub.answer %}
+                                <div class="mt-2 small">
+                                    <span class="text-muted">多空答案：</span>
+                                    {% set fill_answers = sub.answer.split('|') %}
+                                    {% for ans in fill_answers %}
+                                        <span class="badge bg-light text-dark me-1">第{{ loop.index }}空：{{ ans }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        {% else %}
+                        <div class="list-group-item text-muted">暂无子题目</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 外链资源字段 -->
+            <div id="linkFields" style="display: none;">
+            <div class="mb-3">
+                    <label class="form-label">外部链接URL</label>
+                    <input type="url" name="content" class="form-control" value="{{ question.content if question.question_type == 'link' else '' }}">
+                </div>
+            </div>
+            
+            <div class="mb-3" id="scoreGroup">
+                <label class="form-label">分值</label>
+                {% if question.question_type == 'comprehensive' %}
+                {# 综合题分值=子题分值之和（服务端强制同步），不可手改 #}
+                <input type="number" class="form-control" value="{{ question.score }}"
+                       step="0.1" min="0" disabled
+                       title="综合题分值由小题分值之和自动计算，请在下方管理小题分值">
+                <input type="hidden" name="score" value="{{ question.score }}">
+                <div class="form-text">综合题分值由小题分值之和自动计算（共 {{ question.sub_questions|length if question.sub_questions is defined else 0 }} 个小题），请在下方"管理小题"中调整</div>
+                {% else %}
+                <input type="number" name="score" class="form-control" id="scoreInput" value="{{ question.score }}" step="0.1" min="0">
+                {% endif %}
+            </div>
+            
+            <div class="d-flex">
+                <button type="submit" class="btn btn-primary flex-grow-1 py-2"><i class="bi bi-check-circle me-1"></i>保存修改</button>
+                <a href="/admin/questions" class="btn btn-link ms-2">取消</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// 上传题目图片
+document.getElementById('imgUpload')?.addEventListener('change', function(e) {
+    if (!this.files || !this.files[0]) return;
+    
+    const file = this.files[0];
+    const formData = new FormData();
+    formData.append('image', file);
+    
+    fetch('/admin/questions/upload_img', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const textarea = document.querySelector('textarea[name="content"]');
+            if (!textarea) {
+                alert('图片上传成功，但无法找到内容文本框，请手动插入图片链接');
+                return;
+            }
+            
+            const imgCode = `![${file.name}](${data.url})`;
+            
+            // 在光标位置插入图片代码
+            const cursorPos = textarea.selectionStart || 0;
+            const textBefore = textarea.value.substring(0, cursorPos);
+            const textAfter = textarea.value.substring(cursorPos);
+            textarea.value = textBefore + imgCode + textAfter;
+            
+            alert('图片上传成功，已在当前位置插入图片链接');
+        } else {
+            alert('图片上传失败: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('上传出错:', error);
+        alert('上传过程出错，请重试');
+    });
+});
+
+// 预览选项图片
+function previewOptionImage(input) {
+    const preview = input.closest('.input-group').nextElementSibling;
+    
+    if (!input.files || !input.files[0]) {
+        preview.innerHTML = '';
+        return;
+    }
+    
+    const file = input.files[0];
+    const formData = new FormData();
+    formData.append('image', file);
+    
+    fetch('/admin/questions/upload_img', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            preview.innerHTML = `<img src="${data.url}" class="img-thumbnail" style="max-height: 100px">`;
+        } else {
+            alert('图片上传失败: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('上传出错:', error);
+        alert('上传过程出错，请重试');
+    });
+}
+
+// 添加选项
+function addOption() {
+    const container = document.getElementById('choiceOptions');
+    const optionDiv = document.createElement('div');
+    optionDiv.className = 'option-item mb-2';
+    optionDiv.innerHTML = `
+        <div class="input-group">
+            <input type="text" class="form-control" name="options[]" placeholder="选项内容">
+            <input type="file" class="form-control" name="option_images[]" accept="image/*" onchange="previewOptionImage(this)">
+            <button type="button" class="btn btn-outline-danger" onclick="removeOption(this)">删除</button>
+        </div>
+        <div class="option-preview mt-1"></div>
+    `;
+    container.appendChild(optionDiv);
+}
+
+// 删除选项
+function removeOption(btn) {
+    const option = btn.closest('.option-item');
+    option.remove();
+}
+
+function handleQuestionTypeChange() {
+    const type = document.getElementById('questionType').value;
+    const choiceFields = document.getElementById('choiceFields');
+    const judgeFields = document.getElementById('judgeFields');
+    const fillFields = document.getElementById('fillFields');
+    const shortAnswerFields = document.getElementById('shortAnswerFields');
+    const pythonFillFields = document.getElementById('pythonFillFields');
+    const comprehensiveFields = document.getElementById('comprehensiveFields');
+    const linkFields = document.getElementById('linkFields');
+    const scoreGroup = document.getElementById('scoreGroup');
+    const scoreInput = document.getElementById('scoreInput');
+
+    // 隐藏所有字段
+    choiceFields.style.display = 'none';
+    judgeFields.style.display = 'none';
+    fillFields.style.display = 'none';
+    if (shortAnswerFields) shortAnswerFields.style.display = 'none';
+    pythonFillFields.style.display = 'none';
+    comprehensiveFields.style.display = 'none';
+    linkFields.style.display = 'none';
+
+    // 根据题型处理score字段
+    if (type === 'python_fill' || type === 'comprehensive') {
+        scoreGroup.style.display = 'block'; // 在编辑页面保留分值显示
+    } else {
+        scoreGroup.style.display = 'block';
+    }
+
+    // 显示对应字段
+    if (type === 'single' || type === 'multiple') {
+        choiceFields.style.display = 'block';
+    } else if (type === 'judge') {
+        judgeFields.style.display = 'block';
+    } else if (type === 'fill') {
+        fillFields.style.display = 'block';
+    } else if (type === 'python_fill') {
+        pythonFillFields.style.display = 'block';
+    } else if (type === 'comprehensive') {
+        comprehensiveFields.style.display = 'block';
+    } else if (type === 'link') {
+        linkFields.style.display = 'block';
+    }
+}
+
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', function() {
+    handleQuestionTypeChange();
+});
+
+// 处理选项图片上传，返回上传后的URL
+async function uploadOptionImage(input, optionText) {
+    if (!input.files || !input.files[0]) return null;
+    
+    const file = input.files[0];
+    const formData = new FormData();
+    formData.append('image', file);
+    
+    try {
+        const response = await fetch('/admin/questions/upload_img', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            return data.url;
+        } else {
+            console.error('上传失败:', data.message);
+            return null;
+        }
+    } catch (error) {
+        console.error('上传出错:', error);
+        return null;
+    }
+}
+
+// 表单提交前处理
+document.getElementById('editQuestionForm').onsubmit = async function(e) {
+    e.preventDefault();
+    
+    const type = document.getElementById('questionType').value;
+    const formData = new FormData(this);
+    
+    // 选择题处理
+    if (type === 'single' || type === 'multiple') {
+        // 处理选项
+        const options = [];
+        const optionInputs = document.querySelectorAll('input[name="options[]"]');
+        const optionImages = document.querySelectorAll('input[name="option_images[]"]');
+        let imageOptions = {};
+        
+        for (let i = 0; i < optionInputs.length; i++) {
+            const optLetter = String.fromCharCode(65 + i);
+            const rawText = optionInputs[i].value.trim();
+            if (rawText) {
+                options.push(rawText);
+            } else {
+                options.push(optLetter + ".");
+            }
+        }
+        
+        if (options.length < 2) {
+            alert('请至少添加两个选项');
+            return false;
+        }
+        
+        // 设置选项，使用竖线分隔
+        formData.set('options', options.join('|'));
+        
+        // 处理选项图片上传并获取URL（以选项字母为键，支持纯图片选项）
+        let hasImages = false;
+        for (let i = 0; i < optionInputs.length; i++) {
+            const optLetter = String.fromCharCode(65 + i);
+            const imgInput = optionImages[i];
+            if (imgInput && imgInput.files[0]) {
+                hasImages = true;
+                const imgUrl = await uploadOptionImage(imgInput, optLetter);
+                if (imgUrl) {
+                    imageOptions[optLetter] = imgUrl;
+                }
+            }
+        }
+        
+        // 设置图片选项
+        if (Object.keys(imageOptions).length > 0) {
+            formData.set('image_options', JSON.stringify(imageOptions));
+        }
+        
+        // 验证答案
+        if (!formData.get('answer')) {
+            alert('请填写正确答案');
+            return false;
+        }
+    } else if (type === 'judge') {
+        // 获取选中的单选按钮值
+        const answer = document.querySelector('input[name="answer"]:checked');
+        if (!answer) {
+            alert('请选择正确答案');
+            return false;
+        }
+        formData.set('answer', answer.value);
+    } else if (type === 'fill') {
+        // 填空题：答案可选，留空则为开放式试题
+        const fillAnswer = document.getElementById('fillAnswerInput').value.trim();
+        formData.set('answer', fillAnswer);
+    } else if (type === 'short_answer') {
+        // 简答题：无需答案
+        formData.set('answer', '');
+    }
+
+    // 处理其他验证...
+    
+    // 显示加载状态
+    const submitBtn = this.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 提交中...';
+    
+    try {
+        // 使用fetch提交表单数据
+        const response = await fetch(`/admin/questions/edit/${formData.get('question_id') || '{{ question.id }}'}`, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: formData
+        });
+        
+        // 根据响应结果处理
+        if (response.redirected) {
+            window.location.href = response.url;
+        } else {
+            const result = await response.json();
+            if (result.success) {
+                window.location.href = '/admin/questions';
+            } else {
+                throw new Error(result.message || '保存失败');
+            }
+        }
+    } catch (error) {
+        alert(error.message || '提交过程出错，请重试');
+        // 恢复按钮状态
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+    }
+    
+    return false;
+};
+</script>
+{% endblock %} 

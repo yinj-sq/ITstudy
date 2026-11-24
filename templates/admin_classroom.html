@@ -1,0 +1,482 @@
+{% extends 'base.html' %}
+{% block title %}课堂大屏{% endblock %}
+{% block head %}
+<style>
+    body { background: #0a0a2e !important; color: #e0e0e0 !important; }
+    .navbar { display: none !important; }
+    .container { max-width: 100% !important; padding: 0 !important; }
+    .big-screen { min-height: 100vh; padding: 20px; font-family: 'Microsoft YaHei', sans-serif; }
+    .clock-card { background: linear-gradient(135deg, #1a1a4e 0%, #0d0d3a 100%);
+                  border: 2px solid #2a2a6e; border-radius: 20px; }
+    .info-card { background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+                 border: 1px solid #3a3a7e; border-radius: 15px; }
+    .schedule-card { background: linear-gradient(180deg, #1a1a3e 0%, #0d0d2a 100%);
+                     border: 1px solid #2a2a5e; border-radius: 15px; }
+    .attendance-card { background: linear-gradient(135deg, #1a3a1a 0%, #0d2a0d 100%);
+                       border: 1px solid #2a5e2a; border-radius: 15px; }
+    .time-display { font-size: 6rem; font-weight: bold; font-family: 'Consolas', 'Courier New', monospace;
+                    color: #00ff88; text-shadow: 0 0 30px rgba(0,255,136,0.5); }
+    .date-display { font-size: 1.5rem; color: #88aaff; }
+    .period-current { background: linear-gradient(90deg, #ff6b35, #f7931e) !important;
+                      color: white !important; border-radius: 10px !important;
+                      animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { box-shadow: 0 0 10px rgba(255,107,53,0.5); }
+                       50% { box-shadow: 0 0 30px rgba(255,107,53,0.9); } }
+    .period-row { transition: all 0.3s ease; padding: 8px 12px; border-radius: 8px; margin-bottom: 4px; }
+    .countdown { font-size: 2.5rem; font-weight: bold; color: #ffcc00; }
+    .stat-number { font-size: 2.5rem; font-weight: bold; }
+    .student-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 6px; }
+    .student-chip { padding: 6px 10px; border-radius: 20px; text-align: center; font-size: 0.85rem; }
+    .student-chip.online { background: #1a4a1a; border: 1px solid #2a6e2a; color: #66ff66; }
+    .student-chip.offline { background: #3a1a1a; border: 1px solid #6e2a2a; color: #ff6666; }
+    .student-chip.seat-conflict { border: 2px dashed #ffaa00 !important; background: #3a2a00 !important; animation: pulse-border 1.5s infinite; }
+    @keyframes pulse-border { 0%,100% { border-color: #ffaa00; } 50% { border-color: #ff4444; } }
+    .admin-bar { position: fixed; bottom: 10px; right: 10px; z-index: 9999; opacity: 0.3; }
+    .admin-bar:hover { opacity: 1; }
+    /* 下拉菜单不继承悬浮栏的半透明（保持可读） */
+    .admin-bar .dropdown-menu { opacity: 1; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="big-screen">
+    {% if sessions %}
+    <div class="d-flex justify-content-end align-items-center gap-2 mb-2" style="font-size:0.9rem;">
+      <span style="color:#88aaff;">当前大屏班级</span>
+      <select class="form-select form-select-sm" style="width:auto;min-width:160px;"
+              onchange="location.href='{{ url_for('classroom.admin_classroom') }}?class_id='+this.value">
+        {% for s in sessions %}
+        <option value="{{ s.class_id }}" {% if selected_class_id == s.class_id %}selected{% endif %}>
+          {{ s.active_class.name if s.active_class else ('班级 ' ~ s.class_id) }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    <div class="row g-3">
+        <!-- 左侧：时钟 + 当前节次 -->
+        <div class="col-lg-8">
+            <div class="clock-card p-4 mb-3 text-center">
+                <div class="date-display" id="dateDisplay">{{ now.strftime('%Y年%m月%d日') }} 星期{{ ['一','二','三','四','五','六','日'][now.weekday()] }}</div>
+                <div class="time-display" id="timeDisplay">{{ now.strftime('%H:%M:%S') }}</div>
+                <div class="mt-2" id="messageDisplay" style="font-size:1.2rem;color:#ffaa00;min-height:30px;">{{ setting.display_message or '' }}</div>
+            </div>
+
+            <!-- 当前节次倒计时 -->
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="info-card p-3 text-center h-100">
+                        <small class="text-muted">当前上课班级</small>
+                        <h3 class="mt-2 mb-0" id="activeClass" style="color:#00ccff;">{{ active_class.name if active_class else '未设置' }}</h3>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="info-card p-3 text-center h-100">
+                        <small class="text-muted">当前节次</small>
+                        <h3 class="mt-2 mb-0" id="currentPeriod" style="color:#ffaa00;">
+                          {{ current_schedule.period_name if current_schedule else '课间休息' }}
+                          {% if current_schedule %}<small class="d-block">{{ current_schedule.start_time }}-{{ current_schedule.end_time }}</small>{% endif %}
+                        </h3>
+                        <div class="countdown mt-2" id="countdownDisplay"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧：作息时间表 -->
+        <div class="col-lg-4">
+            <div class="schedule-card p-3 h-100">
+                <h5 class="mb-3" style="color:#88aaff;">
+                    <i class="fas fa-calendar-alt me-2"></i>今日作息时间表
+                </h5>
+                <div id="scheduleList">
+                    {% for s in schedules %}
+                    <div class="period-row d-flex justify-content-between {% if auto_schedule and s.id == auto_schedule.id %}period-current{% endif %}">
+                        <span>{{ s.period_name }}</span><span>{{ s.start_time }} - {{ s.end_time }}</span>
+                    </div>
+                    {% endfor %}
+                    {% if not schedules %}<div class="text-muted">暂无作息安排</div>{% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部：签到情况 -->
+    <div class="row g-3 mt-3">
+        <div class="col-12">
+            <div class="attendance-card p-3">
+                <h5 class="mb-3" style="color:#66ff66;">
+                    <i class="fas fa-clipboard-check me-2"></i>当前班级签到情况 (按座位号排列)
+                    <span id="attendanceSummary" class="ms-3" style="font-size:1rem;">
+                      {% if attendance_data %}已签到 {{ attendance_data.checked_in }} / {{ attendance_data.total }} 人 ({{ attendance_data.rate }}%){% endif %}
+                    </span>
+                </h5>
+                <div class="student-grid" id="attendanceGrid">
+                    {% if attendance_data %}
+                    {% for s in attendance_data.students %}
+                    <div class="student-chip {{ 'online' if s.is_online else 'offline' }}{% if s.seat_conflict %} seat-conflict{% endif %}" {% if s.seat_conflict %}title="座位号冲突：同一座位号有多个学生"{% endif %}>
+                        {{ (s.seat_number|string + '号') if s.seat_number is not none else '?号' }}<br>{{ s.name }}
+                        {% if s.seat_conflict %}<br><small class="text-warning">⚠冲突</small>{% endif %}
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <div class="text-muted">请先设置上课班级</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 申诉提醒 -->
+    <div class="row g-3 mt-3" id="appealsSection" style="{% if appeals %}display:block;{% else %}display:none;{% endif %}">
+        <div class="col-12">
+            <div class="card" style="background:linear-gradient(135deg,#4a0000,#8b0000);border:2px solid #ff4444;border-radius:15px;">
+                <div class="card-header d-flex justify-content-between align-items-center" style="background:transparent;border-bottom:1px solid #ff6666;">
+                    <h5 class="mb-0" style="color:#ff6666;">
+                        <i class="fas fa-exclamation-triangle me-2" style="animation:blink 1s infinite;"></i>学生申诉
+                        <span id="appealCount" class="badge bg-danger ms-2">{{ appeals|length if appeals else 0 }}</span>
+                    </h5>
+                </div>
+                <div class="card-body" id="appealsList" style="max-height:300px;overflow-y:auto;">
+                    {% if appeals %}
+                    {% for a in appeals %}
+                    <div class="d-flex justify-content-between align-items-center py-2" style="border-bottom:1px solid #662222;color:#ffcccc;">
+                        <span><strong style="color:#ff6666;">{{ a.student.name if a.student else '未知' }}</strong>: {{ a.message }}</span>
+                        <span><small class="text-white-50">{{ a.create_time.strftime('%H:%M:%S') if a.create_time else '' }}</small>
+                        {% if session.get('is_admin') %}
+                        <form method="post" action="/admin/appeal/dismiss/{{ a.id }}" class="d-inline ms-2">
+                            <button class="btn btn-sm btn-outline-warning py-0">已处理</button>
+                        </form>
+                        {% endif %}
+                        </span>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>@keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}</style>
+
+<!-- 管理员设置栏（含全站菜单，弥补大屏隐藏导航栏后无法跳转的问题）；
+     教师同样可打开设置/新课/停用，但全站菜单等管理入口仅管理员可见 -->
+<div class="admin-bar">
+    {% if session.get('is_admin') %}
+    <div class="btn-group me-1">
+        <button class="btn btn-sm btn-outline-light dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="fas fa-th-large me-1"></i>全站菜单
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end dropdown-menu-dark shadow-lg" style="max-height:80vh;overflow-y:auto;min-width:280px;">
+            <!-- 与 base.html 顶部导航栏保持一致的分组与顺序（回归测试校验） -->
+            <li><a class="dropdown-item" href="/admin/dashboard"><i class="fas fa-gauge-high me-2"></i>管理总览</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><h6 class="dropdown-header"><i class="fas fa-edit me-1"></i>考试与练习</h6></li>
+            <li><a class="dropdown-item" href="/admin/exams"><i class="fas fa-file-alt me-2"></i>试卷管理</a></li>
+            <li><a class="dropdown-item" href="/admin/questions"><i class="fas fa-database me-2"></i>题库管理</a></li>
+            <li><a class="dropdown-item" href="/admin/tools/import-python-fill"><i class="fas fa-file-import me-2"></i>批量导入Python填空题</a></li>
+            <li><a class="dropdown-item" href="/admin/grading"><i class="fas fa-check-double me-2"></i>批改中心</a></li>
+            <li><hr class="dropdown-divider"></li>
+            {% for exam in recent_exams %}
+            <li><a class="dropdown-item" href="/admin/trend/{{ exam.id }}"><i class="fas fa-chart-line me-2"></i>{{ exam.name }}</a></li>
+            {% endfor %}
+            {% if recent_exams %}<li><hr class="dropdown-divider"></li>{% endif %}
+            <li><h6 class="dropdown-header"><i class="fas fa-school me-1"></i>班级与考勤</h6></li>
+            <li><a class="dropdown-item" href="/admin/classes"><i class="fas fa-door-open me-2"></i>班级信息</a></li>
+            <li><a class="dropdown-item" href="/admin/groups"><i class="fas fa-layer-group me-2"></i>学习小组</a></li>
+            <li><a class="dropdown-item" href="/admin/attendance"><i class="fas fa-clipboard-check me-2"></i>签到管理</a></li>
+            <li><a class="dropdown-item" href="/admin/online_students"><i class="fas fa-wifi me-2"></i>在线学生</a></li>
+            <li><a class="dropdown-item" href="/admin/student-drive"><i class="fas fa-cloud me-2"></i>学生网盘</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><h6 class="dropdown-header"><i class="fas fa-book me-1"></i>教学资源</h6></li>
+            <li><a class="dropdown-item" href="/admin/resources"><i class="fas fa-folder-open me-2"></i>资源管理</a></li>
+            <li><a class="dropdown-item" href="/sim-lab"><i class="fas fa-flask me-2"></i>仿真实验</a></li>
+            <li><a class="dropdown-item" href="/admin/homework"><i class="fas fa-tasks me-2"></i>作业管理</a></li>
+            <li><a class="dropdown-item" href="/admin/works"><i class="fas fa-inbox me-2"></i>作品云盘</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><h6 class="dropdown-header"><i class="fas fa-chalkboard-teacher me-1"></i>课堂工具</h6></li>
+            <li><a class="dropdown-item" href="/admin/classroom"><i class="fas fa-desktop me-2"></i>课堂大屏</a></li>
+            <li><a class="dropdown-item" href="/admin/ai_config"><i class="fas fa-robot me-2"></i>AI 配置</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><h6 class="dropdown-header"><i class="fas fa-chart-bar me-1"></i>数据与审计</h6></li>
+            <li><a class="dropdown-item" href="/admin/students"><i class="fas fa-user-graduate me-2"></i>学生信息</a></li>
+            <li><a class="dropdown-item" href="/admin/schedule"><i class="fas fa-clock me-2"></i>作息时间</a></li>
+            <li><a class="dropdown-item" href="/admin/class_schedule"><i class="fas fa-calendar-alt me-2"></i>课程表</a></li>
+            <li><a class="dropdown-item" href="/admin/statistics"><i class="fas fa-chart-pie me-2"></i>数据统计</a></li>
+            <li><a class="dropdown-item" href="/admin/teaching-sessions"><i class="fas fa-clipboard-list me-2"></i>教学记录</a></li>
+              <li><a class="dropdown-item" href="/admin/account-trail"><i class="fas fa-route me-2"></i>账号轨迹</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><h6 class="dropdown-header"><i class="fas fa-cog me-1"></i>系统</h6></li>
+            <li><a class="dropdown-item" href="/admin/logs"><i class="fas fa-history me-2"></i>操作日志</a></li>
+            <li><a class="dropdown-item" href="/admin/python_logs"><i class="fas fa-bug me-2"></i>Python 日志</a></li>
+            <li><a class="dropdown-item" href="/admin/teacher_account"><i class="fas fa-chalkboard-teacher me-2"></i>教师账号</a></li>
+            <li><a class="dropdown-item" href="/admin/accounts"><i class="fas fa-user-shield me-2"></i>管理员账号</a></li>
+            <li><a class="dropdown-item" href="/admin/system"><i class="fas fa-toggle-on me-2"></i>系统开关</a></li>
+        </ul>
+    </div>
+    {% endif %}
+    <button class="btn btn-sm btn-outline-light me-1" data-bs-toggle="modal" data-bs-target="#settingsModal">
+        <i class="fas fa-cog me-1"></i>设置
+    </button>
+    <form method="post" action="{{ url_for('classroom.new_classroom_session') }}" style="display:inline;" onsubmit="return confirm('确定要开启新的一课吗？这将清空当前班级所有学生的签到和座位号信息。');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="class_id" value="{{ active_class.id if active_class else '' }}">
+        <button type="submit" class="btn btn-sm btn-outline-warning me-1">
+            <i class="fas fa-sync-alt me-1"></i>新的一课
+        </button>
+    </form>
+    {% if active_class %}
+    <form method="post" action="{{ url_for('classroom.stop_classroom_session') }}" style="display:inline;" onsubmit="return confirm('确定停用当前班级的课堂大屏吗？该班学生将退出课堂。');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="class_id" value="{{ active_class.id }}">
+        <button type="submit" class="btn btn-sm btn-outline-danger me-1">
+            <i class="fas fa-power-off me-1"></i>停用本班
+        </button>
+    </form>
+    {% endif %}
+    {% if session.get('is_admin') %}
+    <a href="{{ url_for('classroom.admin_schedule') }}" class="btn btn-sm btn-outline-light me-1">
+        <i class="fas fa-clock me-1"></i>作息表
+    </a>
+    {% else %}
+    <a href="/study?mode=classroom" class="btn btn-sm btn-outline-light me-1">
+        <i class="fas fa-arrow-left me-1"></i>返回课堂
+    </a>
+    {% endif %}
+    <form method="post" action="{{ url_for('auth.admin_logout') if session.get('is_admin') else url_for('auth.teacher_logout') }}" style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn-sm btn-outline-danger">
+            <i class="fas fa-sign-out-alt me-1"></i>退出
+        </button>
+    </form>
+</div>
+
+<!-- 设置模态框 -->
+<div class="modal fade" id="settingsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white">
+            <form method="post" action="{{ url_for('classroom.save_classroom_settings') }}">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title"><i class="fas fa-cog me-1"></i>课堂设置</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="关闭"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">当前上课班级</label>
+                        <select class="form-select bg-dark text-white" name="active_class_id">
+                            <option value="">-- 未设置 --</option>
+                            {% for c in classes %}
+                            <option value="{{ c.id }}" {% if setting.active_class_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">当前节次（留空则自动检测）</label>
+                        <select class="form-select bg-dark text-white" name="current_schedule_id">
+                            <option value="">-- 自动检测 --</option>
+                            {% for s in schedules %}
+                            <option value="{{ s.id }}" {% if setting.current_schedule_id == s.id %}selected{% endif %}>{{ s.period_name }} ({{ s.start_time }}-{{ s.end_time }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">座位号偏移量</label>
+                        <input type="number" class="form-control bg-dark text-white" name="seat_offset"
+                               value="{{ setting.seat_offset or 0 }}"
+                               placeholder="IP末段减去的固定值">
+                        <small class="text-muted">座位号 = IP地址最后一组数字 - 偏移量</small>
+                    </div>
+                    {% if session.get('is_admin') %}
+                    {% if auto_switch_no_period %}
+                    <div class="alert alert-warning py-2 small">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        当前不在任何作息时段，但「课程表自动切换班级」仍开启：
+                        打开本页会按课程表自动同步，非本节次班级会被自动停用
+                        （表现为“未设置”）。需要手工设置班级时，请取消勾选
+                        自动切换并保存。
+                    </div>
+                    {% endif %}
+                    <div class="mb-3 form-check form-switch">
+                        <input class="form-check-input" type="checkbox"
+                               name="auto_switch" id="autoSwitch"
+                               value="true"
+                               {% if setting.auto_switch %}checked{% endif %}>
+                        <label class="form-check-label" for="autoSwitch">
+                            课程表自动切换班级
+                        </label>
+                        <small class="d-block text-muted">
+                            开启后根据作息时间和课程表自动切换上课班级，手动选择将被覆盖（全局设置）
+                        </small>
+                    </div>
+                    {% endif %}
+                    <div class="mb-3">
+                        <label class="form-label">大屏展示消息</label>
+                        <input type="text" class="form-control bg-dark text-white" name="display_message"
+                               value="{{ setting.display_message or '' }}" placeholder="例如：请同学们保持安静">
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">保存设置</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+var FETCH_INTERVAL = 10000;
+var IS_ADMIN = {{ session.get('is_admin')|tojson }};
+
+function escapeHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s == null ? '' : String(s);
+    return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function updateClock() {
+    var now = new Date();
+    var h = String(now.getHours()).padStart(2, '0');
+    var m = String(now.getMinutes()).padStart(2, '0');
+    var s = String(now.getSeconds()).padStart(2, '0');
+    document.getElementById('timeDisplay').textContent = h + ':' + m + ':' + s;
+}
+
+function fetchStatus() {
+    // 显式携带 CSRF：本函数在页面解析期立即调用，此时 base.html 里 defer 的
+    // ui-feedback fetch 补丁尚未执行，首个 POST 会 403（大屏空白约 10 秒）。
+    var selectedClassId = {{ active_class.id if active_class else 'null' }};
+    fetch('/api/classroom/status', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': window.CSRF_TOKEN || '',
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: 'class_id=' + encodeURIComponent(selectedClassId || '')
+    })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (!d.success) return;
+            var data = d.data;
+
+            // 日期
+            document.getElementById('dateDisplay').textContent =
+                data.current_date + ' ' + data.weekday;
+
+            // 消息
+            var msgEl = document.getElementById('messageDisplay');
+            msgEl.textContent = data.display_message || '';
+
+            // 上课班级
+            document.getElementById('activeClass').textContent =
+                data.active_class ? data.active_class.name : '未设置';
+
+            // 当前节次
+            var period = data.selected_schedule;
+            if (period) {
+                document.getElementById('currentPeriod').textContent =
+                    period.period_name + ' (' + period.start_time + '-' + period.end_time + ')';
+                if (data.countdown_seconds !== null && data.countdown_seconds > 0) {
+                    var min = Math.floor(data.countdown_seconds / 60);
+                    var sec = data.countdown_seconds % 60;
+                    document.getElementById('countdownDisplay').textContent =
+                        '距下课: ' + min + '分' + sec + '秒';
+                } else {
+                    document.getElementById('countdownDisplay').textContent = '已下课';
+                }
+            } else {
+                document.getElementById('currentPeriod').textContent = '课间休息';
+                document.getElementById('countdownDisplay').textContent = '';
+            }
+
+            // 作息时间表
+            var scheduleHtml = '';
+            data.schedules.forEach(function(s) {
+                var cls = 'period-row';
+                if (period && s.id === period.id) cls += ' period-current';
+                scheduleHtml += '<div class="' + cls + ' d-flex justify-content-between">';
+                scheduleHtml += '<span>' + escapeHtml(s.period_name) + '</span>';
+                scheduleHtml += '<span>' + escapeHtml(s.start_time) + ' - ' + escapeHtml(s.end_time) + '</span>';
+                scheduleHtml += '</div>';
+            });
+            document.getElementById('scheduleList').innerHTML = scheduleHtml || '<div class="text-muted">暂无作息安排</div>';
+
+            // 签到情况
+            if (data.attendance) {
+                var att = data.attendance;
+                document.getElementById('attendanceSummary').textContent =
+                    '已签到 ' + att.checked_in + ' / ' + att.total + ' 人 (' + att.rate + '%)';
+
+                // 按座位号排列学生
+                var students = data.attendance_students || [];
+                students.sort(function(a, b) {
+                    var sa = a.seat_number != null ? a.seat_number : 9999;
+                    var sb = b.seat_number != null ? b.seat_number : 9999;
+                    return sa - sb;
+                });
+                var gridHtml = '';
+                students.forEach(function(s) {
+                    var cls = s.is_online ? 'online' : 'offline';
+                    if (s.seat_conflict) cls += ' seat-conflict';
+                    var seatLabel = s.seat_number != null ? escapeHtml(s.seat_number) + '号' : '?号';
+                    var conflictTag = s.seat_conflict ? '<br><small style=\"color:#ffaa00;\">⚠冲突</small>' : '';
+                    gridHtml += '<div class=\"student-chip ' + cls + '\" title=\"' + (s.seat_conflict ? '座位号冲突：同一座位号有多个学生' : '') + '\">';
+                    gridHtml += seatLabel + '<br>' + escapeHtml(s.name) + conflictTag;
+                    gridHtml += '</div>';
+                });
+                document.getElementById('attendanceGrid').innerHTML = gridHtml || '<div class="text-muted">暂无学生</div>';
+            }
+
+            // 申诉提醒
+            var appeals = data.appeals || [];
+        var appealsSection = document.getElementById('appealsSection');
+        var appealsList = document.getElementById('appealsList');
+        var appealCount = document.getElementById('appealCount');
+        if (appeals.length > 0) {
+            appealsSection.style.display = 'block';
+            appealCount.textContent = appeals.length;
+            var appealHtml = '';
+            appeals.forEach(function(a) {
+                appealHtml += '<div class="d-flex justify-content-between align-items-center py-2" style="border-bottom:1px solid #662222;color:#ffcccc;">';
+                appealHtml += '<span><strong style=\"color:#ff6666;\">' + escapeHtml(a.student_name) + '</strong>: ' + escapeHtml(a.message) + '</span>';
+                appealHtml += '<span><small class=\"text-white-50\">' + escapeHtml(a.time) + '</small>';
+                if (IS_ADMIN) {
+                    appealHtml += '<form method=\"post\" action=\"/admin/appeal/dismiss/' + encodeURIComponent(a.id) + '\" class=\"d-inline ms-2\">';
+                    appealHtml += '<button class=\"btn btn-sm btn-outline-warning py-0\">已处理</button></form>';
+                }
+                appealHtml += '</span>';
+                appealHtml += '</div>';
+            });
+            appealsList.innerHTML = appealHtml;
+        } else {
+            appealsSection.style.display = 'none';
+        }
+    })
+    .catch(function(e) { console.error('状态刷新失败:', e); });
+}
+
+// 初始加载
+updateClock();
+fetchStatus();
+
+// 每秒更新时钟
+setInterval(updateClock, 1000);
+
+// SSE 变更推送：课堂状态变化（切换班级/学生上线/收卷相关）时立即重拉，
+// 替代 10s 轮询的等待（SSE 端点 2s 检查周期，事件驱动）；10s 轮询保留
+// 为 SSE 不可用/连续失败时的兜底（EventSource 断开自动重连，onerror
+// 连续 3 次后关闭连接由轮询接管）
+var classroomSSE = null, sseErrorCount = 0;
+try {
+  classroomSSE = new EventSource('/api/events/classroom');
+  classroomSSE.addEventListener('refresh', function() { fetchStatus(); });
+  classroomSSE.onerror = function() {
+    sseErrorCount++;
+    if (sseErrorCount >= 3 && classroomSSE) { classroomSSE.close(); classroomSSE = null; }
+  };
+} catch (e) {}
+// 每10秒刷新状态（兜底）
+setInterval(fetchStatus, FETCH_INTERVAL);
+</script>
+{% endblock %}
+{% block scripts %}{% endblock %}

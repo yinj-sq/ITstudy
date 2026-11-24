@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}批改结果 - {{ hw.title }}{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h3 class="mb-4"><i class="fas fa-clipboard-check me-2"></i>批改结果：{{ hw.title }}</h3>
+  <div class="row">
+    <div class="col-md-8">
+      <div class="card shadow-sm mb-3">
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="fw-bold">文字作答</label>
+            <div class="border rounded p-3 bg-light" style="white-space: pre-wrap; word-break: break-word;">{{ sub.text_content or '（无文字作答）' }}</div>
+          </div>
+          {% if sub_files %}
+          <div class="mb-3">
+            <label class="fw-bold">提交文件</label>
+            <div class="d-flex flex-wrap gap-2">
+              {% for fn in sub_files %}
+              <span class="input-group input-group-sm" style="width:auto;">
+                <span class="input-group-text"><i class="fas fa-file me-1"></i>{{ fn }}</span>
+                <a href="{{ url_for('homework.student_preview_submission', sub_id=sub.id, filename=fn) }}"
+                   target="_blank" rel="noopener" class="btn btn-outline-primary btn-sm"
+                   title="预览">预览</a>
+                <a href="/static/submissions/{{ sub.id }}/{{ fn|urlencode }}"
+                   download class="btn btn-outline-success btn-sm" title="下载">下载</a>
+              </span>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card shadow-sm">
+        <div class="card-header"><strong><i class="fas fa-star me-1"></i>老师评价</strong></div>
+        <div class="card-body text-center">
+          {% if sub.grade %}
+          <h1 class="display-3 text-{{ 'success' if sub.grade[0] in ('A','B') else 'warning' if sub.grade[0]=='C' else 'danger' }}">{{ sub.grade }}</h1>
+          {% endif %}
+          <div class="mt-2 mb-3">
+            {% for g in grade_levels %}
+            <span class="badge {% if sub.grade == g %}bg-primary fs-6{% else %}bg-light text-dark{% endif %} me-1">{{ g }}</span>
+            {% endfor %}
+          </div>
+          {% if sub.feedback %}
+          <div class="border-top pt-3 mt-2 text-start">
+            <small class="text-muted">评语：</small>
+            <p style="white-space: pre-wrap; word-break: break-word;">{{ sub.feedback }}</p>
+          </div>
+          {% endif %}
+          <small class="text-muted d-block mt-2">
+            批改时间: {{ sub.graded_at.strftime('%Y-%m-%d %H:%M') if sub.graded_at else '-' }}
+          </small>
+        </div>
+      </div>
+    </div>
+  </div>
+  <a href="/student/homework" class="btn btn-outline-secondary rounded-pill"><i class="fas fa-arrow-left"></i> 返回作业列表</a>
+  {% if hw.is_active %}
+  <a href="/student/homework/{{ hw.id }}" class="btn btn-outline-primary rounded-pill ms-2"><i class="fas fa-redo"></i> 重新提交</a>
+  {% endif %}
+</div>
+{% endblock %}

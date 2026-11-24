@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% block title %}{{ '编辑活动' if activity else '新增活动' }}{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h2 class="mb-4"><i class="fas fa-{{ 'edit' if activity else 'plus-circle' }} me-2"></i>{{ '编辑活动' if activity else '新增活动' }}</h2>
+  <div class="row">
+    <div class="col-md-8">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <form method="post" enctype="multipart/form-data">
+            <div class="mb-3">
+              <label class="form-label">所属资源</label>
+              <input class="form-control" value="{{ resource.title }}" disabled>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">活动名称 <span class="text-danger">*</span></label>
+              <input type="text" name="title" class="form-control" value="{{ activity.title if activity else '' }}" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">活动描述/要求</label>
+              <textarea name="description" class="form-control" rows="6">{{ activity.description if activity else '' }}</textarea>
+            </div>
+            <div class="row g-3 mb-3">
+              <div class="col-md-4">
+                <label class="form-label">排序</label>
+                <input type="number" name="sort_order" class="form-control" value="{{ activity.sort_order if activity else 0 }}">
+              </div>
+              <div class="col-md-4 d-flex align-items-end">
+                <label class="form-check">
+                  <input type="checkbox" name="require_upload" value="1" class="form-check-input" {% if activity and activity.require_upload %}checked{% endif %}>
+                  要求上传作品
+                </label>
+              </div>
+              <div class="col-md-4 d-flex align-items-end">
+                <label class="form-check">
+                  <input type="checkbox" name="is_active" value="1" class="form-check-input" {% if not activity or activity.is_active %}checked{% endif %}>
+                  启用活动
+                </label>
+              </div>
+            </div>
+            <div class="row g-3 mb-3">
+              <div class="col-md-4">
+                <label class="form-label">提交开始时间 <span class="text-muted">(留空不限)</span></label>
+                <input type="datetime-local" name="start_time" class="form-control"
+                       value="{{ activity.start_time.strftime('%Y-%m-%dT%H:%M') if activity and activity.start_time else '' }}">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">提交截止时间 <span class="text-muted">(留空不限)</span></label>
+                <input type="datetime-local" name="end_time" class="form-control"
+                       value="{{ activity.end_time.strftime('%Y-%m-%dT%H:%M') if activity and activity.end_time else '' }}">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">提交人数上限 <span class="text-muted">(留空不限)</span></label>
+                <input type="number" name="capacity" min="1" class="form-control"
+                       value="{{ activity.capacity if activity and activity.capacity else '' }}">
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">活动说明文档</label>
+              <input type="file" name="document" class="form-control">
+              {% if activity and activity.document_path %}
+              <small class="text-muted">当前文档：{{ activity.document_name }}</small>
+              {% endif %}
+            </div>
+            <div class="d-flex gap-2">
+              <button class="btn btn-primary rounded-pill px-4"><i class="fas fa-save me-1"></i>保存</button>
+              <a href="{{ url_for('activities.admin_activities', res_id=resource.id) }}" class="btn btn-outline-secondary rounded-pill"><i class="fas fa-arrow-left me-1"></i>返回</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

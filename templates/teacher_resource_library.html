@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+{% block title %}资源管理{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <div>
+      <h2 class="mb-1"><i class="fas fa-folder-open me-2"></i>资源管理</h2>
+      <div class="small text-muted">
+        {% if mode == 'readonly' %}
+        只读模式：仅展示自己创建和被共享的课堂资源，不能编辑
+        {% else %}
+        编辑模式：仅展示自己创建的资源；可上传、编辑、删除和授权共享
+        {% endif %}
+      </div>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="/study?mode=classroom" class="btn btn-outline-secondary rounded-pill">
+        <i class="fas fa-chalkboard-teacher me-1"></i>进入课堂
+      </a>
+      {% if mode != 'readonly' %}
+      <a href="{{ url_for('resources.teacher_resource_upload_page') }}" class="btn btn-primary rounded-pill">
+        <i class="fas fa-cloud-upload-alt me-1"></i>上传资源
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr><th>资源</th><th>学科</th><th>创建者</th><th>学生端</th><th>共享</th><th style="width:300px;">操作</th></tr>
+        </thead>
+        <tbody>
+          {% for r in resources %}
+          <tr>
+            <td>
+              <strong>{{ r.title }}</strong>
+              {% if r.is_builtin %}
+              <span class="badge bg-info text-dark ms-1" title="内置资源：管理员授权范围内课堂可用，仅管理员可编辑">内置资源</span>
+              {% elif r.is_public %}
+              <span class="badge bg-info text-dark ms-1" title="全体教师课堂可用；仅管理员可编辑">公开资源</span>
+              {% elif r.creator_teacher_id and r.creator_teacher_id == session.get('teacher_id') %}
+              <span class="badge bg-info text-dark ms-1">我的</span>
+              {% elif not can_edit.get(r.id) %}
+              <span class="badge bg-light text-dark border ms-1">共享给我</span>
+              {% endif %}
+              {% if activity_counts.get(r.id) %}
+              <span class="badge bg-success ms-1"><i class="fas fa-list"></i> {{ activity_counts.get(r.id) }}个活动</span>
+              {% endif %}
+              {% if survey_counts.get(r.id) %}
+              <span class="badge bg-primary ms-1"><i class="fas fa-poll"></i> {{ survey_counts.get(r.id) }}个问卷</span>
+              {% endif %}
+              {% if r.is_builtin %}<span class="badge bg-info ms-1" title="内置资源（管理员授权范围）"><i class="fas fa-box"></i></span>
+              {% elif r.is_public %}<span class="badge bg-info ms-1" title="公开资源：全体教师课堂可用"><i class="fas fa-globe"></i></span>{% endif %}
+            </td>
+            <td class="small">{{ r.subject.name if r.subject else '未分类' }}</td>
+            <td class="small">{{ r.creator_name or ('管理员' if r.creator_type != 'teacher' else '教师') }}</td>
+            <td>
+              {% if r.show_in_student %}<span class="badge bg-primary">可见</span>{% else %}<span class="badge bg-secondary">隐藏</span>{% endif %}
+              {% if r.show_in_classroom %}<span class="badge bg-info text-dark">课堂</span>{% else %}<span class="badge bg-secondary">非课堂</span>{% endif %}
+            </td>
+            <td class="small">{{ share_counts.get(r.id, 0) }} 位教师</td>
+            <td style="white-space:normal;min-width:220px;">
+              {% if r.url and r.url.startswith('/chem-lab') %}
+              <a href="/study/lesson/{{ r.id }}?mode=classroom" class="btn btn-sm btn-outline-primary rounded-pill" title="课堂大屏：黑板/流程图/思维导图工具栏可用">
+                <i class="fas fa-chalkboard-teacher me-1"></i>进入课堂
+              </a>
+              <a href="{{ r.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary rounded-pill" title="独立打开目录页">
+                <i class="fas fa-flask-vial me-1"></i>目录
+              </a>
+              {% else %}
+              <a href="/study/lesson/{{ r.id }}?mode=classroom" class="btn btn-sm btn-outline-primary rounded-pill">
+                <i class="fas fa-play me-1"></i>课堂使用
+              </a>
+              {% endif %}
+              {% if can_edit.get(r.id) and mode != 'readonly' %}
+              <a href="{{ url_for('activities.admin_activities', res_id=r.id) }}" class="btn btn-sm btn-outline-success rounded-pill">
+                <i class="fas fa-tasks me-1"></i>活动
+              </a>
+              <a href="{{ url_for('surveys.survey_list', res_id=r.id) }}" class="btn btn-sm btn-outline-primary rounded-pill">
+                <i class="fas fa-poll me-1"></i>问卷
+              </a>
+              <a href="/admin/resources/quiz_results/{{ r.id }}" class="btn btn-sm btn-outline-warning rounded-pill">
+                <i class="fas fa-chart-bar me-1"></i>成绩
+              </a>
+              <a href="{{ url_for('resources.edit_resource', res_id=r.id) }}" class="btn btn-sm btn-outline-secondary rounded-pill">
+                <i class="fas fa-edit me-1"></i>编辑
+              </a>
+              {% if r.quiz_mode == 'inject' and r.injected %}
+              <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill"
+                      data-revert-url="{{ url_for('resources.teacher_revert_resource_injection', res_id=r.id) }}"
+                      onclick="revertInjection(this)" title="从 .bak 备份还原注入前的 HTML 文件">
+                <i class="fas fa-undo me-1"></i>撤销注入
+              </button>
+              {% endif %}
+              <form method="post" action="{{ url_for('resources.delete_resource', res_id=r.id) }}"
+                    class="d-inline" onsubmit="return confirm('确定删除该资源及其文件？');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button class="btn btn-sm btn-outline-danger rounded-pill"><i class="fas fa-trash"></i></button>
+              </form>
+              {% else %}
+              <span class="badge bg-light text-dark border">只读</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="text-center text-muted py-4">暂无可用资源</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<script>
+function revertInjection(btn) {
+  var url = btn && btn.dataset ? btn.dataset.revertUrl : '';
+  if (!url) return;
+  if (!confirm('撤销采集器注入？将从 .bak 备份还原注入前的 HTML 文件（未注入过的不受影响）。')) return;
+  btn.disabled = true;
+  fetch(url, {method: 'POST', credentials: 'same-origin'})
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d.success) {
+        alert(d.msg || '已还原');
+        location.reload();
+      } else {
+        alert(d.msg || '还原失败');
+        btn.disabled = false;
+      }
+    })
+    .catch(function () {
+      alert('网络错误，请重试');
+      btn.disabled = false;
+    });
+}
+</script>
+{% endblock %}

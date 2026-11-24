@@ -1,0 +1,576 @@
+{% extends 'base.html' %}
+{% block title %}题库管理{% endblock %}
+{% block content %}
+<div class="container-fluid" style="max-width:1400px;margin-top:60px;">
+    <div class="card p-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="text-primary mb-0"><i class="bi bi-journal-text me-2"></i>题库管理</h2>
+            <div>
+                <button type="button" class="btn btn-info me-2" data-bs-toggle="modal" data-bs-target="#importQuestionsModal">
+                    <i class="bi bi-file-earmark-excel me-1"></i>批量导入单选题
+                </button>
+                <a href="/admin/tools/import-python-fill" class="btn btn-warning me-2">
+                    <i class="bi bi-file-earmark-code me-1"></i>批量导入Python填空题
+                </a>
+                <button type="button" class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#addLinkModal">
+                    <i class="bi bi-link-45deg"></i>添加外链试卷
+                </button>
+                <a href="/admin/questions/add" class="btn btn-primary">
+                    <i class="bi bi-plus-circle me-1"></i>添加试题
+                </a>
+            </div>
+        </div>
+
+        <!-- 批量导入单选题模态框 -->
+        <div class="modal fade" id="importQuestionsModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">批量导入单选题</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle me-2"></i>
+                            <span>请使用Excel表格导入单选题，表格应包含题目、选项、答案和分值四列。</span>
+                            <hr>
+                            <p class="mb-1">表格要求：</p>
+                            <ul class="mb-0">
+                                <li>第一列：题目内容（必填）</li>
+                                <li>第二列：选项，用竖线|分隔（例如：选项A|选项B|选项C|选项D）</li>
+                                <li>第三列：答案（A/B/C/D，必填）</li>
+                                <li>第四列：分值（数字，必填）</li>
+                            </ul>
+                        </div>
+                        <form id="importForm" method="post" action="/admin/questions/import_excel" enctype="multipart/form-data">
+                            <div class="mb-3">
+                                <label class="form-label">关联试卷</label>
+                                <select name="exam_id" class="form-select" required>
+                                    <option value="" disabled selected>请选择试卷</option>
+                                    {% for exam in exams %}
+                                    <option value="{{ exam.id }}">{{ exam.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Excel文件</label>
+                                <input type="file" name="excel_file" class="form-control" accept=".xlsx,.xls" required>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <a href="/admin/questions/download_template" class="btn btn-outline-primary">
+                                    <i class="bi bi-download me-1"></i>下载模板
+                                </a>
+    <div>
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                                    <button type="submit" class="btn btn-primary">导入</button>
+                                </div>
+                            </div>
+                        </form>
+    </div>
+  </div>
+    </div>
+  </div>
+
+        <!-- 外链试卷表单模态框 -->
+        <div class="modal fade" id="addLinkModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-success text-white">
+                        <h5 class="modal-title"><i class="bi bi-link-45deg me-2"></i>添加外链试卷</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="关闭"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-warning small">
+                            <i class="bi bi-exclamation-triangle me-1"></i>添加后此试卷将生成为外链试卷，<strong>不可再添加其他试题</strong>到此试卷中。学生点击试卷后将直接打开该网址。
+                        </div>
+                        <form method="post" action="/admin/questions/add_link">
+                            <div class="mb-3">
+                                <label class="form-label">关联试卷</label>
+                                <select name="exam_id" class="form-select" required>
+          <option value="" disabled selected>请选择试卷</option>
+          {% for exam in link_available_exams %}
+          <option value="{{ exam.id }}">{{ exam.name }}</option>
+          {% endfor %}
+          {% if not link_available_exams %}
+          <option value="" disabled>暂无可用的试卷（所有试卷已有外链或试题）</option>
+          {% endif %}
+        </select>
+      </div>
+                            <div class="mb-3">
+                                <label class="form-label">外链URL</label>
+                                <input type="url" name="external_link" class="form-control" required placeholder="请输入网址，如 https://example.com">
+                            </div>
+                            <div class="text-end">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                                <button type="submit" class="btn btn-success">添加</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 筛选部分 -->
+        <div class="filter-section mb-4">
+            <form method="get" class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">关联试卷</label>
+                    <select name="exam_id" class="form-select">
+                        <option value="">全部试卷</option>
+                        {% for exam in exams %}
+                        <option value="{{ exam.id }}" {% if selected_exam_id == exam.id %}selected{% endif %}>
+                            {{ exam.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">题型</label>
+                    <select name="question_type" class="form-select">
+                        <option value="">全部题型</option>
+                        <option value="single" {% if selected_type == 'single' %}selected{% endif %}>单选题</option>
+                        <option value="multiple" {% if selected_type == 'multiple' %}selected{% endif %}>多选题</option>
+                        <option value="judge" {% if selected_type == 'judge' %}selected{% endif %}>判断题</option>
+                        <option value="fill" {% if selected_type == 'fill' %}selected{% endif %}>填空题</option>
+                        <option value="python_fill" {% if selected_type == 'python_fill' %}selected{% endif %}>Python填空题</option>
+                        <option value="link" {% if selected_type == 'link' %}selected{% endif %}>外链试卷</option>
+                    </select>
+      </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">筛选</button>
+      </div>
+    </form>
+  </div>
+
+        <!-- 题型筛选 -->
+        <div class="mb-4">
+            <label class="form-label">题型筛选</label>
+            <div class="d-flex flex-wrap">
+                <a href="{{ url_for('questions.admin_questions', exam_id=selected_exam_id) }}" class="btn btn-sm {% if not selected_type %}btn-primary{% else %}btn-outline-primary{% endif %} me-2 mb-2">全部</a>
+                <a href="{{ url_for('questions.admin_questions', exam_id=selected_exam_id, question_type='single') }}" class="btn btn-sm {% if selected_type == 'single' %}btn-primary{% else %}btn-outline-primary{% endif %} me-2 mb-2">单选题</a>
+                <a href="{{ url_for('questions.admin_questions', exam_id=selected_exam_id, question_type='multiple') }}" class="btn btn-sm {% if selected_type == 'multiple' %}btn-primary{% else %}btn-outline-primary{% endif %} me-2 mb-2">多选题</a>
+                <a href="{{ url_for('questions.admin_questions', exam_id=selected_exam_id, question_type='judge') }}" class="btn btn-sm {% if selected_type == 'judge' %}btn-primary{% else %}btn-outline-primary{% endif %} me-2 mb-2">判断题</a>
+                <a href="{{ url_for('questions.admin_questions', exam_id=selected_exam_id, question_type='fill') }}" class="btn btn-sm {% if selected_type == 'fill' %}btn-primary{% else %}btn-outline-primary{% endif %} me-2 mb-2">填空题</a>
+                <a href="{{ url_for('questions.admin_questions', exam_id=selected_exam_id, question_type='short_answer') }}" class="btn btn-sm {% if selected_type == 'short_answer' %}btn-primary{% else %}btn-outline-primary{% endif %} me-2 mb-2">简答题</a>
+                <a href="{{ url_for('questions.admin_questions', exam_id=selected_exam_id, question_type='python_fill') }}" class="btn btn-sm {% if selected_type == 'python_fill' %}btn-primary{% else %}btn-outline-primary{% endif %} me-2 mb-2">Python填空题</a>
+                <a href="{{ url_for('questions.admin_questions', exam_id=selected_exam_id, question_type='comprehensive') }}" class="btn btn-sm {% if selected_type == 'comprehensive' %}btn-primary{% else %}btn-outline-primary{% endif %} me-2 mb-2">综合题</a>
+                <a href="{{ url_for('questions.admin_questions', exam_id=selected_exam_id, question_type='link') }}" class="btn btn-sm {% if selected_type == 'link' %}btn-primary{% else %}btn-outline-primary{% endif %} mb-2">外链试卷</a>
+            </div>
+        </div>
+
+        <!-- 批量操作工具栏 -->
+        <div class="batch-actions mb-3" style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <button id="batchDeleteBtn" class="btn btn-danger" style="display: none;" onclick="confirmBatchDelete()">
+                    <i class="bi bi-trash"></i> 批量删除 <span id="selectedCount">(0)</span>
+                </button>
+            </div>
+            <div class="text-muted">
+                <small>已筛选出 <b>{{ questions|length }}</b> 个题目</small>
+            </div>
+        </div>
+
+        <!-- 题目列表 -->
+        <div class="table-responsive" style="max-height: 70vh; overflow-y: auto;">
+            <table class="table table-hover" style="min-width: 1000px;">
+                <thead class="table-light sticky-top" style="position: sticky; top: 0; z-index: 1;">
+                    <tr>
+                        <th width="40">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)">
+                                <label class="form-check-label" for="selectAllCheckbox"></label>
+                            </div>
+                        </th>
+                        <th style="min-width: 50px;">ID</th>
+                        <th style="min-width: 100px;">操作</th>
+                        <th style="min-width: 80px;">题型</th>
+                        <th style="min-width: 100px;">试卷</th>
+                        <th style="min-width: 220px;">内容</th>
+                        <th style="min-width: 150px;">选项</th>
+                        <th style="min-width: 100px;">答案</th>
+                        <th style="min-width: 60px;">分值</th>
+                        <th style="min-width: 120px;">创建时间</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for q in questions %}
+            <tr>
+                        <td>
+                            <div class="form-check">
+                                <input class="form-check-input question-checkbox" type="checkbox" 
+                                       data-question-id="{{ q.id }}" 
+                                       data-question-content="{{ q.content|truncate(30) }}"
+                                       onchange="updateBatchDeleteButton()">
+                            </div>
+                        </td>
+                        <td>{{ q.id }}</td>
+                        <td style="white-space: nowrap;">
+                            <a href="{{ url_for('questions.edit_question', question_id=q.id) }}"
+                               class="btn btn-outline-primary btn-sm d-block mb-1"
+                               style="min-width: 64px;">编辑</a>
+                            {% if q.question_type == 'comprehensive' %}
+                            <a href="{{ url_for('questions.manage_sub_questions', question_id=q.id) }}"
+                               class="btn btn-outline-info btn-sm d-block mb-1"
+                               style="min-width: 64px;">子题</a>
+                            {% endif %}
+                            <button type="button"
+                                    class="btn btn-outline-danger btn-sm d-block"
+                                    style="min-width: 64px;"
+                                    data-question-id="{{ q.id }}"
+                                    onclick="deleteQuestion(this)">删除</button>
+                        </td>
+                        <td>
+                            {% if q.question_type == 'single' %}
+                            <span class="badge bg-primary">单选题</span>
+                            {% elif q.question_type == 'multiple' %}
+                            <span class="badge bg-info">多选题</span>
+                            {% elif q.question_type == 'judge' %}
+                            <span class="badge bg-success">判断题</span>
+                            {% elif q.question_type == 'fill' %}
+                            <span class="badge bg-secondary">填空题</span>
+                            {% elif q.question_type == 'short_answer' %}
+                            <span class="badge bg-info">简答题</span>
+                            {% elif q.question_type == 'python_fill' %}
+                            <span class="badge bg-warning text-dark">Python填空题</span>
+                            {% elif q.question_type == 'comprehensive' %}
+                            <span class="badge bg-info">综合题</span>
+                            {% elif q.question_type == 'link' %}
+                            <span class="badge bg-secondary">外链试卷</span>
+                            {% else %}
+                            <span class="badge bg-dark">{{ q.question_type }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ q.exam.name }}</td>
+                        <td class="content-cell" style="cursor: pointer;" onclick="location.href='{{ url_for('questions.edit_question', question_id=q.id) }}'" title="点击编辑此题">
+                            <div class="content-wrapper">
+                                <div class="content-preview">{{ q.content|truncate(100) }}</div>
+                                {% if q.content|length > 100 %}
+                                <button class="btn btn-sm btn-link p-0 content-toggle"
+                                        onclick="event.stopPropagation(); toggleContent(this)"
+                                        data-full-content="{{ q.content }}">
+                                    显示更多
+                                </button>
+                                {% endif %}
+                            </div>
+                            {% if q.question_type == 'comprehensive' and q.sub_questions %}
+                            <div class="mt-1">
+                                <small class="text-muted">包含 {{ q.sub_questions|length }} 个子题目</small>
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if q.sorted_options %}
+                            <div class="options-wrapper">
+                                <div class="options-preview">{{ q.sorted_options|truncate(80) }}</div>
+                                {% if q.sorted_options|length > 80 %}
+                                <button class="btn btn-sm btn-link p-0 options-toggle"
+                                        onclick="toggleOptions(this)"
+                                        data-full-options="{{ q.sorted_options }}">
+                                    显示更多
+                                </button>
+                                {% endif %}
+                                {% if q.image_options %}
+                                {% set imgs = q.image_options_dict %}
+                                {% if imgs|length > 0 %}
+                                <span class="badge bg-info ms-1" title="包含 {{ imgs|length }} 张选项图片"><i class="fas fa-image"></i> {{ imgs|length }}</span>
+                                {% endif %}
+                                {% endif %}
+                            </div>
+                            {% elif q.question_type == 'link' %}
+                            <span class="text-muted">- 无选项 -</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if q.question_type == 'single' %}
+                            {{ q.answer }}
+                            {% elif q.question_type == 'judge' %}
+                            {{ q.answer }}
+                            {% elif q.question_type == 'python_fill' %}
+                            <span class="badge bg-secondary">多空填写</span>
+                            <button class="btn btn-sm btn-link p-0 ms-1"
+                                    data-question-id="{{ q.id }}"
+                                    data-python-answers='{{ q.python_answers|tojson }}'
+                                    onclick="showPythonAnswers(this)">
+                                查看答案
+                            </button>
+                            {% elif q.question_type == 'comprehensive' %}
+                            <span class="badge bg-secondary">多子题</span>
+                            {% elif q.question_type == 'link' %}
+                            <i class="bi bi-link-45deg"></i>
+                            {% else %}
+                            {{ q.answer|truncate(20) }}
+                            {% endif %}
+                        </td>
+              <td>{{ q.score }}</td>
+                        <td>{{ q.created_at.strftime('%Y-%m-%d %H:%M') if q.created_at else '' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="10" class="text-center py-3">
+                            <div class="text-muted">暂无试题</div>
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% if pagination and pagination.pages > 1 %}
+    <div class="card-footer bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span class="text-muted small">共 {{ pagination.total }} 道题目，第 {{ pagination.page }} / {{ pagination.pages }} 页</span>
+        <nav aria-label="题库分页">
+            <ul class="pagination justify-content-center mb-0 flex-wrap">
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('questions.admin_questions', page=pagination.prev_num, exam_id=selected_exam_id, question_type=selected_type) if pagination.has_prev else '#' }}">上一页</a>
+                </li>
+                {% for p in range(1, pagination.pages + 1) %}
+                    {% if p == 1 or p == pagination.pages or (p >= pagination.page - 2 and p <= pagination.page + 2) %}
+                    <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                        <a class="page-link" href="{{ url_for('questions.admin_questions', page=p, exam_id=selected_exam_id, question_type=selected_type) }}">{{ p }}</a>
+                    </li>
+                    {% elif p == 2 or p == pagination.pages - 1 %}
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('questions.admin_questions', page=pagination.next_num, exam_id=selected_exam_id, question_type=selected_type) if pagination.has_next else '#' }}">下一页</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Python答案模态框 -->
+<div class="modal fade" id="pythonAnswersModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Python填空题答案</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body">
+                <div id="pythonAnswersContent" class="bg-light p-3 rounded"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+  </div>
+</div>
+
+<script>
+// 删除题目函数
+function deleteQuestion(button) {
+    const questionId = button.getAttribute('data-question-id');
+    if (confirm('确定要删除这道题目吗？')) {
+        fetch(`/admin/questions/delete/${questionId}`, {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert(data.msg || '删除失败');
+            }
+        })
+        .catch(error => {
+            alert('删除失败');
+            console.error(error);
+        });
+    }
+}
+
+// 切换内容显示/隐藏
+function toggleContent(button) {
+    const contentWrapper = button.closest('.content-wrapper');
+    const contentPreview = contentWrapper.querySelector('.content-preview');
+    const fullContent = button.getAttribute('data-full-content');
+    
+    if (button.textContent.includes('显示更多')) {
+        contentPreview.textContent = fullContent;
+        button.textContent = '收起';
+    } else {
+        contentPreview.textContent = fullContent.substring(0, 100) + '...';
+        button.textContent = '显示更多';
+    }
+}
+
+// 切换选项显示/隐藏
+function toggleOptions(button) {
+    const optionsWrapper = button.closest('.options-wrapper');
+    const optionsPreview = optionsWrapper.querySelector('.options-preview');
+    const fullOptions = button.getAttribute('data-full-options');
+    
+    if (button.textContent.includes('显示更多')) {
+        optionsPreview.textContent = fullOptions;
+        button.textContent = '收起';
+    } else {
+        optionsPreview.textContent = fullOptions.substring(0, 80) + '...';
+        button.textContent = '显示更多';
+    }
+}
+
+// 显示Python答案
+function showPythonAnswers(button) {
+    try {
+        const questionId = button.getAttribute('data-question-id');
+        const answersJson = button.getAttribute('data-python-answers');
+        
+        // 解析JSON字符串（属性值由 tojson 输出，已是合法 JSON，无需 replace 转义处理）
+        let answersData = JSON.parse(answersJson);
+        // 兼容历史数据：python_answers 可能以 JSON 字符串形式存储，
+        // 解析结果若仍是字符串则再解析一次得到对象
+        if (typeof answersData === 'string') {
+            try {
+                answersData = JSON.parse(answersData);
+            } catch (e) {
+                /* 保持原始字符串，由下方逻辑给出提示 */
+            }
+        }
+        let html = '<div class="mb-3"><strong>题目ID:</strong> ' + escapeHtml(questionId) + '</div>';
+
+        if (answersData && typeof answersData === 'object') {
+            html += '<table class="table table-bordered">';
+            html += '<thead><tr><th>空位ID</th><th>答案</th></tr></thead>';
+            html += '<tbody>';
+            
+            for (const [key, value] of Object.entries(answersData)) {
+                html += '<tr>';
+                html += '<td>' + escapeHtml(key) + '</td>';
+                html += '<td>' + escapeHtml(value) + '</td>';
+                html += '</tr>';
+            }
+            
+            html += '</tbody></table>';
+        } else {
+            html += '<div class="alert alert-warning">无法解析答案数据</div>';
+        }
+        
+        document.getElementById('pythonAnswersContent').innerHTML = html;
+        new bootstrap.Modal(document.getElementById('pythonAnswersModal')).show();
+    } catch (e) {
+        console.error('解析Python答案失败:', e);
+        alert('无法显示Python答案，格式错误');
+    }
+}
+
+function escapeHtml(value) {
+    const div = document.createElement('div');
+    div.textContent = value == null ? '' : String(value);
+    return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// 全选/取消全选功能
+function toggleSelectAll(checkbox) {
+    const isChecked = checkbox.checked;
+    document.querySelectorAll('.question-checkbox').forEach(cb => {
+        cb.checked = isChecked;
+    });
+    updateBatchDeleteButton();
+}
+
+// 更新批量删除按钮状态
+function updateBatchDeleteButton() {
+    const checkedBoxes = document.querySelectorAll('.question-checkbox:checked');
+    const batchDeleteBtn = document.getElementById('batchDeleteBtn');
+    const selectedCount = document.getElementById('selectedCount');
+    
+    if (checkedBoxes.length > 0) {
+        batchDeleteBtn.style.display = 'inline-block';
+        selectedCount.textContent = `(${checkedBoxes.length})`;
+    } else {
+        batchDeleteBtn.style.display = 'none';
+    }
+    
+    // 更新全选框状态
+    const allBoxes = document.querySelectorAll('.question-checkbox');
+    const selectAllBox = document.getElementById('selectAllCheckbox');
+    if (allBoxes.length === checkedBoxes.length && allBoxes.length > 0) {
+        selectAllBox.checked = true;
+        selectAllBox.indeterminate = false;
+    } else if (checkedBoxes.length === 0) {
+        selectAllBox.checked = false;
+        selectAllBox.indeterminate = false;
+    } else {
+        selectAllBox.indeterminate = true;
+    }
+}
+
+// 批量删除确认
+function confirmBatchDelete() {
+    const checkedBoxes = document.querySelectorAll('.question-checkbox:checked');
+    const questionIds = Array.from(checkedBoxes).map(box => box.dataset.questionId);
+    const questionContents = Array.from(checkedBoxes).map(box => box.dataset.questionContent);
+    
+    if (questionIds.length === 0) {
+        return;
+    }
+    
+    let message = `确定要删除以下 ${questionIds.length} 个题目吗？\n\n`;
+    // 如果题目数量多于10个，只显示前10个，然后显示"等"
+    if (questionContents.length > 10) {
+        message += questionContents.slice(0, 10).join(', ') + ` 等${questionContents.length}个题目`;
+    } else {
+        message += questionContents.join(', ');
+    }
+    message += '\n\n删除操作不可恢复，请确认。';
+    
+    if (confirm(message)) {
+        batchDeleteQuestions(questionIds);
+    }
+}
+
+// 执行批量删除
+function batchDeleteQuestions(questionIds) {
+    // 创建表单并提交
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/admin/questions/batch_delete';
+    
+    // 添加筛选参数（如果有的话）
+    {% if selected_exam_id %}
+    const examIdInput = document.createElement('input');
+    examIdInput.type = 'hidden';
+    examIdInput.name = 'exam_id';
+    examIdInput.value = {{ selected_exam_id|tojson }};
+    form.appendChild(examIdInput);
+    {% endif %}
+    
+    {% if selected_type %}
+    const typeInput = document.createElement('input');
+    typeInput.type = 'hidden';
+    typeInput.name = 'question_type';
+    typeInput.value = {{ selected_type|tojson }};
+    form.appendChild(typeInput);
+    {% endif %}
+    
+    // 添加所有要删除的question_id
+    questionIds.forEach(id => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'question_ids';
+        input.value = id;
+        form.appendChild(input);
+    });
+    
+    document.body.appendChild(form);
+    form.submit();
+}
+
+// 初始化页面
+document.addEventListener('DOMContentLoaded', function() {
+    // 为所有题目复选框添加点击事件，防止事件冒泡导致行点击时选中
+    const checkboxes = document.querySelectorAll('.question-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+    });
+    
+    // 更新批量删除按钮状态
+    updateBatchDeleteButton();
+});
+</script>
+{% endblock %} 

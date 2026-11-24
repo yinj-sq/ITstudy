@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+{% block title %}个人网盘{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0"><i class="fas fa-cloud me-2"></i>个人网盘</h2>
+    <span class="badge bg-primary">空间 {{ '%.1f' % (used / 1024 / 1024) }} / {{ '%.0f' % (quota / 1024 / 1024) }} MB</span>
+  </div>
+
+  <div class="progress mb-4" style="height:10px;">
+    <div class="progress-bar" style="width:{{ [100, (used / quota * 100) if quota else 0]|min }}%"></div>
+  </div>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-header"><strong><i class="fas fa-upload me-1"></i>上传到个人网盘</strong></div>
+    <div class="card-body">
+      <form method="post" action="{{ url_for('student_drive.student_drive_upload') }}" enctype="multipart/form-data" class="row g-2 align-items-end">
+        <div class="col-md-9">
+          <label class="form-label">选择文件</label>
+          <input type="file" name="file" class="form-control" required>
+          <small class="text-muted">单个文件不超过 {{ max_file_size_mb }}MB。教师发布的作业附件也会出现在这里。</small>
+        </div>
+        <div class="col-md-3">
+          <button class="btn btn-primary w-100 rounded-pill"><i class="fas fa-cloud-upload-alt me-1"></i>上传</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <strong><i class="fas fa-folder-open me-1"></i>文件列表</strong>
+      <span class="text-muted small">{{ files|length }} 个文件</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr><th>文件名</th><th>来源</th><th>大小</th><th>时间</th><th style="width:210px;">操作</th></tr>
+        </thead>
+        <tbody>
+          {% for f in files %}
+          <tr>
+            <td>
+              <i class="fas fa-file me-1 text-primary"></i>{{ f.original_filename }}
+              {% if f.note %}<div class="small text-muted">{{ f.note }}</div>{% endif %}
+            </td>
+            <td>
+              {% if f.source_type == 'homework' %}
+              <span class="badge bg-warning text-dark">作业附件</span>
+              {% elif f.sender_type == 'student' %}
+              <span class="badge bg-info">本人上传</span>
+              {% else %}
+              <span class="badge bg-success">{{ f.sender_name or '教师' }}</span>
+              {% endif %}
+            </td>
+            <td>{{ '%.1f' % (f.file_size / 1024 / 1024) }} MB</td>
+            <td class="small text-muted">{{ f.created_at.strftime('%Y-%m-%d %H:%M') if f.created_at else '' }}</td>
+            <td>
+              <div class="d-flex gap-1">
+                <a href="{{ url_for('student_drive.student_drive_preview', file_id=f.id) }}" class="btn btn-outline-primary btn-sm" target="_blank" title="预览"><i class="fas fa-eye"></i></a>
+                {% if f.original_filename.lower().endswith(('.pptx', '.ppt')) %}
+                <a href="{{ url_for('student_drive.drive_edit', file_id=f.id) }}" class="btn btn-outline-info btn-sm" target="_blank" title="在 PPTist 中编辑"><i class="fas fa-edit"></i></a>
+                {% endif %}
+                <a href="{{ url_for('student_drive.student_drive_download', file_id=f.id) }}" class="btn btn-outline-success btn-sm" title="下载"><i class="fas fa-download"></i></a>
+                <form method="post" action="{{ url_for('student_drive.student_drive_delete', file_id=f.id) }}" onsubmit="return confirm('确定删除该文件？')">
+                  <button class="btn btn-outline-danger btn-sm" title="删除"><i class="fas fa-trash"></i></button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="text-center text-muted py-4">暂无文件</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if pagination and pagination.pages > 1 %}
+    <div class="card-footer bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span class="text-muted small">共 {{ pagination.total }} 个文件，第 {{ pagination.page }} / {{ pagination.pages }} 页</span>
+        <nav aria-label="网盘分页">
+            <ul class="pagination justify-content-center mb-0 flex-wrap">
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('student_drive.student_drive', page=pagination.prev_num) if pagination.has_prev else '#' }}">上一页</a>
+                </li>
+                {% for p in range(1, pagination.pages + 1) %}
+                    {% if p == 1 or p == pagination.pages or (p >= pagination.page - 2 and p <= pagination.page + 2) %}
+                    <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                        <a class="page-link" href="{{ url_for('student_drive.student_drive', page=p) }}">{{ p }}</a>
+                    </li>
+                    {% elif p == 2 or p == pagination.pages - 1 %}
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('student_drive.student_drive', page=pagination.next_num) if pagination.has_next else '#' }}">下一页</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

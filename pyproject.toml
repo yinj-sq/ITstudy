@@ -1,0 +1,23 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+
+[tool.ruff.lint.per-file-ignores]
+# e2e/验证工具须先设置 os.environ（DB_NAME/CACHE_DIR 等）再 import app，
+# 导入位置属有意设计，非缺陷
+"tools/e2e_*.py" = ["E402"]
+"tools/verify_homework_dirs.py" = ["E402"]
+# 夹具须在导入 app.config 之前钉住 DB_NAME/CACHE_DIR（否则 Config 已按
+# 生产库解析），同理非缺陷
+"tests/conftest.py" = ["E402"]
+# 前端接线检查脚本同理：须先钉 DB_NAME/CACHE_DIR 并包装 stdout 再导入 app
+"tests/check_buttons.py" = ["E402"]
+# 服务包装器须先把项目根目录插进 sys.path 再导入 win32 系列模块
+"itstudy_service.py" = ["E402"]
+

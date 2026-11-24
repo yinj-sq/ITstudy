@@ -1,0 +1,201 @@
+{% extends 'base.html' %}
+{% block title %}在线测试{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h2 class="mb-4"><i class="fas fa-edit me-2"></i>在线测试</h2>
+
+  <!-- 学科筛选标签 -->
+  <div class="mb-3 d-flex align-items-center flex-wrap gap-2">
+    <div class="d-flex flex-wrap">
+      <button class="btn btn-sm btn-outline-primary rounded-pill me-1 mb-1 subject-tab active" data-subject="all">全部</button>
+      {% for subj in subjects %}
+      <button class="btn btn-sm btn-outline-secondary rounded-pill me-1 mb-1 subject-tab" data-subject="{{ subj.id }}">{{ subj.name }}</button>
+      {% endfor %}
+    </div>
+    <span class="text-muted small" id="examCount"></span>
+  </div>
+
+  <div class="row g-3 mb-4" id="examGrid">
+    {% for exam in exams %}
+    <div class="col-md-6 exam-card" data-subject="{{ exam.subject_id or 'none' }}" data-title="{{ exam.name }}">
+      <div class="card h-100 shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">{{ exam.name }}</h5>
+          <p class="card-text text-muted small">
+            {% if exam.subject %}<span class="badge bg-secondary me-1">{{ exam.subject.name }}</span>{% endif %}
+            创建时间：{{ exam.create_time.strftime('%Y-%m-%d %H:%M') }}
+          </p>
+          {% if exam_scores.get(exam.id) %}
+          <div class="mb-2">
+            <span class="badge bg-info me-1">已考{{ exam_scores[exam.id].count }}次</span>
+            {% if exam.allow_view_results %}<span class="badge bg-success">最高{{ exam_scores[exam.id].best }}分</span>{% endif %}
+          </div>
+          {% endif %}
+          {% if exam.is_collected %}
+          <span class="badge bg-warning text-dark"><i class="fas fa-lock me-1"></i>已收卷</span>
+          {% elif not exam.is_enabled %}
+          <span class="badge bg-secondary"><i class="fas fa-clock me-1"></i>暂未开放</span>
+          {% elif first_q_type_by_exam.get(exam.id) == 'link' %}
+          {% set link_url = link_url_by_exam.get(exam.id) %}
+          {% if link_url and link_url.startswith(('http://', 'https://')) %}
+          <a href="{{ link_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm">
+            <i class="fas fa-external-link-alt me-1"></i>打开链接
+          </a>
+          {% endif %}
+          {% else %}
+          <a href="{{ url_for('online_exam.online_exam', exam_id=exam.id) }}" class="btn btn-primary btn-sm">
+            <i class="fas fa-play me-1"></i>进入测试
+          </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+    {% if not exams %}
+    <div class="col-12"><div class="alert alert-info">暂无可用的测试试卷</div></div>
+    {% endif %}
+  </div>
+
+  <!-- 试卷卡片分页控件（科目多/试卷多时便于查找） -->
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4" id="examPager" style="display:none;">
+    <span class="text-muted small" id="examPagerInfo"></span>
+    <nav aria-label="试卷分页">
+      <ul class="pagination justify-content-center mb-0 flex-wrap" id="examPagerNav"></ul>
+    </nav>
+  </div>
+  <div id="noExamMatch" class="alert alert-info text-center py-4" style="display:none;">
+    <i class="fas fa-search fa-2x mb-2 d-block"></i>该科目下暂无试卷
+  </div>
+
+  <!-- 历史记录 -->
+  <h5 class="mb-3"><i class="fas fa-history me-2"></i>测试历史</h5>
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead><tr><th>试卷</th><th>得分</th><th>提交时间</th><th>操作</th></tr></thead>
+      <tbody>
+        {% if results %}
+          {% for r in results %}
+          <tr>
+            <td>{% if r.exam_id in exam_scores %}{{ exam_scores[r.exam_id].exam_name }}{% else %}已删除{% endif %}</td>
+            {% set _published = r.exam_id in published_exam_ids %}
+            <td>{% if _published %}<span class="badge bg-{{ 'success' if (r.total_score or 0) >= 60 else 'danger' }}">{{ r.total_score if r.total_score is not none else '—' }}</span>{% else %}<span class="text-muted">未公布</span>{% endif %}</td>
+            <td class="text-muted small">{{ r.submit_time.strftime('%Y-%m-%d %H:%M') if r.submit_time else '-' }}</td>
+            <td>
+              {% if _published %}
+                <a href="{{ url_for('online_exam.show_result', result_id=r.id) }}" class="btn btn-outline-primary btn-sm">查看详情</a>
+              {% else %}
+                <span class="badge bg-secondary">成绩未公布</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="4" class="text-center text-muted py-3">暂无测试记录</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+    {% if results_pagination and results_pagination.pages > 1 %}
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
+        <span class="text-muted small">共 {{ results_pagination.total }} 条记录，第 {{ results_pagination.page }} / {{ results_pagination.pages }} 页</span>
+        <nav aria-label="测试历史分页">
+            <ul class="pagination justify-content-center mb-0 flex-wrap">
+                <li class="page-item {% if not results_pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('online_exam.exam', page=results_pagination.prev_num) if results_pagination.has_prev else '#' }}">上一页</a>
+                </li>
+                {% for p in range(1, results_pagination.pages + 1) %}
+                    {% if p == 1 or p == results_pagination.pages or (p >= results_pagination.page - 2 and p <= results_pagination.page + 2) %}
+                    <li class="page-item {% if p == results_pagination.page %}active{% endif %}">
+                        <a class="page-link" href="{{ url_for('online_exam.exam', page=p) }}">{{ p }}</a>
+                    </li>
+                    {% elif p == 2 or p == results_pagination.pages - 1 %}
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not results_pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('online_exam.exam', page=results_pagination.next_num) if results_pagination.has_next else '#' }}">下一页</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('.subject-tab').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    document.querySelectorAll('.subject-tab').forEach(function(b){b.classList.remove('active','btn-primary');b.classList.add('btn-outline-secondary');});
+    this.classList.add('active','btn-primary');this.classList.remove('btn-outline-secondary');
+    currentExamSubject = this.dataset.subject;
+    examPage = 1;
+    renderExamPager();
+  });
+});
+
+// ── 试卷卡片分页（科目筛选联动；试卷多时每页 8 张）──
+var currentExamSubject = 'all';
+var examPage = 1;
+var EXAM_PER_PAGE = 8;
+
+function visibleExamCards() {
+  var cards = Array.prototype.slice.call(document.querySelectorAll('.exam-card'));
+  return cards.filter(function (c) {
+    var s = c.dataset.subject || 'none';
+    return currentExamSubject === 'all' || s === currentExamSubject ||
+           (currentExamSubject === '' && s === 'none');
+  });
+}
+
+function renderExamPager() {
+  var cards = visibleExamCards();
+  document.querySelectorAll('.exam-card').forEach(function (c) { c.style.display = 'none'; });
+
+  var total = cards.length;
+  var pages = Math.max(1, Math.ceil(total / EXAM_PER_PAGE));
+  if (examPage > pages) examPage = pages;
+  if (examPage < 1) examPage = 1;
+  var start = (examPage - 1) * EXAM_PER_PAGE;
+  cards.slice(start, start + EXAM_PER_PAGE).forEach(function (c) { c.style.display = ''; });
+
+  document.getElementById('noExamMatch').style.display = total ? 'none' : '';
+  document.getElementById('examCount').textContent = total ? '共 ' + total + ' 张试卷' : '';
+
+  var pager = document.getElementById('examPager');
+  var nav = document.getElementById('examPagerNav');
+  if (pages <= 1) {
+    pager.style.display = 'none';
+    nav.innerHTML = '';
+    return;
+  }
+  pager.style.display = '';
+  document.getElementById('examPagerInfo').textContent = '第 ' + examPage + ' / ' + pages + ' 页';
+  nav.innerHTML = '';
+  function pageLink(p, label, disabled, active) {
+    var li = document.createElement('li');
+    li.className = 'page-item' + (disabled ? ' disabled' : '') + (active ? ' active' : '');
+    var a = document.createElement('a');
+    a.className = 'page-link';
+    a.href = 'javascript:void(0)';
+    a.textContent = label;
+    if (!disabled) a.onclick = function () { examPage = p; renderExamPager(); };
+    li.appendChild(a);
+    nav.appendChild(li);
+  }
+  pageLink(examPage - 1, '上一页', examPage <= 1, false);
+  for (var p = 1; p <= pages; p++) {
+    if (p === 1 || p === pages || (p >= examPage - 2 && p <= examPage + 2)) {
+      pageLink(p, p, false, p === examPage);
+    } else if (p === 2 || p === pages - 1) {
+      var el = document.createElement('li');
+      el.className = 'page-item disabled';
+      el.innerHTML = '<span class="page-link">…</span>';
+      nav.appendChild(el);
+    }
+  }
+  pageLink(examPage + 1, '下一页', examPage >= pages, false);
+}
+
+// 初始渲染分页（试卷 ≤ 8 张时不显示控件，行为与原来一致）
+renderExamPager();
+</script>
+{% endblock %}

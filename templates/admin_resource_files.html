@@ -1,0 +1,31 @@
+{# 管理端资源“浏览文件”按需加载；由 /admin/resources/<id>/files 渲染。 #}
+{% if files %}
+<div class="row g-1">
+  {% for f in files %}
+  {% set viewable = f.ext in ('png','jpg','jpeg','gif','bmp','webp','pdf','html','htm','txt','mp3','wav','mp4','webm') %}
+  <div class="col-md-4 col-lg-3 mb-1">
+    <div class="d-flex align-items-center border rounded p-1">
+      <a href="/static/uploads/{{ res.url.split('/static/uploads/', 1)[1].split('/')[0] }}/{{ f.name }}"
+         {% if viewable %}target="_blank"{% else %}download{% endif %}
+         class="text-decoration-none flex-grow-1 text-truncate" style="font-size:0.8rem;">
+        <i class="fas fa-{{ 'file-pdf text-danger' if f.ext == 'pdf'
+                      else 'file-image text-info' if f.ext in ('png','jpg','jpeg','gif','bmp','webp')
+                      else 'file-word text-primary' if f.ext in ('doc','docx')
+                      else 'file-excel text-success' if f.ext in ('xls','xlsx')
+                      else 'file-powerpoint text-warning' if f.ext in ('ppt','pptx')
+                      else 'file-archive text-secondary' if f.ext in ('zip','rar','7z')
+                      else 'file-audio text-warning' if f.ext in ('mp3','wav','ogg')
+                      else 'file-video text-info' if f.ext in ('mp4','webm','avi')
+                      else 'file' }} me-1"></i>{{ f.name }}
+      </a>
+      <form method="post" action="/admin/resources/delete-file/{{ res.id }}" onsubmit='return confirm("删除 " + {{ f.name|tojson }} + "？");' class="ms-1">
+        <input type="hidden" name="filename" value="{{ f.name }}">
+        <button class="btn btn-outline-danger btn-sm py-0 px-1" title="删除"><i class="fas fa-times fa-xs"></i></button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<small class="text-muted">目录为空</small>
+{% endif %}

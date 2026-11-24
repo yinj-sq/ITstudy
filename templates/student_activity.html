@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% block title %}{{ activity.title }}{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2 class="mb-1"><i class="fas fa-tasks me-2"></i>{{ activity.title }}</h2>
+      <div class="text-muted">{{ activity.resource.title }}</div>
+    </div>
+    <a href="{{ url_for('resources.study') }}" class="btn btn-outline-secondary rounded-pill"><i class="fas fa-arrow-left me-1"></i>返回资源</a>
+  </div>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      {% if activity.description %}
+      <div style="white-space:pre-wrap;word-break:break-word;">{{ activity.description }}</div>
+      {% else %}
+      <div class="text-muted">暂无活动说明</div>
+      {% endif %}
+      {% if activity.document_path %}
+      <div class="mt-3">
+        <a href="{{ url_for('activities.activity_document_preview', act_id=activity.id) }}" target="_blank" class="btn btn-outline-primary btn-sm rounded-pill">
+          <i class="fas fa-eye me-1"></i>预览活动文档
+        </a>
+        <a href="{{ url_for('activities.activity_document', act_id=activity.id) }}" class="btn btn-outline-success btn-sm rounded-pill">
+          <i class="fas fa-download me-1"></i>下载文档
+        </a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if activity.require_upload and session.get('student_id') %}
+  <div class="card shadow-sm mb-4">
+    <div class="card-header"><strong><i class="fas fa-upload me-1"></i>{{ '重新提交作品' if work else '上传作品' }}</strong></div>
+    <div class="card-body">
+      <form method="post" enctype="multipart/form-data"
+        {% if work and work.evaluation %}onsubmit="return confirm('重新提交后作品会变为待评价，教师可重新评分；原评价会保留供参考。确定提交吗？');"{% endif %}>
+        <div class="mb-3">
+          <label class="form-label">作品说明</label>
+          <textarea name="text_content" class="form-control" rows="4">{{ work.text_content if work else '' }}</textarea>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">作品文件</label>
+          <input type="file" name="work_file" class="form-control">
+          {% if work and work.original_filename %}
+          <small class="text-muted">当前文件：{{ work.original_filename }}</small>
+          {% endif %}
+        </div>
+        <button class="btn btn-primary rounded-pill px-4"><i class="fas fa-cloud-upload-alt me-1"></i>提交作品</button>
+      </form>
+    </div>
+  </div>
+  {% elif activity.require_upload %}
+  <div class="alert alert-info">该活动要求学生提交作品。</div>
+  {% endif %}
+
+  {% if work %}
+  <div class="card shadow-sm">
+    <div class="card-header"><strong><i class="fas fa-file-alt me-1"></i>我的作品</strong></div>
+    <div class="card-body">
+      <div class="mb-2">提交时间：{{ work.submitted_at.strftime('%Y-%m-%d %H:%M') if work.submitted_at else '' }}</div>
+      {% if work.original_filename %}
+      <div class="mb-3">
+        <a href="{{ url_for('activities.work_file_preview', work_id=work.id) }}" target="_blank" class="btn btn-outline-primary btn-sm rounded-pill"><i class="fas fa-eye me-1"></i>预览作品文件</a>
+        <a href="{{ url_for('activities.work_file', work_id=work.id) }}" class="btn btn-outline-success btn-sm rounded-pill"><i class="fas fa-download me-1"></i>下载</a>
+      </div>
+      {% endif %}
+      {% if work.evaluation %}
+      <div class="alert alert-{{ 'warning' if work.status == 'submitted' else 'success' }} mb-0">
+        <div><strong>{{ '上一次评价' if work.status == 'submitted' else '评价' }}：</strong>{{ work.evaluation.grade or '' }}{% if work.evaluation.score is not none %} / {{ work.evaluation.score }} 分{% endif %}</div>
+        {% if work.evaluation.comment %}<div style="white-space:pre-wrap;">{{ work.evaluation.comment }}</div>{% endif %}
+        {% if work.status == 'submitted' %}<div class="small mt-2">作品已重新提交，等待教师重新评价；以上为重新提交前的评价。</div>{% endif %}
+      </div>
+      <div class="text-warning small mt-1"><i class="fas fa-exclamation-triangle me-1"></i>重新提交后教师可重新评分，原评价保留供参考。</div>
+      {% else %}
+      <div class="text-muted">教师尚未评价。</div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

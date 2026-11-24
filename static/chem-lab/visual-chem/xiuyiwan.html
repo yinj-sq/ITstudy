@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="DJfsZ3EMA9McgwJ7E1nKX1">
+<head data-page-node-id="nnvwOfziKhjpDi42DZqiwn">
+    <meta charset="UTF-8" data-page-node-id="4Cwg2gfBV6ZoITO1BXaSlV">
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="6DCBQCmPEmLdy5yPDU69sD">
+    <title>溴乙烷（卤代烃）的反应机理与电子转移推演系统</title>
+    <style>
+        :root {
+            --bg-color:#2c3e50; --card-bg:#fff; --text-main:#2c3e50;
+            --primary:#16a085; --success:#2ecc71; --danger:#e74c3c;
+            --warning:#f39c12; --info:#8e44ad; --bromine:#a04000; --acid:#d35400; --ox:#7d3c98; --halide:#2e86c1;
+        }
+        * { box-sizing:border-box; margin:0; padding:0; font-family:'Helvetica Neue',Arial,'Microsoft YaHei',sans-serif; }
+        body { background:var(--bg-color); color:var(--text-main); display:flex; width:100vw; height:100vh; overflow:hidden; }
+        .container { width:100vw; height:100vh; background:var(--card-bg); display:flex; flex-direction:column; }
+        header { flex:0 0 auto; background:linear-gradient(135deg,#1a252f,var(--primary)); color:#fff; padding:12px 20px; text-align:center; border-bottom:3px solid #1abc9c; z-index:20; }
+        header h1 { font-size:20px; margin-bottom:4px; letter-spacing:1px; }
+        header .sub { font-size:12px; opacity:.9; }
+        .main-content { flex:1; min-height:0; display:flex; }
+        .canvas-container { flex:1; position:relative; background:#eef2f5; overflow:hidden; cursor:grab; }
+        .canvas-container:active { cursor:grabbing; }
+        .hint-overlay { position:absolute; top:15px; right:15px; background:rgba(255,255,255,.86); padding:6px 12px; border-radius:20px; font-size:12px; color:#333; pointer-events:none; box-shadow:0 2px 8px rgba(0,0,0,.1); backdrop-filter:blur(4px); z-index:10; font-weight:bold; }
+        #progressContainer { position:absolute; bottom:20px; left:50%; transform:translateX(-50%); display:none; align-items:center; gap:15px; background:rgba(255,255,255,.95); padding:12px 25px; border-radius:30px; box-shadow:0 8px 24px rgba(0,0,0,.2); border:1px solid rgba(255,255,255,.5); width:450px; max-width:90%; z-index:11; cursor:move; user-select:none; }
+        #progressContainer.active { display:flex; }
+        #playPauseBtn { cursor:pointer; font-size:24px; color:var(--primary); transition:transform .1s; }
+        #playPauseBtn:active { transform:scale(.9); }
+        #reactionSlider { flex:1; cursor:pointer; height:6px; -webkit-appearance:none; background:#e2e8f0; border-radius:3px; outline:none; }
+        #reactionSlider::-webkit-slider-thumb { -webkit-appearance:none; width:20px; height:20px; border-radius:50%; background:var(--primary); cursor:pointer; box-shadow:0 2px 5px rgba(0,0,0,.3); }
+        #progressText { font-size:14px; font-weight:bold; width:45px; text-align:right; color:#2c3e50; }
+        .sidebar { background:#fdfdfd; display:flex; flex-direction:column; z-index:10; box-shadow:0 0 10px rgba(0,0,0,.05); }
+        .sidebar-left { flex:0 0 178px; border-right:1px solid #dcdde1; background:#f8f9fa; }
+        .sidebar-right { flex:0 0 250px; border-left:1px solid #dcdde1; }
+        .sidebar-section { padding:15px; border-bottom:1px solid #eee; flex:0 0 auto; }
+        .sidebar-section.fill { flex:1; overflow-y:auto; display:flex; flex-direction:column; }
+        .panel-title { font-size:15px; font-weight:bold; margin-bottom:10px; color:#34495e; display:flex; align-items:center; gap:6px; }
+        .panel-title::before { content:''; display:block; width:4px; height:14px; background:var(--primary); border-radius:2px; }
+        .category-title { font-size:12px; color:#7f8c8d; margin:12px 0 6px; border-bottom:1px dashed #dcdde1; padding-bottom:3px; font-weight:bold; }
+        .category-title:first-of-type { margin-top:0; }
+        .btn-group { display:flex; flex-direction:column; gap:8px; }
+        button { padding:9px 10px; font-size:13px; font-weight:bold; border:none; border-radius:6px; cursor:pointer; transition:all .2s; box-shadow:0 2px 4px rgba(0,0,0,.1); width:100%; text-align:center; }
+        button:active { transform:translateY(1px); box-shadow:none; }
+        .btn-mode { background:#e2e8f0; color:#4a5568; }
+        .btn-mode.active { background:#34495e; color:#fff; }
+        .btn-reaction { background:#fff; color:#2d3748; border:1px solid #cbd5e0; }
+        .btn-reaction.active { color:#fff; border-color:transparent; }
+        #btnHalideHydro.active { background:var(--halide); }
+        #btnHalideElim.active { background:var(--halide); }
+        .btn-reset { background:#7f8c8d; color:white; margin-top:auto; }
+        .formula-display { font-size:18px; font-weight:bold; text-align:left; align-items:flex-start; padding:12px 16px; background:#edf2f7; border-radius:8px; color:var(--primary); min-height:86px; display:flex; flex-direction:column; justify-content:center; border:1px solid #e2e8f0; }
+        .formula-main { font-family:'Times New Roman',Times,serif; font-size:14px; letter-spacing:.2px; white-space:normal; line-height:1.55; width:100%; padding-bottom:4px; }
+        .formula-main.eq-step { font-size:13px; line-height:1.55; transition:opacity .3s,transform .3s; }
+        .formula-main.eq-step.dim { opacity:.35; transform:translateX(-6px); }
+        .formula-main.eq-step.active { opacity:1; transform:translateX(0); }
+        .eq-tag { display:inline-block; font-size:11px; background:var(--primary); color:#fff; border-radius:10px; padding:1px 8px; margin-right:7px; vertical-align:2px; white-space:nowrap; }
+        .info-box { background:#f8f9fa; border-left:4px solid var(--primary); padding:12px; border-radius:0 6px 6px 0; font-size:13px; line-height:1.55; color:#333; flex:1; overflow-y:auto; }
+        .transfer-line { margin-top:6px; padding-top:6px; border-top:1px dashed #dcdde1; color:#8a6d3b; font-size:12px; line-height:1.5; }
+        .conserv-note { margin-top:6px; color:#16a085; font-size:11px; font-weight:bold; }
+        .legend { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; font-size:12px; background:#fff; padding:10px; border-radius:6px; border:1px solid #eee; }
+        .legend-item { display:flex; align-items:center; gap:6px; }
+        .legend-color { width:14px; height:14px; border-radius:50%; box-shadow:inset -2px -2px 4px rgba(0,0,0,.3); border:1px solid rgba(0,0,0,.1); }
+        .badge { padding:2px 8px; border-radius:12px; font-size:11px; font-weight:bold; color:white; margin-bottom:5px; display:inline-block; }
+        .bg-normal { background:var(--primary); } .bg-warn { background:var(--warning); } .bg-danger { background:var(--danger); }
+        .bg-ox { background:var(--ox); } .bg-acid { background:var(--acid); } .bg-br { background:var(--bromine); } .bg-succ { background:var(--success); }
+        @media screen and (max-width:900px) {
+            .main-content { flex-direction:column; }
+            .sidebar-left,.sidebar-right { flex:none; width:100%; height:auto; max-height:35vh; }
+            .sidebar-left { border-right:none; border-bottom:1px solid #e0e0e0; display:flex; flex-direction:row; flex-wrap:wrap; }
+            .sidebar-section { flex:1; min-width:150px; border-bottom:none; border-right:1px solid #eee; }
+        }
+        .tier-box { margin-top:8px; display:flex; flex-wrap:wrap; gap:6px; }
+        .tier-chip { font-size:11px; padding:2px 8px; border-radius:10px; }
+        .tier-main { background:#eaf2f8; color:#2471a3; }
+        .tier-adv { background:#fdebd0; color:#a04000; }
+        .tier-scheme { background:#eafaf1; color:#1e8449; }
+        .adv-details { font-size:12px; margin-top:8px; }
+        .adv-details summary { cursor:pointer; color:#2471a3; font-weight:bold; background:#eaf2f8; border:1px solid #b9d4ec; border-radius:6px; padding:6px 10px; margin-bottom:4px; text-align:center; list-style:none; }
+        .adv-details summary::-webkit-details-marker { display:none; }
+        .adv-panel { font-size:12px; line-height:1.8; color:#34495e; background:#f8f9fa; border:1px solid #e2e8f0; border-radius:6px; padding:10px 12px; }
+    </style>
+    <link rel="icon" type="image/png" href="favicon.png" data-page-node-id="FwMAKiyzD4JwZm9AUreNe0">
+    <link rel="stylesheet" href="ui-glass.css" data-page-node-id="3eqD4XRhXHz3C9mVFP3MQP">
+    <style>
+        /* ===== 有机反应页统一皮肤：对齐全站磨砂玻璃 UI ===== */
+        .container { background: transparent !important; }
+        .sidebar { background: transparent !important; border: none !important; box-shadow: none !important; }
+        #sidebar, #info-sidebar { flex: 0 0 232px !important; }
+        #controls-panel .btn-group { gap: 6px; }
+        .glass-panel .panel-title::before { display: none; }
+        .glass-panel .category-title { color: #5b6b7d; border-bottom-color: rgba(120,140,175,.4); margin: 2px 0 4px; }
+        #info-sidebar > .glass-panel { flex: 0 0 auto; }
+        #info-sidebar > .glass-panel.grow { flex: 1 1 auto !important; min-height: 0; }
+        #canvas-container { border-radius: 16px; overflow: hidden; }
+        .glass-panel .formula-display { background: rgba(255,255,255,.6); border-color: rgba(120,140,175,.35); color: #1e7a67; }
+        .glass-panel .info-box { background: rgba(255,255,255,.55); border-left-color: #0f6e56; color: #26333f; }
+        .glass-panel .legend { background: rgba(255,255,255,.6); border-color: rgba(120,140,175,.35); }
+        .glass-panel .adv-panel { background: rgba(255,255,255,.6); border-color: rgba(120,140,175,.35); color: #26333f; }
+        .glass-panel .adv-details summary { background: rgba(255,255,255,.55); border-color: rgba(120,140,175,.4); color: #1a5f8a; }
+        .glass-panel .tier-main { background: rgba(46,134,193,.16); }
+    </style>
+    <script src="./three.min.js"></script>
+    <script src="./OrbitControls-umd.js"></script>
+
+<style id="chem-lab-embed-style">
+  /* ITstudy 化学仿真统一壳：隐藏原站顶栏/品牌/版权水印。
+     不强制页面高度与 overflow —— 各页面自有布局（周期表需要滚动，
+     3D 页需要全屏），统一覆盖会把周期表底部裁掉。 */
+  #topbar, #copyright, .wm-copyright, #btn-home,
+  .topbar-actions, .back-home-btn,
+  .brand, .brand-title, #brand-logo { display: none !important; }
+  canvas { max-width: 100%; }
+  /* 课堂 iframe 高度较小时：周期表隐藏趋势图、压缩行高，保证 118 元素可见 */
+  @media (max-height: 720px) {
+    #chart-panel { display: none !important; }
+    .ptable.size-s { grid-auto-rows: 32px !important; }
+    #info-sidebar { width: 220px; }
+  }
+</style>
+</head>
+<body data-page-node-id="fcVQyD9BQFat8PKNM2s9MQ">
+<div class="container light-bg" id="app-container" data-page-node-id="2gdRs5gmhQ09YRwSnukOiT">
+    <div id="topbar" class="glass" data-page-node-id="ySnsWhBziS35skVTImiOUW">
+        <div class="brand" data-page-node-id="hocslUqjk5QNh35yVyYOym">
+            <img id="brand-logo" src="favicon.png" alt="可视化化学" data-page-node-id="UXow6DAK6ZNOefQoNoEJjG">
+            <div class="brand-text" data-page-node-id="R9KMFinNsFH6aIX2HN3TQi">
+                <div class="brand-title" data-page-node-id="E4zoF8zz7f1Ges7aRWIVEJ">可视化化学<span class="brand-divider" data-page-node-id="daHzxlgH4GoBG83WbnL9YZ">·</span>可视化学</div>
+                <div class="brand-sub" data-page-node-id="hk1mdyJLrX4QrckQKp2CcN">让微观结构，触手可及！</div>
+            </div>
+        </div>
+        <div class="topbar-actions" data-page-node-id="iUKIJ5nT6oVQujsvsXpINV">
+            <a class="top-btn" id="btn-home" href="index.html" target="_top" data-page-node-id="8AUl99k9OLa4tyHNlOxuDW">主页</a>
+            <button class="top-btn" id="btn-reset-view"><svg class="tb-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>重置视角</button>
+        </div>
+    </div>
+    <div class="main-content" id="main-row" data-page-node-id="4tOMpXpMYGL8KiootFZ3Dx">
+        <div class="sidebar sidebar-left" id="sidebar" data-page-node-id="ohXumw0jMJxopsnJc3zNCI">
+            <div id="controls-panel" data-page-node-id="kxxTeJPCrheLHADjnQcIuW">
+                <div class="glass-panel" data-page-node-id="JAeJyN0ELmVGejBMF7RjHL">
+                    <div class="panel-title" data-page-node-id="LXeuS9qHiF1vE3ANvf7xyg">图例</div>
+                    <div class="legend" id="legendBox" data-page-node-id="4FFdgZMaKpDdGNCtdGg59i"></div>
+                </div>
+                <div class="glass-panel" data-page-node-id="xXDz7fFpTugfy3Rz19eP1h">
+                    <div class="panel-title" data-page-node-id="mxEQQeOWc8Cs4dKTNsE7pV">视图模式</div>
+                    <div class="btn-group" data-page-node-id="71HgNv2ZlIVISaVcEHhDG6">
+                        <button id="btnBallStick" class="btn-mode active" data-page-node-id="c3WQVSAH1n4ToTCfV9w2ay">三维立体模式</button>
+                        <button id="btnStructural" class="btn-mode" data-page-node-id="Q4kIKwiVPXMV77NS7nL0I4">结构式模式</button>
+                    </div>
+                </div>
+                <div class="glass-panel" data-page-node-id="JoCPc6AGiXOlxOD24OB1pl">
+                    <div class="panel-title" data-page-node-id="rf8XHDSnOMTZhBby5xehOW">反应类型</div>
+                    <div class="category-title" data-page-node-id="Kxhoa93GHYmDkDz7tC8Y0o">卤代烃</div>
+                    <div class="btn-group" data-page-node-id="aqaicgf4bqC9anJsPLK5Gd">
+                        <button id="btnHalideHydro" class="btn-reaction" data-page-node-id="E3ZyUHrT4n9eW3g6VNXrCk">水解反应 (+NaOH水)</button>
+                        <button id="btnHalideElim" class="btn-reaction" data-page-node-id="Yvs7CxpON1HS6ZKYtDfgSO">消去反应 (+NaOH醇)</button>
+                    </div>
+                </div>
+                <div class="glass-panel" data-page-node-id="1FEggKTbQPyX5sDrchha5m">
+                    <button id="btnReset" class="btn-reset" style="margin-top:0;" data-page-node-id="C96ZyQ8NKUcF5VdIwwrlFA">恢复初始状态</button>
+                </div>
+            </div>
+        </div>
+        <div class="canvas-container" id="canvas-container" data-page-node-id="h86SQxcMMoOem9FFSsp235">
+            <div class="hint-overlay" data-page-node-id="JgJL9m5XkPou9Iyjm3TmqV">鼠标拖拽旋转 · 滚轮缩放 · 可拖动进度条</div>
+            <div id="progressContainer" data-page-node-id="JeZUf3DpFeu2xXmFGQhNGI">
+                <div id="playPauseBtn" data-page-node-id="4INADwKaX6o0FyQmRPSIp3">▶️</div>
+                <input type="range" id="reactionSlider" min="0" max="100" value="0" step="0.1" data-page-node-id="UQ8ztZvPsy7HAHKObifkUo">
+                <span id="progressText" data-page-node-id="bzfl9zWVw8NahXwbQxO4LC">0%</span>
+            </div>
+        </div>
+        <div class="sidebar sidebar-right" id="info-sidebar" data-page-node-id="tcUnF6NsV0S2773BZy9yKa">
+            <div class="glass-panel" data-page-node-id="qz1aVFsx3dbVAq8Hv897tC">
+                <div class="panel-title" data-page-node-id="Y7ziDYRNlLuCeAkFnu0E3B">反应方程式</div>
+                <div class="formula-display" data-page-node-id="xDdwJMEseFawfLP0ew0zYN">
+                    <div id="formulaEq1" class="formula-main eq-step active" data-page-node-id="tdRNjESibZMVWlru2Rw09q"></div>
+                    <div id="formulaEq2" class="formula-main eq-step dim" data-page-node-id="hJqI9g2l0dnacRfGFNZmDB"></div>
+                </div>
+            </div>
+            <div class="glass-panel grow" data-page-node-id="VSnxpI7M6Y0fEVFMFD67x7">
+                <div class="panel-title" data-page-node-id="jKfDFXH9hmBAqdQRaVGuqK">机理与电子转移解析</div>
+                <div id="conservationChip" class="formula-display" style="min-height:72px;font-size:12px;line-height:1.6;color:#34495e;" data-page-node-id="IPXckgH8FuVjARV3EGaVfR">溴乙烷 CH₃CH₂Br：C–C、C–H、C–Br 均为 σ 键；碳和溴为 sp³。</div>
+                <div id="infoBox" class="info-box" data-page-node-id="diEaX54MAuDrqzA6CdeH5K">选择反应后显示步骤说明</div>
+                <div id="tierBox" class="tier-box" data-page-node-id="ATEIrIqchrEM1kWafRD0Zj"></div>
+                <details class="adv-details" data-page-node-id="zz88fnjZBBbtG1J1k2qO9C">
+                    <summary data-page-node-id="Djkh1aTKdzWGsMRKBwXKXR">完整机理（进阶）▸ 点击展开</summary>
+                    <div id="advPanel" class="adv-panel" data-page-node-id="akUHanTDIeudKNZ1yelhdp">选择反应后显示</div>
+                </details>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const COLORS = { C:0x2c3e50, H:0xecf0f1, O:0xe74c3c, Na:0xf39c12, Br:0x8b4513, Cu:0xc87533, S:0xf1c40f };
+    const TEXT_COLORS = { C:'#222', H:'#777', O:'#e74c3c', Na:'#d35400', Br:'#8b4513', Cu:'#a65f2d', S:'#d4ac0d' };
+    const RAD_BS = { C:0.45, H:0.25, O:0.40, Na:0.42, Br:0.55, Cu:0.48, S:0.50 };
+
+    const TEXTS = {
+        init: "<span class='badge bg-normal'>溴乙烷 C₂H₅Br</span><br>两个碳和溴均按 <b>sp³</b> 处理。C–C 约 1.50、C–H 约 1.09、C–Br 约 1.90，三维模式呈四面体；结构式模式为平面简式。",
+        halide_hydro_1: "<span class='badge bg-br'>① OH⁻ 靠近 α-碳</span><br>溴乙烷的 C–Br 为极性键，Br 带 δ−、α-碳带 δ+。NaOH 在水中解离，OH⁻ 从 C–Br 键对面靠近 α-碳，准备取代 Br（进攻细节见进阶面板）。",
+        halide_hydro_2: "<span class='badge bg-br'>② C–O 成键、C–Br 断键同步进行</span><br>OH⁻ 与 α-碳形成 C–O 键，同时 C–Br 的成键电子对转移到 Br，Br 以 Br⁻ 离去。",
+        halide_hydro_3: "<span class='badge bg-succ'>③ 生成乙醇与 NaBr</span><br>CH₃CH₂Br + NaOH ——水,加热→ CH₃CH₂OH + NaBr。OH 取代 Br，α-碳保持 sp³。",
+        halide_elim_1: "<span class='badge bg-acid'>① 醇溶液中 OH⁻ 作强碱，靠近 β-H</span><br>NaOH 的醇溶液碱性更强，OH⁻ 不作为亲核试剂进攻碳，而是靠近与溴相邻碳（β-碳）上的氢。",
+        halide_elim_2: "<span class='badge bg-acid'>② 夺 β-H、出 π 键、Br 离去（协同一步）</span><br>碱夺取 β-H，C–H 电子对转为 C–C 的 π 键；同时 C–Br 断键、Br 以 Br⁻ 离去；被夺的 H 与 OH⁻ 结合成水（协同细节见进阶面板）。",
+        halide_elim_3: "<span class='badge bg-succ'>③ 生成乙烯、NaBr 与 H₂O</span><br>CH₃CH₂Br + NaOH ——醇,加热→ CH₂=CH₂ + NaBr + H₂O。两个碳由 sp³ 变为 sp²，键角展开到 120°。"
+    };
+    const TRNS = {
+        init: "等待选择反应",
+        halide_hydro_1: "OH⁻ 靠近 α-碳，准备取代 Br",
+        halide_hydro_2: "电子对：O→C 成键、C–Br→Br⁻（C–O 成键与 C–Br 断键同步）",
+        halide_hydro_3: "生成乙醇（OH 取代 Br）与 NaBr",
+        halide_elim_1: "OH⁻ 作碱靠近 β-H（水溶液→取代；醇溶液→消去）",
+        halide_elim_2: "β-H 被夺，C–H 电子对转 π 键；C–Br 电子对转 Br⁻",
+        halide_elim_3: "乙烯 sp² 平面 120°；β-H 与 OH⁻ 成水；NaBr 生成"
+    };
+    const CHIPS = {
+        init:'溴乙烷 CH₃CH₂Br：C–C、C–H、C–Br 均为 σ 键；碳和溴为 sp³。C–Br 为极性键，Br 带 δ−。',
+        halide_hydro:'OH⁻ 从 C–Br 键背面进攻 α-碳（SN2）：OH⁻ 的孤对电子形成 C–O 键，C–Br 键的电子对转移到 Br 生成 Br⁻；Br 被 OH 取代，α-碳构型翻转，生成乙醇与 NaBr。',
+        halide_elim:'醇溶液中 OH⁻ 作强碱夺取 β-H：C–H 键电子对转成 C–C 的 π 键，C–Br 键电子对转移到 Br 生成 Br⁻；β-H 与 OH⁻ 结合成水，生成乙烯与 NaBr。'
+    };
+
+    const slider = document.getElementById('reactionSlider');
+    const playPauseBtn = document.getElementById('playPauseBtn');
+    const progressText = document.getElementById('progressText');
+    const eqText1 = document.getElementById('formulaEq1');
+    const eqText2 = document.getElementById('formulaEq2');
+    const infoBox = document.getElementById('infoBox');
+    const chipBox = document.getElementById('conservationChip');
+    const canvasWrap = document.getElementById('canvas-container');
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xeef2f5);
+    const camera = new THREE.PerspectiveCamera(40, canvasWrap.clientWidth / canvasWrap.clientHeight, 0.1, 100);
+    const renderer = new THREE.WebGLRenderer({ antialias:true });
+    renderer.setSize(canvasWrap.clientWidth, canvasWrap.clientHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.shadowMap.enabled = true;
+    canvasWrap.appendChild(renderer.domElement);
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true; controls.dampingFactor = 0.05; controls.enablePan = false;
+    scene.add(new THREE.AmbientLight(0xffffff, 0.66));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.85);
+    dirLight.position.set(5, 10, 7); dirLight.castShadow = true; scene.add(dirLight);
+
+    let currentReaction = 'none', isPlaying = false, viewMode = 'ballstick', currentChip = CHIPS.init;
+    let atoms = [], bonds = [], labels = [], productLabels = [], ionCharges = {};
+    let halideDash = [], reactantLabels = [];
+
+    const materials = {};
+    for (let k in COLORS) materials[k] = new THREE.MeshStandardMaterial({ color:COLORS[k], roughness:.32, metalness:.08 });
+    const sphereGeo = new THREE.SphereGeometry(1, 32, 32);
+    const bondMat3D = new THREE.MeshStandardMaterial({ color:0xbdc3c7, roughness:.4 });
+    const bondMat2D = new THREE.MeshBasicMaterial({ color:0x2c3e50, depthTest:false, depthWrite:false });
+    const spriteCache = {};
+
+    function atomSprite(type) {
+        if (!spriteCache[type]) {
+            const c = document.createElement('canvas'); c.width = 128; c.height = 128;
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = TEXT_COLORS[type] || '#333';
+            ctx.font = 'bold 72px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(type, 64, 66);
+            spriteCache[type] = new THREE.SpriteMaterial({ map:new THREE.CanvasTexture(c), transparent:true, depthTest:false, depthWrite:false });
+        }
+        const s = new THREE.Sprite(spriteCache[type].clone());
+        s.scale.set(1.15, 1.15, 1); s.renderOrder = 6;
+        return s;
+    }
+    class Atom3D {
+        constructor(id, type, x, y, z) {
+            this.id = id; this.type = type; this.noLabel = false; this.alwaysBall = false; this.opacity = 1;
+            this.group = new THREE.Group(); this.group.position.set(x, y, z);
+            this.mesh = new THREE.Mesh(sphereGeo, materials[type].clone());
+            this.mesh.scale.setScalar(RAD_BS[type]); this.mesh.castShadow = true; this.mesh.receiveShadow = true;
+            this.sprite = atomSprite(type);
+            this.group.add(this.mesh); this.group.add(this.sprite); scene.add(this.group); atoms.push(this);
+            this.applyViewMode();
+        }
+        setPosition(x, y, z) { this.group.position.set(x, y, z); }
+        setOpacity(v) {
+            this.opacity = v;
+            this.mesh.material.transparent = true; this.mesh.material.opacity = v;
+            this.sprite.material.opacity = v;
+            this.applyViewMode();
+        }
+        applyViewMode() {
+            const vis = this.opacity > 0.02;
+            if (this.alwaysBall && viewMode !== 'structural') { this.mesh.visible = vis; this.sprite.visible = false; }
+            else if (viewMode === 'structural') { this.mesh.visible = false; this.sprite.visible = vis && !this.noLabel; }
+            else { this.mesh.visible = vis; this.sprite.visible = false; }
+        }
+    }
+    class Bond3D {
+        constructor(id, a1, a2, type = 'single') {
+            this.id = id; this.atom1 = a1; this.atom2 = a2; this.type = type;
+            this.bondOrder = type === 'double' ? 2 : 1; this.isBroken = false; this.opacity = 1;
+            this.group = new THREE.Group(); this.mat3D = bondMat3D.clone(); this.mat2D = bondMat2D.clone(); this.meshes = [];
+            const geo = new THREE.CylinderGeometry(0.06, 0.06, 1, 16);
+            // 始终创建两根键棒：单键时只显示一根，键级升为 2（如乙烯 C=C、乙醛 C=O）时显示两根。
+            const m1 = new THREE.Mesh(type === 'double' ? geo : new THREE.CylinderGeometry(0.08, 0.08, 1, 16), this.mat3D);
+            const m2 = new THREE.Mesh(geo, this.mat3D);
+            this.meshes.push(m1, m2);
+            this.group.add(m1); this.group.add(m2);
+            this.meshes.forEach(m => { m.castShadow = true; m.receiveShadow = true; m.renderOrder = 1; });
+            scene.add(this.group); bonds.push(this); this.applyViewMode();
+        }
+        updatePosition() {
+            if (this.isBroken || this.bondOrder === 0 || this.opacity <= 0.02) { this.meshes.forEach(m => m.visible = false); return; }
+            const p1 = this.atom1.group.position, p2 = this.atom2.group.position, dist = p1.distanceTo(p2);
+            if (currentReaction === 'burn' && dist > 2.65) { this.meshes.forEach(m => m.visible = false); return; }
+            const off1 = viewMode === 'structural' && !this.atom1.noLabel ? 0.35 : 0;
+            const off2 = viewMode === 'structural' && !this.atom2.noLabel ? 0.35 : 0;
+            const visualDist = Math.max(0.01, dist - off1 - off2);
+            const dir = new THREE.Vector3().subVectors(p2, p1); const d = dir.length();
+            if (d < 0.0001) { this.meshes.forEach(m => m.visible = false); return; }
+            dir.divideScalar(d);
+            this.group.position.copy(p1).addScaledVector(dir, off1 + visualDist / 2);
+            this.group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+            const r = viewMode === 'structural' ? 0.6 : 1.0, space = viewMode === 'structural' ? 0.08 : 0.18;
+            this.meshes.forEach(m => { m.visible = false; m.scale.set(r, visualDist, r); });
+            // 是否双键只看当前键级：单键键棒也可升级为 C=C / C=O 双键。
+            if (this.bondOrder === 1) { this.meshes[0].visible = true; this.meshes[0].position.set(0,0,0); }
+            else {
+                this.meshes[0].visible = true; this.meshes[1].visible = true;
+                this.meshes[0].position.set(space,0,0); this.meshes[1].position.set(-space,0,0);
+            }
+        }
+        setColorState(state) {
+            const col = state === 'break' ? 0xf39c12 : state === 'make' ? 0x2ecc71 : state === 'br' ? 0xa04000 : 0xbdc3c7;
+            this.mat3D.color.setHex(col); this.mat2D.color.setHex(state === 'normal' ? 0x2c3e50 : col);
+        }
+        setOpacity(v) {
+            this.opacity = v; this.mat3D.transparent = true; this.mat2D.transparent = true; this.mat3D.opacity = v; this.mat2D.opacity = v; this.applyViewMode();
+        }
+        applyViewMode() {
+            const mat = viewMode === 'structural' ? this.mat2D : this.mat3D;
+            this.meshes.forEach(m => { m.material = mat; });
+            this.updatePosition();
+        }
+    }
+    function getA(id) { return atoms.find(a => a.id === id); }
+    function getB(id) { return bonds.find(b => b.id === id); }
+    function smoothStep(t) { return t * t * (3 - 2 * t); }
+    function mixPos(a, b, t, t0, t1) {
+        let f = t <= t0 ? 0 : t >= t1 ? 1 : smoothStep((t - t0) / (t1 - t0));
+        return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
+    }
+    function setPos(id, p) { const a = getA(id); if (a) a.setPosition(...p); }
+    function rotateAtomsAroundZ(ids, pivot, angle) {
+        if (!angle) return;
+        const c = Math.cos(angle), s = Math.sin(angle);
+        ids.forEach(id => {
+            const a = getA(id); if (!a) return;
+            const p = a.group.position;
+            const dx = p.x - pivot.x, dy = p.y - pivot.y;
+            a.setPosition(pivot.x + dx * c - dy * s, pivot.y + dx * s + dy * c, p.z);
+        });
+    }
+    function protonatedOHPositions(cId, oId) {
+        const c = getA(cId).group.position, o = getA(oId).group.position;
+        const towardC = new THREE.Vector3().subVectors(c, o).normalize();
+        const normal = Math.abs(towardC.z) < 0.9 ? new THREE.Vector3(0,0,1) : new THREE.Vector3(0,1,0);
+        const side = new THREE.Vector3().crossVectors(normal, towardC).normalize();
+        const out = new THREE.Vector3().crossVectors(towardC, side).normalize();
+        const angle = THREE.MathUtils.degToRad(108.5), azimuth = THREE.MathUtils.degToRad(56.781);
+        const radial = side.multiplyScalar(Math.cos(azimuth)).addScaledVector(out, Math.sin(azimuth));
+        const h1 = towardC.clone().multiplyScalar(Math.cos(angle)).addScaledVector(radial, Math.sin(angle)).multiplyScalar(0.96).add(o);
+        const h2 = towardC.clone().multiplyScalar(Math.cos(angle)).addScaledVector(radial, -Math.sin(angle)).multiplyScalar(0.96).add(o);
+        return [h1.toArray(), h2.toArray()];
+    }
+    function setProtonatedOH(cId, oId, h1Id, h2Id) {
+        const [h1, h2] = protonatedOHPositions(cId, oId);
+        setPos(h1Id, h1); setPos(h2Id, h2);
+    }
+    function setBondBroken(id, broken, state = 'normal') { const b = getB(id); if (b) { b.isBroken = broken; b.setColorState(state); } }
+    function setBondOrder(id, order) { const b = getB(id); if (b) b.bondOrder = order; }
+    function setInfo(text, tr) {
+        chipBox.textContent = currentChip;
+        infoBox.innerHTML = text + '<div class="transfer-line">电子转移：' + tr + '</div><div class="conserv-note">原子守恒：' + currentChip + '</div>';
+    }
+    function setTier(html) { const el = document.getElementById('tierBox'); if (el) el.innerHTML = html; }
+    function setAdv(type) {
+        const el = document.getElementById('advPanel'); if (!el) return;
+        const items = {
+            hydro: "<b>完整机理（SN2 亲核取代）</b><br>① OH⁻ 的孤对电子从 C–Br 键的背面进攻 α-碳，形成 C–O 键；② 过渡态中 O···C···Br 近直线，C–Br 键的成键电子对同时转移到 Br，Br 以 Br⁻ 离去；③ 取代前后 α-碳的构型翻转（伞式翻转），生成乙醇与 NaBr。",
+            elim: "<b>完整机理（E2 消除）</b><br>① 醇溶液中 OH⁻ 是强碱，从 β-碳上夺取 β-H；② 协同一步：C–H 键的电子对转为 C–C 的 π 键，C–Br 键的电子对同时转移到 Br，Br 以 Br⁻ 离去；③ β-H 与 OH⁻ 结合成水，生成乙烯与 NaBr。"
+        };
+        el.innerHTML = items[type] || '选择反应后显示完整机理';
+    }
+    function setEquations(a, b, accent) {
+        eqText1.innerHTML = a; eqText2.innerHTML = b;
+        eqText1.style.color = accent; eqText2.style.color = accent;
+        eqText1.classList.add('active'); eqText1.classList.remove('dim');
+        eqText2.classList.add('dim'); eqText2.classList.remove('active');
+    }
+    function setEqActive(step) {
+        eqText1.classList.toggle('active', step === 1); eqText1.classList.toggle('dim', step !== 1);
+        eqText2.classList.toggle('active', step === 2); eqText2.classList.toggle('dim', step !== 2);
+    }
+    function makeTextSprite(text, x, y, z, size = 0.30, color = '#2c3e50') {
+        // 统一字号：size 为文字高度（世界单位），宽度按文字真实宽高比自动缩放，
+        // 所有化学式标签（反应物、生成物、试剂）使用同一大小，比原模板标签大两个字号。
+        const fs = 84;
+        const probe = document.createElement('canvas').getContext('2d');
+        probe.font = `bold ${fs}px Arial`;
+        const tw = Math.ceil(probe.measureText(text).width);
+        const c = document.createElement('canvas');
+        const cw = Math.max(80, tw + 60), ch = 140;
+        c.width = cw; c.height = ch;
+        const ctx = c.getContext('2d');
+        ctx.font = `bold ${fs}px Arial`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = color; ctx.fillText(text, cw / 2, ch / 2);
+        const s = new THREE.Sprite(new THREE.SpriteMaterial({ map:new THREE.CanvasTexture(c), transparent:true, opacity:1, depthTest:false, depthWrite:false }));
+        const sprH = size * ch / fs;
+        s.scale.set(sprH * cw / ch, sprH, 1); s.renderOrder = 12; s.position.set(x, y, z); scene.add(s); labels.push(s); return s;
+    }
+    function makeProductLabel(text, x, y, z) {
+        const s = makeTextSprite(text, x, y, z); productLabels.push(s); return s;
+    }
+    function clearProductLabels() {
+        productLabels.forEach(s => { scene.remove(s); s.material.map.dispose(); s.material.dispose(); });
+        productLabels = [];
+        reactantLabels.forEach(s => { s.visible = true; });
+    }
+    function makeCharge(key, text, atomId, offset, color, scale = 1.5) {
+        const c = document.createElement('canvas'); c.width = 128; c.height = 96;
+        const ctx = c.getContext('2d'); ctx.fillStyle = color; ctx.font = 'bold 56px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, 64, 50);
+        const s = new THREE.Sprite(new THREE.SpriteMaterial({ map:new THREE.CanvasTexture(c), transparent:true, opacity:0, depthTest:false, depthWrite:false }));
+        s.scale.set(scale, scale*0.7667, 1); s.renderOrder = 13; scene.add(s);
+        ionCharges[key] = { sprite:s, atomId, offset:new THREE.Vector3(...offset) };
+    }
+    function setCharge(key, op) { if (ionCharges[key]) ionCharges[key].sprite.material.opacity = op; }
+    function updateCharges() {
+        Object.values(ionCharges).forEach(c => { const a = getA(c.atomId); if (a) c.sprite.position.copy(a.group.position).add(c.offset); });
+    }
+    function clearScene() {
+        atoms.forEach(a => scene.remove(a.group));
+        bonds.forEach(b => { scene.remove(b.group); b.mat3D.dispose(); b.mat2D.dispose(); });
+        labels.forEach(s => {
+            scene.remove(s);
+            if (s.isGroup) { s.children.forEach(m => { if (m.geometry) m.geometry.dispose(); if (m.material) m.material.dispose(); }); }
+            else { if (s.material && s.material.map) s.material.map.dispose(); if (s.material) s.material.dispose(); }
+        });
+        Object.values(ionCharges).forEach(c => { scene.remove(c.sprite); c.sprite.material.map.dispose(); c.sprite.material.dispose(); });
+        atoms = []; bonds = []; labels = []; productLabels = []; ionCharges = {}; reactantLabels = [];
+    }
+    function setCamera(dist = 11) {
+        camera.position.set(0, 0, dist); camera.lookAt(0, 0, 0);
+        controls.target.set(0, 0, 0); controls.update();
+    }
+    function applyGlobalViewMode() { atoms.forEach(a => a.applyViewMode()); bonds.forEach(b => b.applyViewMode()); }
+
+    // Bromoethane geometry: CH3-CH2Br, C-Br 1.94（按清单真值）, C-C 1.50, C-H 1.09.
+    const BR_3D = {
+        C1:[-0.75,0,0], C2:[0.75,0,0],
+        H1:[-1.113,1.027,0], H2:[-1.113,-0.514,0.889], H3:[-1.113,-0.514,-0.889],
+        H4:[1.113,-0.514,0.889], H5:[1.113,-0.514,-0.889],
+        Br:[1.397,1.829,0]
+    };
+    const BR_2D = {
+        C1:[-1.0,0,0], C2:[0.5,0,0], Br:[2.0,0,0],
+        H1:[-1.95,0,0], H2:[-1.0,0.95,0], H3:[-1.0,-0.95,0], H4:[0.5,0.95,0], H5:[0.5,-0.95,0]
+    };
+    function brBasePos(id) { return viewMode === 'structural' ? BR_2D[id] : BR_3D[id]; }
+    function buildBromoethane(dx = 0, dy = 0) {
+        Object.entries(BR_3D).forEach(([id, p]) => {
+            const type = id.startsWith('C') ? 'C' : id === 'Br' ? 'Br' : 'H';
+            const q = viewMode === 'structural' ? BR_2D[id] : p;
+            new Atom3D(id, type, q[0] + dx, q[1] + dy, q[2]);
+        });
+        new Bond3D('C1-C2', getA('C1'), getA('C2'));
+        new Bond3D('C2-Br', getA('C2'), getA('Br'));
+        ['H1','H2','H3'].forEach(h => new Bond3D(`C1-${h}`, getA('C1'), getA(h)));
+        ['H4','H5'].forEach(h => new Bond3D(`C2-${h}`, getA('C2'), getA(h)));
+    }
+    function resetShiftedBromoethane(dx = 0, dy = 0) {
+        Object.keys(BR_3D).forEach(id => {
+            const p = brBasePos(id);
+            setPos(id, [p[0] + dx, p[1] + dy, p[2]]);
+            const a = getA(id); if (a) a.setOpacity(1);
+        });
+        ['C1-C2','C2-Br','C1-H1','C1-H2','C1-H3','C2-H4','C2-H5'].forEach(id => setBondBroken(id, false));
+        setBondOrder('C1-C2', 1);
+        bonds.forEach(b => { b.setOpacity(1); b.setColorState('normal'); });
+        Object.keys(ionCharges).forEach(key => setCharge(key, 0));
+    }
+
+    function addO2(prefix, x, y) {
+        new Atom3D(`${prefix}a`, 'O', x, y, 0); new Atom3D(`${prefix}b`, 'O', x + 1.2, y, 0);
+        new Bond3D(`${prefix}a=${prefix}b`, getA(`${prefix}a`), getA(`${prefix}b`), 'double');
+    }
+    function addWater(prefix, o, h1, h2) {
+        new Atom3D(`${prefix}O`, 'O', ...o); new Atom3D(`${prefix}H1`, 'H', ...h1); new Atom3D(`${prefix}H2`, 'H', ...h2);
+        new Bond3D(`${prefix}O-${prefix}H1`, getA(`${prefix}O`), getA(`${prefix}H1`));
+        new Bond3D(`${prefix}O-${prefix}H2`, getA(`${prefix}O`), getA(`${prefix}H2`));
+    }
+    function setWaterOpacity(prefix, op) {
+        [`${prefix}O`, `${prefix}H1`, `${prefix}H2`].forEach(id => { const a = getA(id); if (a) a.setOpacity(op); });
+        [`${prefix}O-${prefix}H1`, `${prefix}O-${prefix}H2`].forEach(id => { const b = getB(id); if (b) b.setOpacity(op); });
+    }
+    function createDashGroup() {
+        // 表示“键上的电子对”的黑色细虚线：4 段短柱，垂直于将断/将成的键
+        const dashGeo = new THREE.CylinderGeometry(0.05, 0.05, 1, 8);
+        const dashMat = new THREE.MeshBasicMaterial({ color:0x000000 });
+        const g = new THREE.Group();
+        for (let j = 0; j < 4; j++) {
+            const m = new THREE.Mesh(dashGeo, dashMat);
+            m.scale.set(1, 0.22, 1);
+            m.position.set(0, -0.48 + 0.32 * j, 0);
+            g.add(m);
+        }
+        g.visible = false;
+        scene.add(g); labels.push(g);
+        return g;
+    }
+    function placeDash(g, aId, bId) {
+        const pa = getA(aId).group.position, pb = getA(bId).group.position;
+        const dir = new THREE.Vector3().subVectors(pb, pa);
+        const mid = pa.clone().addScaledVector(dir, 0.5);
+        let perp = new THREE.Vector3(-dir.y, dir.x, 0);
+        if (perp.lengthSq() < 1e-8) perp.set(0, 0, 1);
+        perp.normalize();
+        g.position.copy(mid);
+        g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), perp);
+        g.visible = true;
+    }
+
+    function initNormal() {
+        clearScene(); buildBromoethane(); setCamera(10.5);
+        currentChip = CHIPS.init; chipBox.textContent = currentChip;
+        // 该面板标题是「反应方程式」，初始态就直接列出两条方程式（原来是分子式 + 绘图说明）
+        setEquations('<span class="eq-tag">水解</span>CH₃CH₂Br + NaOH ——水,加热→ CH₃CH₂OH + NaBr',
+                     '<span class="eq-tag">消去</span>CH₃CH₂Br + NaOH ——醇,加热→ CH₂=CH₂ + NaBr + H₂O',
+                     'var(--halide)');
+        eqText1.classList.remove('dim'); eqText2.classList.remove('dim');
+        setInfo(TEXTS.init, TRNS.init);
+        updateLegend('halide');
+        reactantLabels = [makeTextSprite('溴乙烷 CH₃CH₂Br', 0, -1.7, 0)];
+    }
+    function prepareHalideHydro() {
+        clearScene(); buildBromoethane(-1.5);
+        // NaOH 水溶液：OH⁻ 是亲核试剂，从 C–Br 键背面进攻 α-碳（SN2）。
+        // NaOH 为直线形：Na、O、H 同一水平线，Na⁺ 与 O 相切（0.82 = 0.42+0.40）。
+        new Atom3D('HydO','O',3.3,0,0); new Atom3D('HydH','H',4.26,0,0);
+        new Atom3D('NaHyd','Na',2.48,0,0);
+        new Bond3D('HydO-HydH', getA('HydO'), getA('HydH'));
+        new Bond3D('C2-HydO', getA('C2'), getA('HydO')); getB('C2-HydO').isBroken = true;
+        makeCharge('HydOMinus','−','HydO',[0.42,0.42,0],'#c0392b',1.0);
+        makeCharge('BrMinus','−','Br',[0.42,0.42,0],'#8b4513',1.0);
+        makeCharge('NaHydPlus','+','NaHyd',[0.4,0.42,0],'#ca6f1e');
+        setCamera(13); currentChip = CHIPS.halide_hydro; updateLegend('halide');
+        setEquations(`CH₃CH₂Br + NaOH ——水,加热→ CH₃CH₂OH + NaBr`, `<span class="eq-tag">取代</span>OH⁻ 从背面进攻 α-碳，Br 被取代（SN2）`, 'var(--halide)');
+        reactantLabels = [makeTextSprite('CH₃CH₂Br', -1.3, -2.55, 0), makeTextSprite('NaOH', 3.6, -2.55, 0)];
+        makeTextSprite('NaOH水溶液 / 加热', -3.1, 3.6, 0, 0.30, '#8a6d3b');
+        setAdv('hydro');
+    }
+    function updateHalideHydro(t) {
+        setTier('<span class="tier-chip tier-main">教材档 · 主动画</span><span class="tier-chip tier-adv">完整机理见进阶</span>');
+        resetShiftedBromoethane(-1.5, 0);
+        if (t < 24) setInfo(TEXTS.halide_hydro_1, TRNS.halide_hydro_1); else if (t < 72) setInfo(TEXTS.halide_hydro_2, TRNS.halide_hydro_2); else setInfo(TEXTS.halide_hydro_3, TRNS.halide_hydro_3);
+        const is2D = viewMode === 'structural';
+        const starts = {};
+        ['C1','C2','H1','H2','H3','H4','H5','Br'].forEach(id => starts[id] = brBasePos(id).map((v,i)=>v+(i===0?-1.5:0)));
+        const c2 = starts.C2;
+        // OH⁻ 进攻路径：右下 → C2 背面（O···C···Br 近直线）→ C–O 成键位
+        // 2D 的 NaOH 整体右移（Na 2.1、O 3.25、H 4.21），与 Br（0.5）拉开间距
+        const oStart = is2D ? [3.25,0,0] : [3.3,0,0];
+        const oAttack = is2D ? [c2[0], c2[1]-1.9, 0] : [c2[0], c2[1]-2.35, 0];
+        // 3D 成键位取 Br 方向的 y 镜像（SN2 翻转后 OH 与 C1、H4、H5 构成 109.5° 四面体）
+        const oBond = is2D ? [c2[0]+1.35, 0, 0] : [c2[0]+0.478, c2[1]-1.349, 0];
+        let oPos;
+        if (is2D) {
+            // 2D：竖直升高 → 斜线到右侧低位等待（避开 Br 高位飞行）→ 水平移到成键位上方 → 竖直落下
+            const oHigh = [3.25,2.2,0], oWait2 = [1.7,1.6,0], oAbove = [0.35,1.6,0];
+            if (t < 20) oPos = oStart;
+            else if (t < 30) oPos = mixPos(oStart, oHigh, t, 20, 30);
+            else if (t < 44) oPos = mixPos(oHigh, oWait2, t, 30, 44);
+            else if (t < 72) oPos = oWait2;
+            else if (t < 84) oPos = mixPos(oWait2, oAbove, t, 72, 84);
+            else if (t < 96) oPos = mixPos(oAbove, oBond, t, 84, 96);
+            else oPos = oBond;
+        } else {
+            if (t < 20) oPos = oStart;
+            else if (t < 45) oPos = mixPos(oStart, oAttack, t, 20, 45);
+            else if (t < 62) oPos = mixPos(oAttack, oBond, t, 45, 62);
+            else oPos = oBond;
+        }
+        // O–H 水平（0.96,0）：直线形 NaOH；产物 H–O–C 夹角 109.5°，旋转前后不变
+        const hOffset = [0.96,0,0];
+        setPos('HydO', oPos);
+        setPos('HydH', oPos.map((v,i)=>v+hOffset[i]));
+        // 三维模式：H4/H5 伞式翻转（夹角先张开后收拢，C–H 键长保持 1.09），与 OH 到位同步
+        if (!is2D && t >= 48) {
+            const f = smoothStep(Math.min(1, (t-48)/14));
+            const c2Now = getA('C2').group.position.toArray();
+            ['H4','H5'].forEach(id => {
+                const s = new THREE.Vector3(...starts[id]).sub(new THREE.Vector3(...starts.C2));
+                const target = s.clone(); target.y = -target.y;
+                const dir = s.clone().normalize().lerp(target.normalize(), f).normalize();
+                setPos(id, new THREE.Vector3(...c2Now).addScaledVector(dir, 1.09).toArray());
+            });
+        }
+        // Br⁻ 先向右上方飞高再降落到 Na⁺ 右侧相切（3D 0.97；2D 1.15）
+        if (is2D) {
+            // 2D：竖直升高 → 高位水平右移 → 降落到 Na⁺ 右侧（三段，全程避开 Na⁺）
+            if (t < 58) setPos('Br', starts.Br);
+            else if (t < 68) setPos('Br', mixPos(starts.Br, [starts.Br[0],3.0,0], t, 58, 68));
+            else if (t < 80) setPos('Br', mixPos([starts.Br[0],3.0,0], [3.85,3.0,0], t, 68, 80));
+            else setPos('Br', mixPos([3.85,3.0,0], [3.85,0,0], t, 80, 92));
+        } else {
+            if (t < 58) setPos('Br', starts.Br);
+            else if (t < 74) setPos('Br', mixPos(starts.Br, [3.37,2.6,0], t, 58, 74));
+            else setPos('Br', mixPos([3.37,2.6,0], [3.37,0,0], t, 76, 90));
+        }
+        // Na⁺ 从直线位离开：3D 微调到位；2D 先升起绕行再降下与 Br⁻ 相切
+        if (is2D) {
+            // 2D：Na⁺ 全程在 y=0 水平微移（Br 走高位，不冲突）
+            const naStart2 = [2.1,0,0];
+            if (t < 60) setPos('NaHyd', naStart2);
+            else setPos('NaHyd', mixPos(naStart2, [2.7,0,0], t, 60, 80));
+        } else {
+            if (t < 60) setPos('NaHyd', [2.48,0,0]);
+            else setPos('NaHyd', mixPos([2.48,0,0], [2.4,0,0], t, 60, 72));
+        }
+        // 三维模式：产物乙醇整体绕 C–C 键轴旋转 180°，使羟基转到上方（刚体旋转保持四面体）
+        if (!is2D && t >= 72) {
+            const f = smoothStep(Math.min(1, (t-72)/22));
+            const ang = Math.PI * f, cA = Math.cos(ang), sA = Math.sin(ang);
+            ['C1','C2','H1','H2','H3','H4','H5','HydO','HydH'].forEach(id => {
+                const a = getA(id); if (!a) return;
+                const p = a.group.position;
+                const y2 = p.y * cA - p.z * sA, z2 = p.y * sA + p.z * cA;
+                a.setPosition(p.x, y2, z2);
+            });
+        }
+        setBondBroken('C2-Br', t >= 58, t >= 52 && t < 62 ? 'break' : 'normal');
+        const oBondT = is2D ? 96 : 62;
+        setBondBroken('C2-HydO', t < oBondT, t >= (is2D?84:52) && t < oBondT ? 'make' : 'normal');
+        setCharge('HydOMinus', t < oBondT ? 1 : 0);
+        setCharge('BrMinus', t >= 58 ? 1 : 0);
+        setCharge('NaHydPlus', 1);
+    }
+
+    function prepareHalideElim() {
+        clearScene(); buildBromoethane(-1.4);
+        // NaOH 醇溶液：OH⁻ 作强碱，夺取 β-H（C1 上的 H1）。
+        // 构型与水解反应一致：直线形 Na–O–H 同一水平线，Na⁺ 与 O 相切（0.82）。
+        new Atom3D('HydO','O',3.3,0,0); new Atom3D('HydH','H',4.26,0,0);
+        new Atom3D('NaHyd','Na',2.48,0,0);
+        new Bond3D('HydO-HydH', getA('HydO'), getA('HydH'));
+        new Bond3D('HydO-H1', getA('HydO'), getA('H1')); getB('HydO-H1').isBroken = true;
+        makeCharge('HydOMinus','−','HydO',[0.42,0.42,0],'#c0392b',1.0);
+        makeCharge('H1Plus','+','H1',[0.38,0.4,0],'#c0392b');
+        makeCharge('BrMinus','−','Br',[0.42,0.42,0],'#8b4513',1.0);
+        makeCharge('NaHydPlus','+','NaHyd',[0.4,0.42,0],'#ca6f1e');
+        halideDash = [createDashGroup(), createDashGroup()];
+        setCamera(13); currentChip = CHIPS.halide_elim; updateLegend('halide');
+        setEquations(`CH₃CH₂Br + NaOH ——醇,加热→ CH₂=CH₂ + NaBr + H₂O`, `<span class="eq-tag">消去</span>OH⁻ 夺 β-H，C–Br 断键，C–C → C=C`, 'var(--halide)');
+        reactantLabels = [makeTextSprite('CH₃CH₂Br', -1.3, -1.55, 0), makeTextSprite('NaOH', 3.6, -1.55, 0)];
+        makeTextSprite('NaOH醇溶液 / 加热', -3.1, 3.6, 0, 0.30, '#8a6d3b');
+        setAdv('elim');
+    }
+    function updateHalideElim(t) {
+        setTier('<span class="tier-chip tier-main">教材档 · 主动画</span><span class="tier-chip tier-adv">完整机理见进阶</span>');
+        resetShiftedBromoethane(-1.4, 0);
+        if (t < 22) setInfo(TEXTS.halide_elim_1, TRNS.halide_elim_1); else if (t < 72) setInfo(TEXTS.halide_elim_2, TRNS.halide_elim_2); else setInfo(TEXTS.halide_elim_3, TRNS.halide_elim_3);
+        const is2D = viewMode === 'structural';
+        const starts = {};
+        ['C1','C2','H1','H2','H3','H4','H5','Br'].forEach(id => starts[id] = brBasePos(id).map((v,i)=>v+(i===0?-1.4:0)));
+        // OH⁻ 沿上方弧线移到 t=33 的位置后停住等待；H⁺ 从左侧直接接近成键。
+        // 水的 V 型：H⁺ 在氧左下方、OH⁻ 自带的 H 在氧右下方（O–H 0.96、H–O–H≈104.5°）。
+        const oWait = is2D ? [-2.367,2.292,0] : [-1.846,2.338,0];
+        const h1Off = [-0.759,-0.587,0], hydHOff = [0.759,-0.587,0];
+        const hOffHydro = [0.96,0,0];
+        let oNow;
+        // 2D 的 NaOH 整体右移（Na 1.8、O 2.95、H 3.91），与 Br（0.6）拉开间距
+        const oStart = is2D ? [2.95,0,0] : [3.3,0,0];
+        if (is2D) {
+            // 2D：先竖直上升到高处（避开 Na⁺），再水平横跨到 β-H 上方
+            if (t < 16) oNow = mixPos(oStart, [oStart[0],2.2,0], t, 0, 16);
+            else if (t < 40) {
+                const f = smoothStep(Math.min(1,(t-16)/24));
+                oNow = [oStart[0]+(oWait[0]-oStart[0])*f, 2.2+(oWait[1]-2.2)*f + 0.3*Math.sin(Math.PI*f), 0];
+            }
+            else oNow = oWait;
+        } else if (t < 33) {
+            const f = smoothStep(Math.min(1, t/33));
+            oNow = [
+                oStart[0] + (oWait[0]-oStart[0]) * f,
+                oStart[1] + (oWait[1]-oStart[1]) * f + 1.8 * Math.sin(Math.PI * f),
+                oStart[2] + (oWait[2]-oStart[2]) * f
+            ];
+        } else {
+            oNow = oWait;
+        }
+        if (t >= 56) {
+            if (t < 70) oNow = mixPos(oWait, [4.7, oWait[1], 0], t, 56, 70);
+            else oNow = mixPos([4.7, oWait[1], 0], [4.7, 0, 0], t, 70, 85);
+        }
+        setPos('HydO', oNow);
+        // β-H（H1）在 C1–H1 断键（t=42）后作为 H⁺ 从左侧直线接近 OH⁻，
+        // t=52 到达氧左侧的 V 型位置，途中单调接近（不切过氧球）、不提前成键；
+        // 未断键期间键长保持 1.09
+        if (t < 42) setPos('H1', starts.H1);
+        else if (t < 52) setPos('H1', mixPos(starts.H1, oNow.map((v,i)=>v+h1Off[i]), t, 42, 52));
+        else setPos('H1', oNow.map((v,i)=>v+h1Off[i]));
+        // OH⁻ 的 H：反应前保持水解构型（hOffHydro），t=42–52 与 H1 同步到位，
+        // 结合成水的瞬间两 O–H 即呈 104.5° V 型；之后整水保持刚性移动
+        const hMorph = t < 42 ? 0 : t >= 52 ? 1 : smoothStep(Math.min(1, (t-42)/10));
+        setPos('HydH', oNow.map((v,i)=>v + hOffHydro[i] + (hydHOff[i]-hOffHydro[i]) * hMorph));
+        // Br⁻ 先向右上方飞高再降落到 Na⁺ 右侧相切（3D 0.97；2D 1.15）
+        if (is2D) {
+            // 2D：竖直升高 → 高位水平右移 → 降落（三段，全程避开 Na⁺）
+            if (t < 42) setPos('Br', starts.Br);
+            else if (t < 48) setPos('Br', mixPos(starts.Br, [starts.Br[0],2.4,0], t, 42, 48));
+            else if (t < 56) setPos('Br', mixPos([starts.Br[0],2.4,0], [3.05,2.4,0], t, 48, 56));
+            else setPos('Br', mixPos([3.05,2.4,0], [3.05,0,0], t, 56, 64));
+        } else {
+            if (t < 42) setPos('Br', starts.Br);
+            else if (t < 58) setPos('Br', mixPos(starts.Br, [2.87,2.6,0], t, 42, 58));
+            else setPos('Br', mixPos([2.87,2.6,0], [2.87,0,0], t, 60, 78));
+        }
+        // Na⁺ 从直线位离开：3D 水平微调到位；2D 先升起绕行再降下与 Br⁻ 相切
+        if (is2D) {
+            // 2D：Na⁺ 全程在 y=0 水平微移（Br 走高位，不冲突）
+            const naStart2 = [1.8,0,0];
+            if (t < 52) setPos('NaHyd', naStart2);
+            else setPos('NaHyd', mixPos(naStart2, [1.9,0,0], t, 52, 64));
+        } else {
+            if (t < 52) setPos('NaHyd', [2.48,0,0]);
+            else setPos('NaHyd', mixPos([2.48,0,0], [1.9,0,0], t, 52, 64));
+        }
+        // 虚线电子对：C1–H1（20–38）、C2–Br（30–40），在 t=42 三键同步断键前出现
+        const dashWindows = [ { a:'C1', b:'H1', t0:20, t1:38 }, { a:'C2', b:'Br', t0:30, t1:40 } ];
+        dashWindows.forEach((w, idx) => {
+            const g = halideDash[idx];
+            if (g && t >= w.t0 && t < w.t1) placeDash(g, w.a, w.b);
+            else if (g) g.visible = false;
+        });
+        // C–C 单键→双键，sp³→sp²：乙烯平面、键角 120°。
+        // 乙烯在溴乙烷原位置原地生成（C–C 中心保持 −1.4，不右移）。
+        const ethene = { C1:[-2.07,0,0], C2:[-0.73,0,0], H2:[-2.615,0.944,0], H3:[-2.615,-0.944,0], H4:[-0.185,0.944,0], H5:[-0.185,-0.944,0] };
+        if (t >= 42) {
+            const f = smoothStep(Math.min(1,(t-42)/16));
+            const lerpArr = (a,b) => a.map((v,i)=>v+(b[i]-v)*f);
+            const c1Now = lerpArr(starts.C1, ethene.C1), c2Now = lerpArr(starts.C2, ethene.C2);
+            setPos('C1', c1Now); setPos('C2', c2Now);
+            const placeH = (id, cStart, cNow, cTarget, hTarget) => {
+                const sDir = new THREE.Vector3(...starts[id]).sub(new THREE.Vector3(...cStart));
+                const hLen = sDir.length(); sDir.normalize();
+                const tDir = new THREE.Vector3(...hTarget).sub(new THREE.Vector3(...cTarget)).normalize();
+                const dir = sDir.clone().lerp(tDir, f).normalize();
+                setPos(id, new THREE.Vector3(...cNow).addScaledVector(dir, hLen).toArray());
+            };
+            placeH('H2', starts.C1, c1Now, ethene.C1, ethene.H2);
+            placeH('H3', starts.C1, c1Now, ethene.C1, ethene.H3);
+            placeH('H4', starts.C2, c2Now, ethene.C2, ethene.H4);
+            placeH('H5', starts.C2, c2Now, ethene.C2, ethene.H5);
+        }
+        // E2 协同一步：t=42 同时断 C1–H1、断 C2–Br、C–C 出 π 键，两碳直接由 sp³ 进入 sp²
+        setBondBroken('C1-H1', t >= 42, t >= 36 && t < 46 ? 'break' : 'normal');
+        setBondBroken('C2-Br', t >= 42, t >= 36 && t < 46 ? 'break' : 'normal');
+        getB('C1-C2').setColorState(t >= 36 && t < 44 ? 'make' : 'normal');
+        setBondOrder('C1-C2', t >= 42 ? 2 : 1);
+        // H⁺ 先移动到水的 V 型位置（t=52 到位），到位后才显示 O–H 键，键角不再变化
+        setBondBroken('HydO-H1', t < 52, t >= 52 && t < 60 ? 'make' : 'normal');
+        setCharge('HydOMinus', t < 52 ? 1 : 0);
+        setCharge('H1Plus', t >= 42 && t < 52 ? 1 : 0);
+        setCharge('BrMinus', t >= 42 ? 1 : 0);
+        setCharge('NaHydPlus', 1);
+    }
+
+    function updateLegend(type) {
+        // 图例只示例单个原子及其颜色
+        const atomSets = {
+            halide:['C','H','Br','Na','O']
+        };
+        const names = { C:'碳', H:'氢', O:'氧', Na:'钠', Br:'溴', Cu:'铜' };
+        const colors = { C:'#34495e', H:'#f5f6fa', O:'#e74c3c', Na:'#f39c12', Br:'#8b4513', Cu:'#c87533' };
+        const list = (atomSets[type] || ['C','H','O']).map(a => {
+            const border = a === 'H' ? 'border:1px solid #bdc3c7;' : '';
+            return `<div class="legend-item"><span class="legend-color" style="background:${colors[a]};${border}"></span>${a}：${names[a]}</div>`;
+        }).join('');
+        document.getElementById('legendBox').innerHTML = list;
+    }
+    function showProductLabels(type) {
+        reactantLabels.forEach(s => { s.visible = false; });
+        if (type === 'halide_hydro') { makeProductLabel('乙醇 CH₃CH₂OH', -0.8, -2.55, 0); makeProductLabel('NaBr', 2.4, -2.55, 0); }
+        else if (type === 'halide_elim') { makeProductLabel('乙烯 CH₂=CH₂', -1.4, -1.55, 0); makeProductLabel('NaBr', 2.4, -1.55, 0); makeProductLabel('H₂O', 4.7, -1.55, 0); }
+    }
+
+    function updateScene() {
+        if (currentReaction === 'none') return;
+        const t = parseFloat(slider.value);
+        if (currentReaction === 'halide_hydro') updateHalideHydro(t);
+        else if (currentReaction === 'halide_elim') updateHalideElim(t);
+        updateCharges();
+        bonds.forEach(b => b.updatePosition());
+        if (t >= 100 && !productLabels.length) showProductLabels(currentReaction);
+        if (t < 100 && productLabels.length) clearProductLabels();
+    }
+    function refreshNow() { updateScene(); controls.update(); renderer.render(scene, camera); }
+    function startReaction(type, btnId) {
+        currentReaction = type; document.querySelectorAll('.btn-reaction').forEach(btn => btn.classList.remove('active'));
+        document.getElementById(btnId).classList.add('active');
+        isPlaying = false; playPauseBtn.innerText = '▶️'; slider.value = 0; progressText.innerText = '0%';
+        document.getElementById('progressContainer').classList.add('active');
+        if (type === 'halide_hydro') prepareHalideHydro();
+        else if (type === 'halide_elim') prepareHalideElim();
+        refreshNow();
+    }
+
+    function rebuildCurrentReactionForView() {
+        const type = currentReaction;
+        const t = parseFloat(slider.value);
+        clearProductLabels();
+        if (type === 'none') { initNormal(); return; }
+        if (type === 'halide_hydro') prepareHalideHydro();
+        else if (type === 'halide_elim') prepareHalideElim();
+        slider.value = t; progressText.innerText = Math.round(t) + '%'; refreshNow();
+    }
+
+    playPauseBtn.addEventListener('click', () => {
+        if (parseFloat(slider.value) >= 100) { slider.value = 0; progressText.innerText = '0%'; clearProductLabels(); refreshNow(); }
+        isPlaying = !isPlaying; playPauseBtn.innerText = isPlaying ? '⏸️' : '▶️';
+    });
+    slider.addEventListener('input', () => { isPlaying = false; playPauseBtn.innerText = '▶️'; progressText.innerText = Math.round(slider.value) + '%'; refreshNow(); });
+    document.getElementById('btnBallStick').addEventListener('click', () => { if (viewMode === 'ballstick') return; viewMode = 'ballstick'; document.getElementById('btnBallStick').classList.add('active'); document.getElementById('btnStructural').classList.remove('active'); rebuildCurrentReactionForView(); });
+    document.getElementById('btnStructural').addEventListener('click', () => { if (viewMode === 'structural') return; viewMode = 'structural'; document.getElementById('btnStructural').classList.add('active'); document.getElementById('btnBallStick').classList.remove('active'); rebuildCurrentReactionForView(); });
+    document.getElementById('btnHalideHydro').addEventListener('click', () => startReaction('halide_hydro','btnHalideHydro'));
+    document.getElementById('btnHalideElim').addEventListener('click', () => startReaction('halide_elim','btnHalideElim'));
+    document.getElementById('btnReset').addEventListener('click', () => {
+        currentReaction = 'none'; isPlaying = false; playPauseBtn.innerText = '▶️'; document.getElementById('progressContainer').classList.remove('active');
+        document.querySelectorAll('.btn-reaction').forEach(btn => btn.classList.remove('active')); initNormal();
+    });
+
+    // 重置视角：回到当前状态的默认机位（未选反应 10.5，反应中 13），并复位 OrbitControls 目标
+    document.getElementById('btn-reset-view').addEventListener('click', () => {
+        setCamera(currentReaction === 'none' ? 10.5 : 13);
+    });
+
+    window.addEventListener('resize', () => { camera.aspect = canvasWrap.clientWidth / canvasWrap.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(canvasWrap.clientWidth, canvasWrap.clientHeight); });
+    const prog = document.getElementById('progressContainer'); let dragging = false, sx = 0, sy = 0, left0 = 0, top0 = 0;
+    prog.addEventListener('mousedown', e => {
+        if (e.target.tagName === 'INPUT' || e.target.id === 'playPauseBtn') return;
+        dragging = true; sx = e.clientX; sy = e.clientY; const r = prog.getBoundingClientRect(), pr = prog.parentElement.getBoundingClientRect();
+        left0 = r.left - pr.left; top0 = r.top - pr.top; prog.style.bottom = 'auto'; prog.style.transform = 'none'; prog.style.left = left0 + 'px'; prog.style.top = top0 + 'px';
+    });
+    window.addEventListener('mousemove', e => {
+        if (!dragging) return; const pr = prog.parentElement.getBoundingClientRect();
+        const nx = Math.max(0, Math.min(pr.width - prog.offsetWidth, left0 + e.clientX - sx));
+        const ny = Math.max(0, Math.min(pr.height - prog.offsetHeight, top0 + e.clientY - sy));
+        prog.style.left = nx + 'px'; prog.style.top = ny + 'px';
+    });
+    window.addEventListener('mouseup', () => dragging = false);
+
+    function animate() {
+        requestAnimationFrame(animate); controls.update();
+        if (currentReaction !== 'none' && isPlaying) {
+            let v = parseFloat(slider.value) + 0.12;
+            if (v >= 100) { v = 100; isPlaying = false; playPauseBtn.innerText = '▶️'; }
+            slider.value = v; progressText.innerText = Math.round(v) + '%';
+        }
+        updateScene(); renderer.render(scene, camera);
+    }
+    initNormal(); animate();
+</script>
+<script>window.BACK_SUBNAV = 'subnav-organic';</script>
+
+</body>
+</html>

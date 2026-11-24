@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block title %}编辑试卷{% endblock %}
+{% block content %}
+<div class="mx-auto" style="max-width:500px;margin-top:80px;">
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <h3 class="mb-4"><i class="fas fa-edit text-primary me-2"></i>编辑试卷</h3>
+      <form method="post">
+        <div class="mb-3">
+          <label class="form-label">试卷名称</label>
+          <input type="text" name="name" class="form-control rounded-pill" value="{{ exam.name }}" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">测试时长（分钟）</label>
+          <input type="number" name="duration" class="form-control rounded-pill" value="{{ exam.duration if exam.duration else '' }}" placeholder="留空表示保持原值" min="1" {% if exam.duration %}title="当前 {{ exam.duration }} 分钟，留空保持原值"{% endif %}>
+          <div class="form-text">设置考试时间限制，留空表示不限时</div>
+        </div>
+        <button type="submit" class="btn btn-primary w-100 rounded-pill">保存修改</button>
+      </form>
+      <a href="/admin/exams" class="btn btn-link mt-4"><i class="fas fa-arrow-left"></i> 返回试卷管理</a>
+    </div>
+  </div>
+</div>
+{% endblock %} 

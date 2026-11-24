@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% block title %}仿真实验中心{% endblock %}
+{% block head %}
+<style>
+  .sim-hero { background: linear-gradient(135deg,#0f2027,#203a43 55%,#2c5364);
+    color:#fff; border-radius:16px; padding:28px 30px; }
+  .sim-hero h1 { font-size:1.6rem; margin:0 0 8px; font-weight:700; }
+  .sim-hero p { margin:0; opacity:.86; font-size:.92rem; }
+  .sim-tabs { display:flex; gap:10px; flex-wrap:wrap; margin:18px 0; }
+  .sim-tab { border:1px solid #dbe3ee; background:#fff; color:#475569;
+    border-radius:999px; padding:9px 20px; font-size:.92rem; text-decoration:none;
+    display:inline-flex; align-items:center; gap:8px; }
+  .sim-tab.active { background:#0d6efd; border-color:#0d6efd; color:#fff; }
+  .sim-card { border:1px solid #e2e8f0; border-radius:16px; background:#fff;
+    overflow:hidden; box-shadow:0 4px 18px rgba(15,23,42,.06); }
+  .sim-card-body { padding:24px 26px; }
+  .sim-card h2 { font-size:1.25rem; margin:0 0 8px; }
+  .sim-card .sim-meta { color:#64748b; font-size:.82rem; margin-bottom:14px; }
+  .sim-features { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+    gap:10px; margin:16px 0 20px; }
+  .sim-feature { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;
+    padding:10px 12px; font-size:.84rem; color:#334155; }
+  .sim-feature i { color:#0d9488; margin-right:6px; }
+  .sim-actions { display:flex; gap:10px; flex-wrap:wrap; }
+  .sim-note { color:#64748b; font-size:.8rem; margin-top:14px; line-height:1.7; }
+  .sim-chem { border-top:4px solid #0d9488; }
+  .sim-hw { border-top:4px solid #2563eb; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="sim-hero">
+    <h1><i class="fas fa-flask me-2"></i>仿真实验中心</h1>
+    <p>化学仿真与硬件仿真统一入口：按实验类型选择，保留各自独立页面与权限。</p>
+  </div>
+
+  <div class="sim-tabs">
+    <a class="sim-tab {% if active_tab == 'chem' %}active{% endif %}"
+       href="/sim-lab?tab=chem"><i class="fas fa-flask-vial"></i> 化学仿真</a>
+    <a class="sim-tab {% if active_tab == 'hardware' %}active{% endif %}"
+       href="/sim-lab?tab=hardware"><i class="fas fa-microchip"></i> 硬件仿真</a>
+  </div>
+
+  {% if active_tab == 'chem' %}
+  <div class="sim-card sim-chem">
+    <div class="sim-card-body">
+      <h2><i class="fas fa-flask-vial me-2 text-teal"></i>化学仿真</h2>
+      <div class="sim-meta">离线 2D 绘制 · 实时 3D · 可视化化学 · 分子库</div>
+      <div class="sim-features">
+        <div class="sim-feature"><i class="fas fa-pen-nib"></i>Ketcher 左侧绘制，右侧实时 3D</div>
+        <div class="sim-feature"><i class="fas fa-cubes-stacked"></i>OpenChemLib 本地生成 3D 构象</div>
+        <div class="sim-feature"><i class="fas fa-cube"></i>3Dmol.js 球棍/棍状/空间填充/线框</div>
+        <div class="sim-feature"><i class="fas fa-shapes"></i>21 个可视化化学模型</div>
+        <div class="sim-feature"><i class="fas fa-database"></i>27 个内置分子/晶体/蛋白质</div>
+        <div class="sim-feature"><i class="fas fa-chalkboard-teacher"></i>支持课堂大屏与全屏</div>
+      </div>
+      <div class="sim-actions">
+        <a class="btn btn-primary rounded-pill px-4" href="/chem-lab">
+          <i class="fas fa-arrow-right me-1"></i>打开化学仿真
+        </a>
+        <a class="btn btn-outline-secondary rounded-pill px-4" href="/chem-lab?embed=1">
+          <i class="fas fa-expand me-1"></i>极简课堂页
+        </a>
+      </div>
+      <div class="sim-note">
+        建议教学流程：先让学生在左侧绘制结构 → 右侧观察自动生成的 3D 构象 →
+        在「分子库」中对照教材物质 → 用「可视化化学」解释晶体/大 π 键/电化学模型。
+        绘制与 3D 全程离线，不访问外部网络。
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="sim-card sim-hw">
+    <div class="sim-card-body">
+      <h2><i class="fas fa-microchip me-2 text-primary"></i>硬件仿真</h2>
+      <div class="sim-meta">图形化编程仿真 · ESP32-S3 虚拟实验</div>
+      <div class="sim-features">
+        <div class="sim-feature"><i class="fas fa-puzzle-piece"></i>掌控板 Blockly 积木 → MicroPython</div>
+        <div class="sim-feature"><i class="fas fa-desktop"></i>2D 虚拟掌控板与舞台仿真</div>
+        <div class="sim-feature"><i class="fas fa-microchip"></i>ESP32-S3 32 个实验与 3D 开发板</div>
+        <div class="sim-feature"><i class="fas fa-code"></i>固件代码阅读器与芯片参考手册</div>
+        <div class="sim-feature"><i class="fas fa-plug"></i>Web Serial 上传真机（HTTPS/localhost）</div>
+        <div class="sim-feature"><i class="fas fa-chalkboard-teacher"></i>课堂大屏可用</div>
+      </div>
+      <div class="sim-actions">
+        <a class="btn btn-primary rounded-pill px-4" href="/hardware-sim">
+          <i class="fas fa-arrow-right me-1"></i>打开硬件仿真
+        </a>
+      </div>
+      <div class="sim-note">
+        建议教学流程：先在仿真中验证逻辑与接线 → 再上传真机 → 记录「预测—现象—结论」。
+        局域网 HTTP 下 Web Serial 不可用，仅仿真可用。
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="sim-note mt-3">
+    <i class="fas fa-info-circle me-1"></i>
+    两个仿真保留独立地址：<code>/chem-lab</code> 与 <code>/hardware-sim</code>，
+    现有课堂章节、资源卡与书签不受影响。
+  </div>
+</div>
+{% endblock %}

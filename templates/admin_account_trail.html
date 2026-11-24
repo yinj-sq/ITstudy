@@ -1,0 +1,207 @@
+{% extends 'base.html' %}
+{% block title %}账号轨迹{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div>
+      <h3 class="mb-1"><i class="fas fa-route text-primary me-2"></i>账号轨迹</h3>
+      <div class="text-muted small">
+        同一账号多终端分别记录；浏览器直接关闭不会产生退出时间，以“最后活跃”展示。
+      </div>
+    </div>
+    <a class="btn btn-outline-secondary rounded-pill" href="{{ url_for('logs.admin_logs') }}">
+      <i class="fas fa-history me-1"></i>操作日志
+    </a>
+  </div>
+
+  {% if ip_warning %}
+  <div class="alert alert-warning py-2 small">
+    <i class="fas fa-triangle-exclamation me-1"></i>
+    当前请求带有 X-Forwarded-For，但应用未启用 TRUST_PROXY_HEADERS，记录的登录 IP 可能是反向代理地址。
+    请设置 <code>TRUST_PROXY_HEADERS=1</code> 并确保 Nginx 代理头可信后重启服务。
+  </div>
+  {% endif %}
+
+  <div class="row g-2 mb-3">
+    <div class="col-6 col-md-4">
+      <div class="p-3 rounded-3 h-100" style="background:#eef2ff;border:1px solid #dbe4ff;">
+        <div class="text-muted small mb-1"><i class="fas fa-wifi me-1"></i>在线终端</div>
+        <div class="fs-3 fw-bold text-primary">{{ active_count }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4">
+      <div class="p-3 rounded-3 h-100" style="background:#ecfdf5;border:1px solid #a7f3d0;">
+        <div class="text-muted small mb-1"><i class="fas fa-users me-1"></i>在线账号</div>
+        <div class="fs-3 fw-bold text-success">{{ active_accounts }}</div>
+      </div>
+    </div>
+    <div class="col-12 col-md-4">
+      <div class="p-3 rounded-3 h-100" style="background:#fff7ed;border:1px solid #fed7aa;">
+        <div class="text-muted small mb-1"><i class="fas fa-right-to-bracket me-1"></i>今日登录次数</div>
+        <div class="fs-3 fw-bold text-warning">{{ today_sessions }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-3">
+    <div class="card-body py-3">
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-6 col-md-2">
+          <label class="form-label small mb-1">账号类型</label>
+          <select name="type" class="form-select form-select-sm">
+            <option value="">全部</option>
+            {% for key, label in type_labels.items() %}
+            <option value="{{ key }}" {% if account_type == key %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label small mb-1">账号</label>
+          <input name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="姓名 / ID">
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label small mb-1">登录 IP</label>
+          <input name="ip" value="{{ ip }}" class="form-control form-control-sm" placeholder="IP 片段">
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label small mb-1">状态</label>
+          <select name="status" class="form-select form-select-sm">
+            <option value="">全部</option>
+            <option value="active" {% if status == 'active' %}selected{% endif %}>在线</option>
+            <option value="offline" {% if status == 'offline' %}selected{% endif %}>可能离线</option>
+            <option value="logged_out" {% if status == 'logged_out' %}selected{% endif %}>已退出</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label small mb-1">登录日期从</label>
+          <input type="date" name="date_from" value="{{ date_from }}" class="form-control form-control-sm">
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label small mb-1">到</label>
+          <input type="date" name="date_to" value="{{ date_to }}" class="form-control form-control-sm">
+        </div>
+        <div class="col-12 d-flex gap-2">
+          <button class="btn btn-primary btn-sm rounded-pill px-3"><i class="fas fa-search me-1"></i>筛选</button>
+          <a class="btn btn-outline-secondary btn-sm rounded-pill" href="{{ url_for('logs.admin_account_trail') }}">重置</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <form id="trailDeleteForm" method="post"
+        action="{{ url_for('logs.admin_account_trail_delete_batch') }}"
+        onsubmit="return confirm('确定删除选中的账号轨迹？页面访问记录也会一并删除。');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="next" value="{{ request.full_path }}">
+  </form>
+
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+    <label class="form-check form-check-inline mb-0 small">
+      <input class="form-check-input" type="checkbox" id="trailSelectAll">
+      <span class="form-check-label">全选当前页</span>
+    </label>
+    <button type="submit" form="trailDeleteForm" class="btn btn-sm btn-outline-danger rounded-pill">
+      <i class="fas fa-trash me-1"></i>删除选中
+    </button>
+    <span class="text-muted small">仅删除登录会话与页面轨迹，不删除账号、成绩或业务数据。</span>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th style="width:32px;"></th>
+            <th>账号</th>
+            <th>登录时间</th>
+            <th>登录 IP</th>
+            <th>最后活跃</th>
+            <th>退出</th>
+            <th>页面数</th>
+            <th>状态</th>
+            <th class="text-end">详情</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in rows %}
+          <tr>
+            <td><input class="form-check-input trail-check" type="checkbox"
+                       name="session_ids" value="{{ item.row.id }}"
+                       form="trailDeleteForm"></td>
+            <td>
+              <span class="badge bg-{{ item.type_css }} me-1">{{ item.type_label }}</span>
+              <strong>{{ item.row.account_name or '—' }}</strong>
+              {% if item.row.account_id is not none %}
+              <span class="text-muted small">#{{ item.row.account_id }}</span>
+              {% endif %}
+              <div class="text-muted small">
+                {{ 'API/SPA' if item.row.channel == 'api' else '网页' }}
+                {% if item.row.user_agent %} · {{ item.row.user_agent|truncate(42) }}{% endif %}
+              </div>
+            </td>
+            <td class="small">{{ item.row.login_at.strftime('%Y-%m-%d %H:%M:%S') if item.row.login_at else '—' }}</td>
+            <td class="small">{{ item.row.login_ip or '—' }}</td>
+            <td class="small">
+              {{ item.row.last_seen_at.strftime('%m-%d %H:%M:%S') if item.row.last_seen_at else '—' }}
+              <div class="text-muted" style="font-size:11px">{{ item.duration }}</div>
+            </td>
+            <td class="small">
+              {% if item.row.logout_at %}
+              {{ item.row.logout_at.strftime('%m-%d %H:%M:%S') }}
+              <div class="text-muted" style="font-size:11px">{{ item.row.logout_reason or '' }}</div>
+              {% else %}
+              <span class="text-muted">未正常退出</span>
+              {% endif %}
+            </td>
+            <td class="small">{{ item.row.page_count or 0 }}</td>
+            <td><span class="badge bg-{{ item.status_css }}">{{ item.status }}</span></td>
+            <td class="text-end text-nowrap">
+              <a class="btn btn-sm btn-outline-primary rounded-pill"
+                 href="{{ url_for('logs.admin_account_trail_detail', session_id=item.row.id) }}">查看</a>
+              <form method="post" class="d-inline"
+                    action="{{ url_for('logs.admin_account_trail_delete', session_id=item.row.id) }}"
+                    onsubmit="return confirm('删除该条账号轨迹？页面访问记录也会一并删除。');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="next" value="{{ request.full_path }}">
+                <button class="btn btn-sm btn-outline-danger rounded-pill" title="删除该条轨迹">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="9" class="text-center text-muted py-5">暂无账号轨迹记录</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if pagination.pages > 1 %}
+    <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <span class="text-muted small">第 {{ pagination.page }} / {{ pagination.pages }} 页，共 {{ pagination.total }} 条</span>
+      <div class="d-flex gap-1">
+        <a class="btn btn-sm btn-outline-secondary {% if not pagination.has_prev %}disabled{% endif %}"
+           href="{{ url_for('logs.admin_account_trail', page=pagination.prev_num, type=account_type, q=q, ip=ip, status=status, date_from=date_from, date_to=date_to) if pagination.has_prev else '#' }}">上一页</a>
+        <a class="btn btn-sm btn-outline-secondary {% if not pagination.has_next %}disabled{% endif %}"
+           href="{{ url_for('logs.admin_account_trail', page=pagination.next_num, type=account_type, q=q, ip=ip, status=status, date_from=date_from, date_to=date_to) if pagination.has_next else '#' }}">下一页</a>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+<script>
+(function () {
+  var all = document.getElementById('trailSelectAll');
+  if (!all) return;
+  var boxes = document.querySelectorAll('.trail-check');
+  all.addEventListener('change', function () {
+    boxes.forEach(function (box) { box.checked = all.checked; });
+  });
+  boxes.forEach(function (box) {
+    box.addEventListener('change', function () {
+      all.checked = boxes.length > 0 && Array.prototype.every.call(
+        boxes, function (b) { return b.checked; });
+    });
+  });
+})();
+</script>
+{% endblock %}

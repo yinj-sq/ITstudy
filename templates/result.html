@@ -1,0 +1,564 @@
+{% extends 'base.html' %}
+
+{% block title %}考试结果 - {{ exam.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    {% if result.grading_status == 'pending_review' %}
+    <div class="alert alert-warning d-flex align-items-center">
+        <i class="fas fa-clock me-2 fs-5"></i>
+        <div>
+            <strong>部分题目待批改：</strong>试卷中含有开放式试题（未设标准答案），当前得分为系统自动判分结果。教师批改完成后将更新最终成绩。
+        </div>
+    </div>
+    {% elif result.grading_status == 'fully_graded' %}
+    <div class="alert alert-success d-flex align-items-center">
+        <i class="fas fa-check-circle me-2 fs-5"></i>
+        <div><strong>教师已批改完成</strong>，以下为最终成绩。</div>
+    </div>
+    {% endif %}
+
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h4 class="mb-0">考试结果</h4>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>考试名称：</strong>{{ exam.name }}</p>
+                    {% if student %}
+                    <p><strong>学生姓名：</strong>{{ student.name }}</p>
+                    <p><strong>学号：</strong>{{ student.student_number }}</p>
+                    {% else %}
+                    <p><strong>学生信息：</strong><span class="text-muted">学生记录已删除</span></p>
+                    {% endif %}
+                </div>
+                <div class="col-md-6">
+                    <p><strong>总分：</strong><span class="badge bg-success fs-5">{{ result.total_score }}</span> / {{ exam_total_score if exam_total_score is not none else '—' }}</p>
+                    <p><strong>提交时间：</strong>{{ result.submit_time.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-4">
+        <h5 class="mb-3">详细得分情况</h5>
+        
+        {% for question in questions %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <div class="d-flex justify-content-between">
+                    <h5 class="mb-0">第{{ loop.index }}题 ({{ question.score }}分)</h5>
+                    <div>
+                        <span class="badge bg-secondary me-2">
+                            {% if question.question_type == 'single' %}
+                            单选题
+                            {% elif question.question_type == 'multiple' %}
+                            多选题
+                            {% elif question.question_type == 'judge' %}
+                            判断题
+                            {% elif question.question_type == 'fill' %}
+                            填空题
+                            {% elif question.question_type == 'short_answer' %}
+                            简答题
+                            {% elif question.question_type == 'python_fill' %}
+                            Python填空题
+                            {% elif question.question_type == 'comprehensive' %}
+                            综合题
+                            {% else %}
+                            {{ question.question_type }}
+                            {% endif %}
+                        </span>
+                        {% set q_score = scores.get(question.id|string, 0) %}
+                        <span class="badge {% if q_score > 0 %}bg-success{% else %}bg-danger{% endif %}">
+                            得分: {{ q_score }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="question-content mb-3">
+                    {% if question.image_url %}
+                    <div class="question-image mb-2">
+                        <img src="{{ question.image_url }}" alt="题目图片" class="img-fluid" style="max-height: 300px;">
+                    </div>
+                    {% endif %}
+                    <div class="question-text" style="white-space: pre-wrap; word-break: break-word;">{{ question.content|convert_md_images|sanitize_rich_text }}</div>
+                </div>
+
+                <!-- 显示答案和解析 -->
+                {% if question.question_type == 'single' %}
+                <!-- 单选题 -->
+                <div class="options-list">
+                    {% if question.sorted_options %}
+                        {% set image_options = question.image_options_dict if question.image_options_dict is defined else {} %}
+                        {% for option in question.sorted_options.split('|') %}
+                        {# 选项值=位次字母（作答页 radio value 恒为 (65+index0)|chr，
+                           与判分口径一致）；选项文本=完整原文。此前按文本前缀
+                           split('.')[1]/split(':')[0] 推导——"A. 192.168.1.1"
+                           被截成 "192"、含 URL 的选项命中 ':' 分支后 option_value
+                           变 "http"，对错/勾选高亮全部失准 #}
+                        {% set option_value = (65 + loop.index0)|chr %}
+                        {% set option_text = option|trim %}
+                        {% set is_correct = question.answer == option_value %}
+                        {% set is_selected = answers.get(question.id|string) == option_value %}
+
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" disabled
+                                {% if is_selected %}checked{% endif %}>
+                            <label class="form-check-label {% if is_correct %}text-success fw-bold{% endif %} {% if is_selected and not is_correct %}text-danger{% endif %}">
+                                <!-- 检查选项是否已经包含前缀 -->
+                                {% set has_prefix = false %}
+                                {% set trimmed_option = option|trim %}
+                                {% if trimmed_option|length >= 2 %}
+                                    {% set first_char = trimmed_option[0:1]|upper %}
+                                    {% set second_char = trimmed_option[1:2] %}
+                                    {% if first_char in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' and second_char in '.:、)）]】- ' %}
+                                        {% set has_prefix = true %}
+                                    {% endif %}
+                                {% endif %}
+
+                                {% if has_prefix %}
+                                    {{ option|trim }}
+                                {% else %}
+                                    {{ option_value }}. {{ option_text }}
+                                {% endif %}
+
+                                {% if is_correct %}
+                                <i class="fas fa-check-circle text-success ms-2"></i>
+                                {% endif %}
+
+                                {% if is_selected and not is_correct %}
+                                <i class="fas fa-times-circle text-danger ms-2"></i>
+                                {% endif %}
+
+                                {% if image_options and (option in image_options or trimmed_option in image_options or option_value in image_options) %}
+                                <div class="mt-1">
+                                    {% if option in image_options %}
+                                    <img src="{{ image_options[option] }}" alt="选项图片" class="img-fluid" style="max-height: 120px;">
+                                    {% elif trimmed_option in image_options %}
+                                    <img src="{{ image_options[trimmed_option] }}" alt="选项图片" class="img-fluid" style="max-height: 120px;">
+                                    {% elif option_value in image_options %}
+                                    <img src="{{ image_options[option_value] }}" alt="选项图片" class="img-fluid" style="max-height: 120px;">
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            </label>
+                        </div>
+                        {% endfor %}
+                    {% endif %}
+                </div>
+
+                {% elif question.question_type == 'multiple' %}
+                <!-- 多选题 -->
+                <div class="options-list">
+                    {% set raw_student = answers.get(question.id|string, '') %}
+                    {% if '|' in raw_student %}
+                        {% set student_answers = raw_student.split('|') %}
+                    {% else %}
+                        {% set student_answers = raw_student|upper|list %}
+                    {% endif %}
+                    {% set correct_answers = question.answer|upper|list %}
+                    {% set image_options = question.image_options_dict if question.image_options_dict is defined else {} %}
+
+                    {% if question.sorted_options %}
+                        {% for option in question.sorted_options.split('|') %}
+                        {# 选项值=位次字母（作答页 radio value 恒为 (65+index0)|chr，
+                           与判分口径一致）；选项文本=完整原文。此前按文本前缀
+                           split('.')[1]/split(':')[0] 推导——"A. 192.168.1.1"
+                           被截成 "192"、含 URL 的选项命中 ':' 分支后 option_value
+                           变 "http"，对错/勾选高亮全部失准 #}
+                        {% set option_value = (65 + loop.index0)|chr %}
+                        {% set option_text = option|trim %}
+                        {% set is_correct = option_value in correct_answers %}
+                        {% set is_selected = option_value in student_answers %}
+
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" disabled
+                                {% if is_selected %}checked{% endif %}>
+                            <label class="form-check-label {% if is_correct %}text-success fw-bold{% endif %} {% if is_selected and not is_correct %}text-danger{% endif %}">
+                                <!-- 检查选项是否已经包含前缀 -->
+                                {% set has_prefix = false %}
+                                {% set trimmed_option = option|trim %}
+                                {% if trimmed_option|length >= 2 %}
+                                    {% set first_char = trimmed_option[0:1]|upper %}
+                                    {% set second_char = trimmed_option[1:2] %}
+                                    {% if first_char in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' and second_char in '.:、)）]】- ' %}
+                                        {% set has_prefix = true %}
+                                    {% endif %}
+                                {% endif %}
+
+                                {% if has_prefix %}
+                                    {{ option|trim }}
+                                {% else %}
+                                    {{ option_value }}. {{ option_text }}
+                                {% endif %}
+
+                                {% if is_correct %}
+                                <i class="fas fa-check-circle text-success ms-2"></i>
+                                {% endif %}
+
+                                {% if is_selected and not is_correct %}
+                                <i class="fas fa-times-circle text-danger ms-2"></i>
+                                {% endif %}
+
+                                {% if image_options and (option in image_options or trimmed_option in image_options or option_value in image_options) %}
+                                <div class="mt-1">
+                                    {% if option in image_options %}
+                                    <img src="{{ image_options[option] }}" alt="选项图片" class="img-fluid" style="max-height: 120px;">
+                                    {% elif trimmed_option in image_options %}
+                                    <img src="{{ image_options[trimmed_option] }}" alt="选项图片" class="img-fluid" style="max-height: 120px;">
+                                    {% elif option_value in image_options %}
+                                    <img src="{{ image_options[option_value] }}" alt="选项图片" class="img-fluid" style="max-height: 120px;">
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            </label>
+                        </div>
+                        {% endfor %}
+                    {% endif %}
+                </div>
+
+                {% elif question.question_type == 'judge' %}
+                <!-- 判断题 -->
+                <div class="options-list">
+                    {% set student_answer = answers.get(question.id|string, '').lower() in ['true', '1', 't', 'yes', 'y', '对', 'true', '正确'] %}
+                    {# 未收卷/未公布时答案已置空：不得据此推导“正确答案”着色，
+                       否则判断题会把“错误”标绿（甚至泄露答案） #}
+                    {% set correct_answer = show_solutions and ((question.answer|default('')).lower() in ['true', '1', 't', 'yes', 'y', '对', 'true', '正确']) %}
+                    
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="radio" disabled 
+                               {% if student_answer %}checked{% endif %}>
+                        <label class="form-check-label {% if show_solutions and correct_answer %}text-success fw-bold{% endif %} {% if show_solutions and student_answer and not correct_answer %}text-danger{% endif %}">
+                            正确
+                            {% if show_solutions and correct_answer %}
+                            <i class="fas fa-check-circle text-success ms-2"></i>
+                            {% endif %}
+                        </label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="radio" disabled 
+                               {% if not student_answer %}checked{% endif %}>
+                        <label class="form-check-label {% if show_solutions and not correct_answer %}text-success fw-bold{% endif %} {% if show_solutions and not student_answer and correct_answer %}text-danger{% endif %}">
+                            错误
+                            {% if show_solutions and not correct_answer %}
+                            <i class="fas fa-check-circle text-success ms-2"></i>
+                            {% endif %}
+                        </label>
+                    </div>
+                </div>
+
+                {% elif question.question_type == 'fill' %}
+                <!-- 填空题 -->
+                <div class="mb-3">
+                    <label class="form-label">您的答案：</label>
+                    <input type="text" class="form-control" disabled value="{{ answers.get(question.id|string, '') }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">正确答案：</label>
+                    <input type="text" class="form-control bg-light" disabled value="{{ question.answer }}">
+                </div>
+
+                {% elif question.question_type == 'short_answer' %}
+                <!-- 简答题 -->
+                <div class="mb-3">
+                    <label class="form-label">您的答案：</label>
+                    <div class="border rounded p-3 bg-light" style="min-height:80px;white-space:pre-wrap">{% set short_answer = answers.get(question.id|string, '') %}{% if short_answer and short_answer|string|trim %}{{ short_answer }}{% else %}<span class="text-muted">未作答</span>{% endif %}</div>
+                </div>
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-1"></i>简答题由教师批改评分
+                </div>
+
+                {% elif question.question_type == 'python_fill' %}
+                <!-- Python填空题 -->
+                <div class="python-content mb-3" id="python_content_{{ question.id }}">
+                    {{ question.content|convert_md_images|sanitize_rich_text }}
+                </div>
+                
+                <div class="python-answers mt-3">
+                    <div class="card">
+                        <div class="card-header">Python代码答案</div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-12">
+                                    {% set question_id = question.id|string %}
+                                    {% set python_answers_dict = question.python_answers_dict %}
+                                    <h5 class="mb-3">您提交的Python代码：</h5>
+                                    <pre class="bg-light p-3 rounded"><code>
+{% if python_files and question_id in python_files %}
+{{ python_files[question_id] }}
+{% else %}
+{% set user_answers = {} %}
+                                        
+{% if answers.get(question.id|string) is not none %}
+    {% if answers.get(question.id|string) is mapping %}
+        {% set user_answers = answers.get(question.id|string) %}
+    {% elif answers.get(question.id|string) is string and '{' in answers.get(question.id|string) %}
+        {% set json_str = answers.get(question.id|string) %}
+        {% set user_answers = json_str|fromjson %}
+    {% endif %}
+{% endif %}
+
+{# 没有找到完整Python文件，使用从字典中提取的答案显示 #}
+{% for blank_id, answer_value in user_answers.items() %}
+# 填空{{ blank_id }}:
+{{ answer_value }}
+
+{% endfor %}
+{% endif %}</code></pre>
+                                </div>
+                            </div>
+                            
+                            <table class="table table-bordered mt-4">
+                                <thead>
+                                    <tr>
+                                        <th width="20%">填空位置</th>
+                                        <th width="80%">正确答案</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for blank_id, correct_answer in python_answers_dict.items() %}
+                                    <tr>
+                                        <td>{{ blank_id }}</td>
+                                        <td>
+                                            {% if '//' in correct_answer %}
+                                                <small class="text-muted">多个选项：</small><br>
+                                                {% for option in correct_answer.split('//') %}
+                                                    <code>{{ option|trim }}</code>{% if not loop.last %}<br>{% endif %}
+                                                {% endfor %}
+                                            {% else %}
+                                                <code>{{ correct_answer }}</code>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                {% elif question.question_type == 'comprehensive' %}
+                <!-- 综合题 -->
+                {% if question.background %}
+                <div class="bg-light p-3 mb-3 rounded">
+                    <h6 class="mb-2">背景概述:</h6>
+                    <div>{{ question.background|convert_md_images|sanitize_rich_text }}</div>
+                </div>
+                {% endif %}
+                <div class="sub-questions mt-3">
+                    {% for sub_q in question.sub_questions %}
+                    <div class="sub-question mb-4 p-3 border rounded">
+                        <h6 class="mb-2" style="white-space: pre-wrap; word-break: break-word;">{{ loop.index }}. {{ sub_q.content|convert_md_images|sanitize_rich_text }}</h6>
+                        {% if sub_q.image_url %}
+                        <div class="mb-2">
+                            <img src="{{ sub_q.image_url }}" alt="题目图片" class="img-fluid rounded" style="max-height:250px">
+                        </div>
+                        {% endif %}
+                        
+                        {% set sub_key = 'sub_' ~ sub_q.id %}
+                        {% set sub_score = scores.get(sub_key, 0) %}
+                        <div class="mb-2">
+                            <span class="badge {% if sub_score > 0 %}bg-success{% else %}bg-danger{% endif %}">
+                                小题得分: {{ sub_score }}
+                            </span>
+                        </div>
+                        
+                        {% if sub_q.question_type == 'single' %}
+                        <!-- 单选小题 -->
+                        <div class="options-list">
+                            {% set student_answers = answers.get(sub_key, '') %}
+                            {% set correct_answers = sub_q.answer %}
+                            {% set image_options = sub_q.image_options_dict if sub_q.image_options_dict is defined else {} %}
+
+                            {% if sub_q.sorted_options %}
+                                {% for option in sub_q.sorted_options.split('|') %}
+                                {# 选项值=位次字母（同上：与作答页/判分口径一致，
+                                    不按文本前缀推导——修复 IP/URL 类选项截断与高亮失准） #}
+                                {% set option_value = (65 + loop.index0)|chr %}
+                                {% set option_text = option|trim %}
+                                {% set is_correct = option_value in correct_answers %}
+                                {% set is_selected = option_value in student_answers %}
+
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="radio" disabled
+                                        {% if is_selected %}checked{% endif %}>
+                                    <label class="form-check-label {% if is_correct %}text-success fw-bold{% endif %} {% if is_selected and not is_correct %}text-danger{% endif %}">
+                                        {% set has_prefix = false %}
+                                        {% set trimmed_option = option|trim %}
+                                        {% if trimmed_option|length >= 2 %}
+                                            {% set first_char = trimmed_option[0:1]|upper %}
+                                            {% set second_char = trimmed_option[1:2] %}
+                                            {% if first_char in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' and second_char in '.:、)）]】- ' %}
+                                                {% set has_prefix = true %}
+                                            {% endif %}
+                                        {% endif %}
+
+                                        {% if has_prefix %}
+                                            {{ option|trim }}
+                                        {% else %}
+                                            {{ option_value }}. {{ option_text }}
+                                        {% endif %}
+
+                                        {% if is_correct %}
+                                        <i class="fas fa-check-circle text-success ms-2"></i>
+                                        {% endif %}
+
+                                        {% if is_selected and not is_correct %}
+                                        <i class="fas fa-times-circle text-danger ms-2"></i>
+                                        {% endif %}
+
+                                        {% if image_options and (option in image_options or trimmed_option in image_options or option_value in image_options) %}
+                                        <div class="mt-1">
+                                            {% if option in image_options %}
+                                            <img src="{{ image_options[option] }}" alt="选项图片" class="img-fluid" style="max-height: 100px;">
+                                            {% elif trimmed_option in image_options %}
+                                            <img src="{{ image_options[trimmed_option] }}" alt="选项图片" class="img-fluid" style="max-height: 100px;">
+                                            {% elif option_value in image_options %}
+                                            <img src="{{ image_options[option_value] }}" alt="选项图片" class="img-fluid" style="max-height: 100px;">
+                                            {% endif %}
+                                        </div>
+                                        {% endif %}
+                                    </label>
+                                </div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+
+                        {% elif sub_q.question_type == 'multiple' %}
+                        <!-- 多选小题 -->
+                        <div class="options-list">
+                            {% set raw_student = answers.get(sub_key, '') %}
+                            {% if '|' in raw_student %}
+                                {% set student_answers = raw_student.split('|') %}
+                            {% else %}
+                                {% set student_answers = raw_student|upper|list %}
+                            {% endif %}
+                            {% set correct_answers = sub_q.answer|upper|list %}
+                            {% set image_options = sub_q.image_options_dict if sub_q.image_options_dict is defined else {} %}
+
+                            {% if sub_q.sorted_options %}
+                                {% for option in sub_q.sorted_options.split('|') %}
+                                {# 选项值=位次字母（同上：与作答页/判分口径一致，
+                                    不按文本前缀推导——修复 IP/URL 类选项截断与高亮失准） #}
+                                {% set option_value = (65 + loop.index0)|chr %}
+                                {% set option_text = option|trim %}
+                                {% set is_correct = option_value in correct_answers %}
+                                {% set is_selected = option_value in student_answers %}
+
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" disabled
+                                        {% if is_selected %}checked{% endif %}>
+                                    <label class="form-check-label {% if is_correct %}text-success fw-bold{% endif %} {% if is_selected and not is_correct %}text-danger{% endif %}">
+                                        {% set has_prefix = false %}
+                                        {% set trimmed_option = option|trim %}
+                                        {% if trimmed_option|length >= 2 %}
+                                            {% set first_char = trimmed_option[0:1]|upper %}
+                                            {% set second_char = trimmed_option[1:2] %}
+                                            {% if first_char in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' and second_char in '.:、)）]】- ' %}
+                                                {% set has_prefix = true %}
+                                            {% endif %}
+                                        {% endif %}
+
+                                        {% if has_prefix %}
+                                            {{ option|trim }}
+                                        {% else %}
+                                            {{ option_value }}. {{ option_text }}
+                                        {% endif %}
+
+                                        {% if is_correct %}
+                                        <i class="fas fa-check-circle text-success ms-2"></i>
+                                        {% endif %}
+
+                                        {% if is_selected and not is_correct %}
+                                        <i class="fas fa-times-circle text-danger ms-2"></i>
+                                        {% endif %}
+
+                                        {% if image_options and (option in image_options or trimmed_option in image_options or option_value in image_options) %}
+                                        <div class="mt-1">
+                                            {% if option in image_options %}
+                                            <img src="{{ image_options[option] }}" alt="选项图片" class="img-fluid" style="max-height: 100px;">
+                                            {% elif trimmed_option in image_options %}
+                                            <img src="{{ image_options[trimmed_option] }}" alt="选项图片" class="img-fluid" style="max-height: 100px;">
+                                            {% elif option_value in image_options %}
+                                            <img src="{{ image_options[option_value] }}" alt="选项图片" class="img-fluid" style="max-height: 100px;">
+                                            {% endif %}
+                                        </div>
+                                        {% endif %}
+                                    </label>
+                                </div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+                        
+                        {% elif sub_q.question_type == 'judge' %}
+                        <!-- 判断小题 -->
+                        <div class="options-list">
+                            {% set student_answer = answers.get(sub_key, '').lower() in ['true', '1', 't', 'yes', 'y', '对', 'true', '正确'] %}
+                            {% set correct_answer = show_solutions and ((sub_q.answer|default('')).lower() in ['true', '1', 't', 'yes', 'y', '对', 'true', '正确']) %}
+                            
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="radio" disabled 
+                                       {% if student_answer %}checked{% endif %}>
+                                <label class="form-check-label {% if show_solutions and correct_answer %}text-success fw-bold{% endif %} {% if show_solutions and student_answer and not correct_answer %}text-danger{% endif %}">
+                                    正确
+                                    {% if show_solutions and correct_answer %}
+                                    <i class="fas fa-check-circle text-success ms-2"></i>
+                                    {% endif %}
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="radio" disabled 
+                                       {% if not student_answer %}checked{% endif %}>
+                                <label class="form-check-label {% if show_solutions and not correct_answer %}text-success fw-bold{% endif %} {% if show_solutions and not student_answer and correct_answer %}text-danger{% endif %}">
+                                    错误
+                                    {% if show_solutions and not correct_answer %}
+                                    <i class="fas fa-check-circle text-success ms-2"></i>
+                                    {% endif %}
+                                </label>
+                            </div>
+                        </div>
+                        
+                        {% elif sub_q.question_type == 'fill' %}
+                        <!-- 填空小题 -->
+                        <div class="mb-3">
+                            <label class="form-label">您的答案：</label>
+                            <input type="text" class="form-control" disabled value="{{ answers.get(sub_key, '') }}">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">正确答案：</label>
+                            <input type="text" class="form-control bg-light" disabled value="{{ sub_q.answer }}">
+                        </div>
+
+                        {% elif sub_q.question_type == 'short_answer' %}
+                        <!-- 简答小题 -->
+                        <div class="mb-3">
+                            <label class="form-label">您的答案：</label>
+                            <div class="border rounded p-3 bg-light" style="min-height:60px;white-space:pre-wrap">{% set sub_answer = answers.get(sub_key, '') %}{% if sub_answer and sub_answer|string|trim %}{{ sub_answer }}{% else %}<span class="text-muted">未作答</span>{% endif %}</div>
+                        </div>
+                        <div class="alert alert-info"><i class="fas fa-info-circle me-1"></i>简答题由教师批改评分</div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- 综合题结尾说明 / 参考代码（模型字段为 footer_content；
+                     此前误写成不存在的 question.explanation，整块从未显示） -->
+                {% if question.footer_content %}
+                <div class="mt-3 p-3 bg-light rounded">
+                    <h6 class="text-primary"><i class="fas fa-info-circle me-2"></i>参考代码 / 说明：</h6>
+                    <div style="white-space: pre-wrap;">{{ question.footer_content|sanitize_rich_text }}</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+        
+        <div class="d-flex justify-content-between mt-4 mb-5">
+            <a href="{{ url_for('online_exam.exam') }}" class="btn btn-secondary">返回考试列表</a>
+        </div>
+    </div>
+</div>
+{% endblock %} 

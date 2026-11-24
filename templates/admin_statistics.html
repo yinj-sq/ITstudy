@@ -1,0 +1,181 @@
+{% extends 'base.html' %}
+{% block title %}数据统计{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-chart-bar me-2"></i>数据统计</h2>
+    <div class="d-flex gap-2">
+      {% if session.get('is_admin') %}
+      <a href="/admin/statistics/export" class="btn btn-outline-success rounded-pill"><i class="fas fa-file-excel me-1"></i>导出Excel</a>
+      <a href="/admin/backup" class="btn btn-outline-warning rounded-pill"><i class="fas fa-database me-1"></i>数据库备份</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- 概览卡片 -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-3"><div class="card text-center border-primary"><div class="card-body"><h3 class="text-primary">{{ hw_total }}</h3><small>作业总数</small></div></div></div>
+    <div class="col-md-3"><div class="card text-center border-success"><div class="card-body"><h3 class="text-success">{{ hw_active }}</h3><small>进行中</small></div></div></div>
+    <div class="col-md-3"><div class="card text-center border-info"><div class="card-body"><h3 class="text-info">{{ subs_total }}</h3><small>总提交</small></div></div></div>
+    <div class="col-md-3"><div class="card text-center border-danger"><div class="card-body"><h3 class="text-danger">{{ subs_ungraded }}</h3><small>待批改</small></div></div></div>
+  </div>
+  <div class="row g-3 mb-4">
+    <div class="col-md-6"><div class="card text-center"><div class="card-body"><h3>{{ exams_total }}</h3><small>试卷总数</small></div></div></div>
+    <div class="col-md-6"><div class="card text-center"><div class="card-body"><h3>{{ results_total }}</h3><small>考试成绩记录</small></div></div></div>
+  </div>
+
+  <!-- 班级作业统计 -->
+  <h5 class="mb-3"><i class="fas fa-users me-2"></i>班级作业提交统计</h5>
+  <div class="table-responsive mb-4">
+    <table class="table table-hover">
+      <thead><tr><th>班级</th><th>学生数</th><th>作业数</th><th>提交数</th><th>提交率</th></tr></thead>
+      <tbody>
+        {% for s in class_hw_stats %}
+        <tr>
+          <td>{{ s.class.name }}</td><td>{{ s.student_count }}</td><td>{{ s.hw_count }}</td>
+          <td>{{ s.subs_count }}</td>
+          <td><span class="badge bg-{{ 'success' if s.rate >= 80 else 'warning' if s.rate >= 50 else 'danger' }}">{{ s.rate }}%</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 考试成绩记录 -->
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0"><i class="fas fa-file-alt me-2"></i>考试成绩记录</h5>
+    <div class="d-flex gap-2">
+      {% if session.get('is_admin') %}
+      <a href="/admin/exams" class="btn btn-outline-info btn-sm rounded-pill"><i class="fas fa-chart-line me-1"></i>成绩趋势分析</a>
+      {% endif %}
+      <a href="/admin/homework" class="btn btn-outline-secondary btn-sm rounded-pill"><i class="fas fa-arrow-left me-1"></i>作业管理</a>
+    </div>
+  </div>
+
+  <!-- 筛选 -->
+  <div class="row g-2 mb-3">
+    <div class="col-auto">
+      <select class="form-select form-select-sm rounded-pill" onchange="location.href='?exam_id='+this.value+'&class_id={{ class_filter }}'">
+        <option value="">全部试卷</option>
+        {% for e in exams %}
+        <option value="{{ e.id }}" {% if exam_filter == e.id|string %}selected{% endif %}>{{ e.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-auto">
+      <select class="form-select form-select-sm rounded-pill" onchange="location.href='?exam_id={{ exam_filter }}&class_id='+this.value">
+        <option value="">全部班级</option>
+        {% for c in classes %}
+        <option value="{{ c.id }}" {% if class_filter == c.id|string %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-hover table-sm">
+      <thead><tr>{% if session.get('is_admin') %}<th style="width:30px;"><input type="checkbox" id="selectAllResults" onclick="var s=this.checked;document.querySelectorAll('.result-check').forEach(function(cb){cb.checked=s;})"></th>{% endif %}<th>学生</th><th>班级</th><th>试卷</th><th>得分</th><th>提交时间</th>{% if session.get('is_admin') %}<th>操作</th>{% endif %}</tr></thead>
+      <tbody>
+        {% for r in results %}
+        {% set student = students_map.get(r.student_id) %}
+        <tr>
+          {% if session.get('is_admin') %}<td><input type="checkbox" name="result_ids" value="{{ r.id }}" class="result-check"></td>{% endif %}
+          <td>{{ student.name if student else '未知' }}</td>
+          <td>{{ student.class_.name if student and student.class_ else '-' }}</td>
+          <td>{{ exam_names.get(r.exam_id, '已删除') }}</td>
+          <td><span class="badge bg-{{ 'success' if r.total_score >= 60 else 'danger' }}">{{ r.total_score }}</span></td>
+          <td class="small">{{ r.submit_time.strftime('%Y-%m-%d %H:%M') if r.submit_time else '-' }}</td>
+          {% if session.get('is_admin') %}
+          <td>
+            <button type="button" class="btn btn-outline-danger btn-sm rounded-pill" title="删除该成绩记录"
+                    onclick="deleteResult({{ r.id }})">
+              <i class="fas fa-trash"></i>
+            </button>
+          </td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+        {% if not results %}
+        <tr><td colspan="{{ 7 if session.get('is_admin') else 5 }}" class="text-center text-muted py-3">暂无成绩记录</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+    {% if results and session.get('is_admin') %}
+    <div class="mt-2">
+      <button type="button" id="batchResultDeleteBtn" class="btn btn-outline-danger btn-sm rounded-pill"><i class="fas fa-trash me-1"></i>批量删除选中</button>
+    </div>
+    {% endif %}
+    {% if results_pagination and results_pagination.pages > 1 %}
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
+        <span class="text-muted small">共 {{ results_pagination.total }} 条成绩，第 {{ results_pagination.page }} / {{ results_pagination.pages }} 页</span>
+        <nav aria-label="成绩记录分页">
+            <ul class="pagination justify-content-center mb-0 flex-wrap">
+                <li class="page-item {% if not results_pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('homework.admin_statistics', page=results_pagination.prev_num, exam_id=exam_filter, class_id=class_filter) if results_pagination.has_prev else '#' }}">上一页</a>
+                </li>
+                {% for p in range(1, results_pagination.pages + 1) %}
+                    {% if p == 1 or p == results_pagination.pages or (p >= results_pagination.page - 2 and p <= results_pagination.page + 2) %}
+                    <li class="page-item {% if p == results_pagination.page %}active{% endif %}">
+                        <a class="page-link" href="{{ url_for('homework.admin_statistics', page=p, exam_id=exam_filter, class_id=class_filter) }}">{{ p }}</a>
+                    </li>
+                    {% elif p == 2 or p == results_pagination.pages - 1 %}
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not results_pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('homework.admin_statistics', page=results_pagination.next_num, exam_id=exam_filter, class_id=class_filter) if results_pagination.has_next else '#' }}">下一页</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+  </div>
+</div>
+<script>
+// 统一的删除请求（携带 CSRF 头）
+function postDeleteResult(url, ids, fieldName) {
+  var body = new URLSearchParams();
+  ids.forEach(function (id) { body.append(fieldName, id); });
+  fetch(url, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': window.CSRF_TOKEN || '' },
+    body: body,
+    credentials: 'same-origin'
+  })
+    .then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      // 删除接口成功后重定向回本页，可能返回 HTML；若返回 JSON 则检查 success
+      return r.json().catch(function () { return null; });
+    })
+    .then(function (j) {
+      if (j && j.success === false) {
+        alert(j.message || '删除失败');
+        return;
+      }
+      location.reload();
+    })
+    .catch(function () {
+      alert('操作失败，请重试');
+    });
+}
+
+// 单条成绩记录删除（保留确认提示）
+function deleteResult(id) {
+  if (!confirm('确定删除此成绩记录？')) return;
+  postDeleteResult('/admin/statistics/results/' + id + '/delete', [id], 'result_ids');
+}
+
+// 批量删除选中成绩记录
+document.addEventListener('DOMContentLoaded', function () {
+  var btn = document.getElementById('batchResultDeleteBtn');
+  if (!btn) return;
+  btn.addEventListener('click', function () {
+    var ids = [];
+    document.querySelectorAll('.result-check:checked').forEach(function (cb) { ids.push(cb.value); });
+    if (!ids.length) { alert('请先勾选要删除的成绩记录'); return; }
+    if (!confirm('确定删除选中的成绩记录？此操作不可恢复。')) return;
+    postDeleteResult('/admin/statistics/results/batch_delete', ids, 'result_ids');
+  });
+});
+</script>
+{% endblock %}

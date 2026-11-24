@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+{% block title %}批改：{{ hw.title }}{% endblock %}
+{% block head %}
+<style>
+.grade-radio { display:none; }
+.grade-label {
+  display:inline-flex; align-items:center; justify-content:center;
+  width:52px; height:36px; margin:2px;
+  border:2px solid #dee2e6; border-radius:20px; cursor:pointer;
+  font-weight:700; font-size:0.95rem; user-select:none;
+  transition:all 0.15s; background:#fff; color:#555;
+}
+.grade-label:hover { border-color:#999; background:#f0f0f0; }
+.grade-radio:checked + .grade-label { color:#fff !important; border-color:transparent !important; transform:scale(1.1); box-shadow:0 2px 8px rgba(0,0,0,0.2); }
+.grade-radio:checked + .g-Ap { background:#1a7a1a; }  /* A+ 深绿 */
+.grade-radio:checked + .g-A  { background:#28a745; }  /* A  绿色 */
+.grade-radio:checked + .g-Am { background:#5cb85c; }  /* A- 浅绿 */
+.grade-radio:checked + .g-Bp { background:#0066cc; }  /* B+ 深蓝 */
+.grade-radio:checked + .g-B  { background:#0d6efd; }  /* B  蓝色 */
+.grade-radio:checked + .g-Bm { background:#5b9bd5; }  /* B- 浅蓝 */
+.grade-radio:checked + .g-Cp { background:#e68a00; }  /* C+ 深橙 */
+.grade-radio:checked + .g-C  { background:#fd7e14; }  /* C  橙色 */
+.grade-radio:checked + .g-D  { background:#cc3333; }  /* D  红色 */
+.grade-radio:checked + .g-E  { background:#881111; }  /* E  暗红 */
+/* 未选中时的标签色 */
+.g-label-Ap { border-color:#1a7a1a; color:#1a7a1a; }
+.g-label-A  { border-color:#28a745; color:#28a745; }
+.g-label-Am { border-color:#5cb85c; color:#3d8b3d; }
+.g-label-Bp { border-color:#0066cc; color:#0066cc; }
+.g-label-B  { border-color:#0d6efd; color:#0d6efd; }
+.g-label-Bm { border-color:#5b9bd5; color:#3d7ab5; }
+.g-label-Cp { border-color:#e68a00; color:#e68a00; }
+.g-label-C  { border-color:#fd7e14; color:#fd7e14; }
+.g-label-D  { border-color:#cc3333; color:#cc3333; }
+.g-label-E  { border-color:#881111; color:#881111; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h3 class="mb-4"><i class="fas fa-check-double me-2"></i>批改：{{ hw.title }}</h3>
+  <div class="row">
+    <div class="col-md-8">
+      <div class="card shadow-sm mb-3">
+        <div class="card-header d-flex justify-content-between">
+          <strong><i class="fas fa-user me-1"></i>{{ sub.student.name if sub.student else '未知' }}</strong>
+          <small>{{ sub.submit_time.strftime('%Y-%m-%d %H:%M') if sub.submit_time else '' }}{% if sub.resubmit_time %} | 重交: {{ sub.resubmit_time.strftime('%Y-%m-%d %H:%M') }}{% endif %}</small>
+        </div>
+        <div class="card-body">
+          {% if sub.text_content %}
+          <div class="mb-3"><label class="form-label fw-bold">文字作答</label><div class="border rounded p-3 bg-light" style="white-space: pre-wrap; word-break: break-word;">{{ sub.text_content }}</div></div>
+          {% endif %}
+          {% if sub_files %}
+          <div class="mb-3">
+            <label class="form-label fw-bold">提交文件</label>
+            <div class="d-flex flex-wrap gap-2">
+              {% for fn in sub_files %}
+              {% set ext = fn.rsplit('.', 1)[-1].lower() if '.' in fn else '' %}
+              <div class="btn-group btn-group-sm">
+                {% if ext in ('doc','docx','xls','xlsx','ppt','pptx') %}
+                <a href="{{ url_for('homework.preview_submission_file', sub_id=sub.id, filename=fn) }}"
+                   class="btn btn-outline-primary rounded-pill" target="_blank" title="浏览器预览">
+                  <i class="fas fa-eye me-1"></i>{{ fn }}
+                </a>
+                <a href="/static/submissions/{{ sub.id }}/{{ fn }}"
+                   class="btn btn-outline-secondary rounded-pill ms-1" download title="下载">
+                  <i class="fas fa-download"></i>
+                </a>
+                {% elif ext in ('pdf','png','jpg','jpeg','gif','bmp','webp','txt','html','htm','md','py','mp3','mp4','webm','wav') %}
+                <a href="/static/submissions/{{ sub.id }}/{{ fn }}" class="btn btn-sm btn-outline-primary rounded-pill" target="_blank"><i class="fas fa-file me-1"></i>{{ fn }}</a>
+                {% else %}
+                <a href="/static/submissions/{{ sub.id }}/{{ fn }}" class="btn btn-sm btn-outline-primary rounded-pill" download><i class="fas fa-download me-1"></i>{{ fn }}</a>
+                {% endif %}
+              </div>
+              {% endfor %}
+            </div>
+            <small class="text-muted mt-1 d-block">
+              <i class="fas fa-info-circle me-1"></i>Office 文件（.doc/.xls/.ppt）点击 <i class="fas fa-eye"></i> 预览尝试在浏览器中打开。如无法查看，请安装 <a href="https://chrome.google.com/webstore/detail/office-editing-for-docs-s/gbkeegbaiigmenfmjfclcdgdpimamgkj" target="_blank">Office Editing 扩展</a> 或使用 Edge 浏览器，也可点击 <i class="fas fa-download"></i> 下载后本地打开。
+            </small>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card shadow-sm">
+        <div class="card-header"><strong><i class="fas fa-star me-1"></i>评分</strong></div>
+        <div class="card-body">
+          <form method="post" id="gradeForm">
+            <div class="mb-3 text-center">
+              <label class="form-label fw-bold mb-2">等级评分</label>
+              <div class="d-flex flex-wrap justify-content-center">
+                <input type="radio" name="grade" value="A+" id="g-Ap" class="grade-radio" {% if sub.grade == 'A+' %}checked{% endif %}>
+                <label for="g-Ap" class="grade-label g-label-Ap g-Ap">A+</label>
+                <input type="radio" name="grade" value="A" id="g-A" class="grade-radio" {% if sub.grade == 'A' %}checked{% endif %}>
+                <label for="g-A" class="grade-label g-label-A g-A">A</label>
+                <input type="radio" name="grade" value="A-" id="g-Am" class="grade-radio" {% if sub.grade == 'A-' %}checked{% endif %}>
+                <label for="g-Am" class="grade-label g-label-Am g-Am">A-</label>
+                <input type="radio" name="grade" value="B+" id="g-Bp" class="grade-radio" {% if sub.grade == 'B+' %}checked{% endif %}>
+                <label for="g-Bp" class="grade-label g-label-Bp g-Bp">B+</label>
+                <input type="radio" name="grade" value="B" id="g-B" class="grade-radio" {% if sub.grade == 'B' %}checked{% endif %}>
+                <label for="g-B" class="grade-label g-label-B g-B">B</label>
+                <input type="radio" name="grade" value="B-" id="g-Bm" class="grade-radio" {% if sub.grade == 'B-' %}checked{% endif %}>
+                <label for="g-Bm" class="grade-label g-label-Bm g-Bm">B-</label>
+                <input type="radio" name="grade" value="C+" id="g-Cp" class="grade-radio" {% if sub.grade == 'C+' %}checked{% endif %}>
+                <label for="g-Cp" class="grade-label g-label-Cp g-Cp">C+</label>
+                <input type="radio" name="grade" value="C" id="g-C" class="grade-radio" {% if sub.grade == 'C' %}checked{% endif %}>
+                <label for="g-C" class="grade-label g-label-C g-C">C</label>
+                <input type="radio" name="grade" value="D" id="g-D" class="grade-radio" {% if sub.grade == 'D' %}checked{% endif %}>
+                <label for="g-D" class="grade-label g-label-D g-D">D</label>
+                <input type="radio" name="grade" value="E" id="g-E" class="grade-radio" {% if sub.grade == 'E' %}checked{% endif %}>
+                <label for="g-E" class="grade-label g-label-E g-E">E</label>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">评语反馈</label>
+              <textarea name="feedback" class="form-control" rows="4" placeholder="输入评语...">{{ sub.feedback or '' }}</textarea>
+            </div>
+            <button type="submit" class="btn btn-success w-100 rounded-pill"><i class="fas fa-check me-1"></i>保存批改</button>
+          </form>
+          <a href="/admin/homework/{{ hw.id }}/submissions" class="btn btn-link mt-2 w-100">返回列表</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

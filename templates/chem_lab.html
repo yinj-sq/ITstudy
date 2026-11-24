@@ -1,0 +1,309 @@
+{% extends 'base.html' %}
+{% block title %}化学仿真{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ versioned_static('css/chem_lab.css') }}">
+{% endblock %}
+{% block content %}
+<div class="chem-lab-page{% if embed %} chem-embed{% endif %}" id="chemLab"
+     data-uid="{{ chem_uid }}" data-embed="{{ '1' if embed else '0' }}">
+  <script id="chemInitial" type="application/json">{{ {'mol': initial_molecule, 'visual': initial_visual, 'smiles': initial_smiles}|tojson }}</script>
+
+  <header class="chem-head">
+    <div class="chem-head-title">
+      <h1><i class="fas fa-flask-vial"></i> 化学仿真</h1>
+      <span class="chem-subtitle">离线 2D 绘制 + 实时 3D · 可视化化学 · 本地分子库</span>
+    </div>
+    <div class="chem-head-actions">
+      <span class="chem-current" id="chemCurrent">
+        <i class="fas fa-circle-info"></i> 未选择结构
+      </span>
+      <button type="button" class="btn btn-sm btn-outline-secondary"
+              id="chemHelpBtn" title="使用说明">
+        <i class="fas fa-circle-question"></i> 帮助
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-secondary"
+              id="chemFullBtn" title="全屏">
+        <i class="fas fa-expand"></i> 全屏
+      </button>
+    </div>
+  </header>
+
+  <div class="chem-help" id="chemHelp" hidden>
+    <div class="chem-help-grid">
+      <section>
+        <h3><i class="fas fa-pen-ruler"></i> 绘制 + 3D</h3>
+        <p>左侧为 Ketcher 离线结构编辑器：绘制分子、反应式，支持撤销/重做、缩放与
+          结构文件导入导出；右侧同步生成 3D 构象并渲染，<strong>全程无需联网</strong>。</p>
+      </section>
+      <section>
+        <h3><i class="fas fa-shapes"></i> 可视化化学</h3>
+        <p>本地 21 个交互模型：晶体晶胞、元素周期表、大 π 键、原电池/电解池、立体有机；
+          断网可用。</p>
+      </section>
+      <section>
+        <h3><i class="fas fa-database"></i> 分子库</h3>
+        <p>本地 27 个分子/晶体/蛋白质结构，使用 Molstar 3D 查看；支持显示模式、
+          截图与本地上传，断网可用。</p>
+      </section>
+      <section>
+        <h3><i class="fas fa-shield-halved"></i> 离线与隐私</h3>
+        <p>绘制数据只在本机浏览器内处理，不上传服务器、不访问第三方服务；
+          3D 构象由本地 OpenChemLib 生成，3Dmol.js 渲染。</p>
+      </section>
+    </div>
+  </div>
+
+  <div class="chem-body">
+    <nav class="chem-nav" aria-label="化学仿真功能">
+      <button type="button" class="chem-nav-item active" data-tab="sketch">
+        <i class="fas fa-pen-ruler"></i><span>绘制 + 3D</span>
+      </button>
+      <button type="button" class="chem-nav-item" data-tab="visual">
+        <i class="fas fa-shapes"></i><span>可视化化学</span>
+      </button>
+      <button type="button" class="chem-nav-item" data-tab="library">
+        <i class="fas fa-database"></i><span>分子库</span>
+      </button>
+    </nav>
+
+    <main class="chem-main">
+      <!-- 离线 2D 绘制 + 实时 3D -->
+      <section class="chem-pane active chem-pane-sketch" id="pane-sketch"
+               data-pane="sketch">
+        <div class="chem-studio">
+          <div class="chem-studio-left">
+            <div class="chem-sketch-bar">
+              <strong><i class="fas fa-pen-ruler"></i> 2D 结构绘制</strong>
+              <span class="chem-sketch-tip">离线 Ketcher</span>
+              <span class="chem-sketch-actions">
+                <select class="form-select form-select-sm" id="chemSketchSample"
+                        aria-label="载入示例结构">
+                  <option value="">载入示例…</option>
+                  <option value="O">水 H₂O</option>
+                  <option value="CCO">乙醇 C₂H₆O</option>
+                  <option value="c1ccccc1">苯 C₆H₆</option>
+                  <option value="CC(=O)O">乙酸 C₂H₄O₂</option>
+                  <option value="C1CCCCC1">环己烷 C₆H₁₂</option>
+                  <option value="CC(C)=O">丙酮 C₃H₆O</option>
+                </select>
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        id="chemSketchClear" title="清空画布">
+                  <i class="fas fa-eraser"></i> 清空
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        id="chemSketchDownload" title="保存为 mol 文件">
+                  <i class="fas fa-download"></i> 保存 mol
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        id="chemSketchCopy" title="复制当前结构的教学链接">
+                  <i class="fas fa-link"></i> 复制链接
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        id="chemSketchFull" title="绘制区全屏">
+                  <i class="fas fa-expand"></i> 绘制全屏
+                </button>
+              </span>
+            </div>
+            <iframe class="chem-ketcher-frame" id="chemKetcherFrame"
+                    src="/chem-lab/sketch?v=6.1.0-5" title="离线结构绘制（Ketcher）"
+                    allow="fullscreen; clipboard-read; clipboard-write"></iframe>
+            <div class="chem-ketcher-status" id="chemSketchStatus">
+              <i class="fas fa-spinner fa-spin"></i> 正在加载离线绘制引擎…
+            </div>
+          </div>
+          <div class="chem-studio-right">
+            <div class="chem-toolbar chem-3d-toolbar">
+              <strong><i class="fas fa-cube"></i> 3D 构象</strong>
+              <span class="chem-3d-status" id="chem3dStatus">等待结构</span>
+              <span class="chem-3d-actions">
+                <select class="form-select form-select-sm" id="chem3dStyle"
+                        aria-label="3D 显示模式">
+                  <option value="ball-and-stick">球棍</option>
+                  <option value="stick">棍状</option>
+                  <option value="sphere">空间填充</option>
+                  <option value="line">线框</option>
+                </select>
+                <select class="form-select form-select-sm" id="chem3dBg"
+                        aria-label="3D 背景">
+                  <option value="dark">深色</option>
+                  <option value="white">白色</option>
+                  <option value="light">浅灰</option>
+                </select>
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        id="chem3dSpin" title="自动旋转">
+                  <i class="fas fa-rotate"></i>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        id="chem3dReset" title="重置视角">
+                  <i class="fas fa-crosshairs"></i>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        id="chem3dShot" title="保存 3D 截图">
+                  <i class="fas fa-camera"></i>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        id="chem3dFull" title="3D 区全屏">
+                  <i class="fas fa-expand"></i>
+                </button>
+              </span>
+            </div>
+            <div class="chem-view-wrap chem-3dmol-wrap">
+              <div class="chem-3dmol" id="chem3dmol"></div>
+              <div class="chem-3d-empty" id="chem3dEmpty">
+                <i class="fas fa-cubes-stacked"></i>
+                <p>在左侧绘制结构，3D 构象会自动生成</p>
+              </div>
+              <div class="chem-view-loading" id="chem3dLoading" hidden>
+                <i class="fas fa-spinner fa-spin"></i> 正在生成 3D 构象…
+              </div>
+            </div>
+            <div class="chem-offline-note">
+              <i class="fas fa-shield-halved"></i>
+              全离线：Ketcher 2D 绘制 · OpenChemLib 3D 构象 · 3Dmol.js 渲染，不访问外网。
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 可视化化学 -->
+      <section class="chem-pane chem-pane-visual" id="pane-visual" data-pane="visual">
+        <div class="chem-visual-gallery" id="chemVisualGallery">
+          {% for group in visual_groups %}
+          <section class="chem-visual-group">
+            <h2><i class="fas {{ group.icon }}"></i> {{ group.name }}
+              <span class="chem-count">{{ group['items']|length }}</span>
+            </h2>
+            <div class="chem-visual-grid">
+              {% for item in group['items'] %}
+              <button type="button" class="chem-visual-card"
+                      data-slug="{{ item.slug }}" data-title="{{ item.title }}"
+                      data-file="{{ item.file }}">
+                <span class="chem-visual-icon"><i class="fas {{ group.icon }}"></i></span>
+                <strong>{{ item.title }}</strong>
+                <small>{{ item.desc }}</small>
+              </button>
+              {% endfor %}
+            </div>
+          </section>
+          {% endfor %}
+        </div>
+        <div class="chem-visual-stage" id="chemVisualStage" hidden>
+          <div class="chem-visual-bar">
+            <button type="button" class="btn btn-sm btn-outline-light"
+                    id="chemVisualBack"><i class="fas fa-arrow-left"></i> 返回画廊</button>
+            <strong id="chemVisualTitle">可视化化学</strong>
+            <span class="chem-visual-actions">
+              <button type="button" class="btn btn-sm btn-outline-light"
+                      id="chemVisualCopy"><i class="fas fa-link"></i> 复制链接</button>
+              <button type="button" class="btn btn-sm btn-outline-light"
+                      id="chemVisualFull"><i class="fas fa-expand"></i> 全屏</button>
+              <a class="btn btn-sm btn-outline-light" id="chemVisualOpen"
+                 target="_blank" rel="noopener">
+                <i class="fas fa-up-right-from-square"></i> 新窗口
+              </a>
+            </span>
+          </div>
+          <iframe id="chemVisualFrame" title="可视化化学模型"
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads"></iframe>
+        </div>
+      </section>
+
+      <!-- 分子库（本地 Molstar 3D） -->
+      <section class="chem-pane" id="pane-library" data-pane="library">
+        <div class="chem-library-layout">
+          <div class="chem-library-list">
+            <div class="chem-library-head">
+              <h2><i class="fas fa-database"></i> 内置分子库</h2>
+              <span class="chem-count">{{ catalog|length }} 个结构</span>
+            </div>
+            <div class="chem-library-grid">
+              {% for item in catalog %}
+              <button type="button" class="chem-library-card"
+                      data-id="{{ item.id }}"
+                      data-src="/static/chem-lab/molecules/{{ item.file }}"
+                      data-format="{{ item.format|default('sdf') }}"
+                      data-title="{{ item.title }}"
+                      data-formula="{{ item.formula|default('') }}"
+                      data-points="{{ item.points|default('') }}">
+                <span class="chem-library-badge">{{ item.category|default('结构') }}</span>
+                <strong>{{ item.title }}</strong>
+                <small>{{ item.formula|default('') }}</small>
+                <span class="chem-library-text">{{ item.textbook|default('') }}</span>
+              </button>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="chem-library-view">
+            <div class="chem-toolbar">
+              <select class="form-select form-select-sm" id="chemViewStyle"
+                      aria-label="显示模式">
+                <option value="ball-and-stick">球棍模型</option>
+                <option value="spacefill">空间填充</option>
+                <option value="wireframe">线框</option>
+                <option value="cartoon">蛋白质卡通</option>
+              </select>
+              <select class="form-select form-select-sm" id="chemViewBg"
+                      aria-label="背景">
+                <option value="dark">深色背景</option>
+                <option value="white">白色背景</option>
+                <option value="light">浅灰背景</option>
+              </select>
+              <button type="button" class="btn btn-sm btn-outline-secondary"
+                      id="chemViewSpin"><i class="fas fa-rotate"></i> 自动旋转</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary"
+                      id="chemViewReset"><i class="fas fa-crosshairs"></i> 重置</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary"
+                      id="chemViewShot"><i class="fas fa-camera"></i> 截图</button>
+              <label class="btn btn-sm btn-outline-secondary mb-0">
+                <i class="fas fa-upload"></i> 上传
+                <input type="file" id="chemViewUpload" hidden
+                       accept=".pdb,.cif,.mmcif,.sdf,.mol,.xyz">
+              </label>
+              <button type="button" class="btn btn-sm btn-outline-secondary"
+                      id="chemViewFull"><i class="fas fa-expand"></i> 3D 全屏</button>
+            </div>
+            <div class="chem-library-status" id="chemViewStatus" role="status" aria-live="polite">请选择一个结构</div>
+            <div class="chem-view-wrap">
+              <iframe id="chemViewer" title="3D 分子查看器"></iframe>
+              <div class="chem-view-loading" id="chemViewLoading" hidden>
+                <i class="fas fa-spinner fa-spin"></i> 正在加载 3D 结构…
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <aside class="chem-side">
+      <div class="chem-side-card">
+        <h3><i class="fas fa-circle-info"></i> 当前结构</h3>
+        <dl class="chem-info-list">
+          <dt>名称</dt><dd id="chemInfoTitle">—</dd>
+          <dt>化学式</dt><dd id="chemInfoFormula">—</dd>
+          <dt>来源</dt><dd id="chemInfoSource">—</dd>
+        </dl>
+      </div>
+      <div class="chem-side-card">
+        <h3><i class="fas fa-lightbulb"></i> 观察要点</h3>
+        <p class="chem-tips-text" id="chemInfoPoints">从分子库或可视化化学中选择一个结构，这里会显示观察要点。</p>
+      </div>
+      <div class="chem-side-card chem-side-muted">
+        <h3><i class="fas fa-database"></i> 数据源</h3>
+        <p class="chem-tips-text">
+          绘制与 3D 构象全部在本机离线完成；可视化化学与分子库随安装包分发。
+          所有本地上传文件只在浏览器内渲染。
+        </p>
+      </div>
+    </aside>
+  </div>
+
+  <footer class="chem-status">
+    <span id="chemSourceStatus"><i class="fas fa-circle-notch fa-spin"></i> 正在检查网络…</span>
+    <span id="chemLoadStatus"></span>
+  </footer>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ versioned_static('chem-lab/vendor/3dmol/3Dmol-min.js') }}"></script>
+<script src="{{ versioned_static('js/chem_lab.js') }}"></script>
+{% endblock %}

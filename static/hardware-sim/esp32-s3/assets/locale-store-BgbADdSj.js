@@ -1,0 +1,1 @@
+import{n as e,t}from"./storage-D3VSi1YG.js";import{i as n}from"./locales-CW4p_l41.js";var r=t(`esp-locale`,`zh`),i={get:()=>{let e=r.get();return n(e)?e:`auto`},subscribe:r.subscribe,set:e=>r.set(e)},a=()=>e(i),o=()=>typeof navigator>`u`?[]:navigator.languages??[navigator.language];export{i as n,a as r,o as t};

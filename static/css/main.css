@@ -1,0 +1,57 @@
+/* 兼容性声明 */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+* {
+  text-align: -webkit-match-parent;
+  text-align: match-parent;
+}
+
+/* 常用布局与美化 */
+.mx-auto {
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+.shadow-sm {
+  box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,.075)!important;
+}
+.rounded-pill {
+  border-radius: 50rem!important;
+}
+.bg-light {
+  background-color: #f8f9fa!important;
+}
+
+/* 辅助功能优化 */
+input, select, button, textarea {
+  font-size: 1rem;
+}
+input[placeholder], textarea[placeholder] {
+  color: #888;
+  opacity: 1;
+}
+
+/* 按钮可访问性 */
+button[title], a[title] {
+  outline: 2px solid #3498db;
+  outline-offset: 2px;
+}
+
+/* 动画性能优化 */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-in {
+  animation: fadeIn 0.5s cubic-bezier(.4,0,.2,1);
+}
+
+/* 响应式优化 */
+@media (max-width: 768px) {
+  .mx-auto {
+    width: 100% !important;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+} 

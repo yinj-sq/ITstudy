@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}{{ title|default('外部链接') }}{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="card shadow border-0 rounded-3 mx-auto" style="max-width: 600px;">
+    <div class="card-body p-4">
+      <h2 class="card-title mb-4 text-primary"><i class="fas fa-external-link-alt me-2"></i>外部链接提示</h2>
+      
+      <div class="alert alert-info mb-4">
+        <p class="mb-0">
+          <i class="fas fa-info-circle me-2"></i>
+          您即将访问外部网站: <strong>{{ url }}</strong>
+        </p>
+      </div>
+      
+      <p class="text-muted">出于安全考虑，请确认这是您想要访问的链接。外部网站的内容不受本站控制，请谨慎访问。</p>
+      
+      <div class="d-flex justify-content-between mt-4">
+        <a href="javascript:history.back()" class="btn btn-outline-secondary">
+          <i class="fas fa-arrow-left me-1"></i> 返回
+        </a>
+        <a href="{{ url }}" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
+          <i class="fas fa-external-link-alt me-1"></i> 继续访问
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %} 

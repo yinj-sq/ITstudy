@@ -1,0 +1,692 @@
+{% extends 'base.html' %}
+{% block title %}上传学习资源{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="mb-4 d-flex justify-content-between align-items-center">
+    <h2><i class="fas fa-cloud-upload-alt me-2"></i>上传学习资源</h2>
+    <a href="{{ url_for('resources.teacher_resource_library') if teacher_upload else url_for('resources.admin_resources') }}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> 返回</a>
+  </div>
+
+  <div class="card">
+    <div class="card-header bg-primary text-white"><h5 class="mb-0">上传文件</h5></div>
+    <div class="card-body">
+      <form id="uploadForm" enctype="multipart/form-data">
+        <div class="row g-3 mb-3">
+          <div class="col-md-5">
+            <label class="form-label">资源标题 <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="title" name="title" required placeholder="输入资源名称">
+          </div>
+          <div class="col-md-5">
+            <label class="form-label" for="subjectId">所属学科</label>
+            <select class="form-select" name="subject_id" id="subjectId">
+              <option value="">未分类</option>
+              {% for s in subjects %}
+              <option value="{{ s.id }}">{{ s.name }}</option>
+              {% endfor %}
+            </select>
+            {% if teacher_upload %}
+            <small class="text-muted">学科由管理员统一维护；如无你所属学科，请联系管理员分配。</small>
+            {% endif %}
+          </div>
+          {% if not teacher_upload %}
+          <div class="col-md-2">
+            <label class="form-label">&nbsp;</label>
+            <button type="button" class="btn btn-outline-secondary w-100" data-bs-toggle="modal" data-bs-target="#subjectModal" title="添加学科">
+              <i class="fas fa-plus me-1"></i>学科
+            </button>
+          </div>
+          {% endif %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label">子文件夹 <small class="text-muted">(可选)</small></label>
+          <input type="text" class="form-control" id="subfolder" name="subfolder" placeholder="留空则存入根目录">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">答题数据采集 <i class="fas fa-question-circle text-muted" title="选择如何采集学生答题数据"></i></label>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="quiz_mode" id="quizInject" value="inject" checked>
+            <label class="form-check-label" for="quizInject">
+              <strong>注入采集</strong>（推荐）<small class="text-muted">— 选择 HTML 文件，保存后先模拟试运行；通过检测才写入采集脚本</small>
+            </label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="quiz_mode" id="quizNone" value="none">
+            <label class="form-check-label" for="quizNone">
+              <strong>不采集</strong><small class="text-muted">— 不注入任何采集脚本</small>
+            </label>
+          </div>
+          <!-- 运行时注入已移除：课件在 sandbox iframe（无 allow-same-origin）中
+               打开，opaque origin 下动态注入脚本无法访问父页/页面 DOM，端到端
+               不可用。采集请用"注入采集"（存量 runtime 资源按不采集处理） -->
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col-md-6">
+            <label class="form-label" for="file">选择文件 <span class="text-danger">*</span></label>
+            <input type="file" class="form-control" id="file" name="file" multiple>
+            <small class="text-muted">可选多个文件；不支持 exe/bat/cmd/msi/ps1/dll/jar 等可执行/脚本类型</small>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="folderInput">或选择整个文件夹</label>
+            <input type="file" class="form-control" id="folderInput" name="folder" webkitdirectory directory multiple>
+            <small class="text-muted">上传整个文件夹（含子目录）；含禁止类型时会先列出具体文件并阻止上传</small>
+          </div>
+        </div>
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-primary btn-lg rounded-pill px-5">
+            <i class="fas fa-upload me-1"></i>上传文件
+          </button>
+          <button type="button" id="cancelBtn" class="btn btn-outline-danger rounded-pill d-none" onclick="cancelUpload()">
+            <i class="fas fa-times me-1"></i>取消上传
+          </button>
+        </div>
+      </form>
+      <div id="uploadProgress" class="mt-3 d-none">
+        <div class="progress"><div class="progress-bar progress-bar-striped progress-bar-animated" style="width:0%"></div></div>
+        <p class="text-muted mt-2">正在上传...</p>
+        <p id="uploadDetail" class="text-muted small"></p>
+      </div>
+      <div id="uploadError" class="alert alert-danger mt-3 d-none"></div>
+    </div>
+  </div>
+
+  <!-- 文件设置面板（上传后显示） -->
+  <div class="card mt-4 d-none" id="settingsPanel">
+    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+      <h5 class="mb-0"><i class="fas fa-cog me-2"></i>文件设置</h5>
+      <span id="filesCount" class="badge bg-light text-dark"></span>
+    </div>
+    <div class="card-body">
+      <div class="alert alert-info small mb-3">
+        <i class="fas fa-info-circle me-1"></i>设置每个文件的属性：<b>主页</b>（选一个作为资源主页）、<b>作业</b>（作为作业提供下载，网页可直接打开）、<b>展示</b>（学生端可见）、<b>下载</b>（学生端可下载）、<b>采集</b>（仅HTML文件，勾选后保存并进入注入检测）、<b>删除</b>（勾选后点击下方"删除选中"移除）
+      </div>
+      <div class="row g-2 mb-2">
+        <div class="col-auto">
+          <label class="form-check form-check-inline mb-0">
+            <input type="checkbox" class="form-check-input" id="showInStudent" checked> <b>学生端</b>可见
+          </label>
+        </div>
+        <div class="col-auto">
+          <label class="form-check form-check-inline mb-0">
+            <input type="checkbox" class="form-check-input" id="showInClassroom" checked> <b>教师端</b>可见
+          </label>
+        </div>
+        <div class="col-auto"><small class="text-muted">均不勾选则仅后台可见</small></div>
+      </div>
+      <div class="row g-2 mb-1">
+        <div class="col-auto">
+          <label class="form-check form-check-inline mb-0">
+            <input type="checkbox" class="form-check-input" id="allowRelatedFiles"> <b>允许打开页面相关链接</b>
+          </label>
+        </div>
+      </div>
+      <div class="mb-2">
+        <small class="text-muted">
+          <i class="fas fa-info-circle me-1"></i>“允许打开页面相关链接”：学生仍只看到列表中勾选“展示”的文件；
+          但同资源目录内未勾选“展示”的页面与依赖文件也可通过链接/直链读取（请勿把答案等敏感文件放在该资源目录）。
+        </small>
+      </div>
+      <div class="table-responsive" style="max-height:400px;overflow-y:auto;">
+        <table class="table table-sm table-hover align-middle">
+          <thead class="table-light">
+            <tr>
+              <th style="width:30%;">文件名</th>
+              <th style="width:8%;">主页</th>
+              <th style="width:8%;"><input type="checkbox" id="selectAllHomework" onclick="toggleColumn(this, '.homework-cb')" title="全选/取消"> 作业</th>
+              <th style="width:8%;"><input type="checkbox" id="selectAllShow" onclick="toggleColumn(this, '.show-cb:not([disabled])')" title="全选/取消"> 展示</th>
+              <th style="width:8%;"><input type="checkbox" id="selectAllDownload" onclick="toggleColumn(this, '.download-cb:not([disabled])')" title="全选/取消"> 下载</th>
+              <th style="width:8%;"><input type="checkbox" id="selectAllInject" onclick="toggleColumn(this, '.inject-cb')" title="全选/取消HTML文件"> 采集</th>
+              <th style="width:8%;"><input type="checkbox" id="selectAllDelete" onclick="toggleColumn(this, '.delete-cb')" title="全选/取消"> 删除</th>
+            </tr>
+          </thead>
+          <tbody id="fileTableBody"></tbody>
+        </table>
+      </div>
+      <div class="d-flex gap-2 mt-3">
+        <button type="button" class="btn btn-success rounded-pill px-4" id="saveResourceBtn">
+          <i class="fas fa-check me-1"></i>保存资源
+        </button>
+        <button type="button" class="btn btn-outline-danger rounded-pill" id="deleteSelectedBtn">
+          <i class="fas fa-trash me-1"></i>删除选中
+        </button>
+        <button type="button" class="btn btn-outline-secondary rounded-pill" id="reuploadBtn">
+          <i class="fas fa-redo me-1"></i>重新上传
+        </button>
+      </div>
+      <div id="saveError" class="alert alert-danger mt-3 d-none"></div>
+      <div id="saveSuccess" class="alert alert-success mt-3 d-none"></div>
+    </div>
+  </div>
+</div>
+
+{% if not teacher_upload %}
+<div class="modal fade" id="subjectModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('resources.add_subject') }}">
+        <div class="modal-header bg-info text-white"><h5 class="modal-title">添加学科</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="关闭"></button></div>
+        <div class="modal-body"><input type="text" class="form-control" name="name" required placeholder="学科名称"></div>
+        <div class="modal-footer"><button type="submit" class="btn btn-info">添加</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<script>
+// 全选/取消全选某一列（上传页使用）
+function toggleColumn(masterCb, selector) {
+  document.querySelectorAll(selector).forEach(function(cb) {
+    cb.checked = masterCb.checked;
+    cb.dispatchEvent(new Event('change', {bubbles: true}));
+  });
+}
+var currentXHR = null;
+var uploadedFiles = [];
+// "删除选中"按钮移除的文件名（分块文件已落盘，保存时随 delete_files 真删）
+var removedFiles = [];
+var uploadDir = '';
+var uploadTitle = '';
+var isUploading = false;
+var uploadCancelled = false;
+
+// 分块上传配置
+var CHUNK_SIZE = 5 * 1024 * 1024; // 5MB per chunk
+var MAX_CONCURRENT_UPLOADS = 3; // 最多3个并发
+// 与后端 resources.py 的 _RESOURCE_REJECT_EXTS 保持一致
+var REJECT_EXTS = ['exe', 'bat', 'cmd', 'com', 'msi', 'msix', 'scr',
+                   'vbs', 'ps1', 'dll', 'so', 'sh', 'pyc', 'jar'];
+
+function uploadPathOf(file) {
+  return file.webkitRelativePath || file.name;
+}
+
+function fileExtOf(path) {
+  var name = (path || '').split('/').pop();
+  var dot = name.lastIndexOf('.');
+  return dot >= 0 ? name.slice(dot + 1).toLowerCase() : '';
+}
+
+document.addEventListener('DOMContentLoaded',function(){
+  var upForm=document.getElementById('uploadForm');
+  var progBar=document.querySelector('#uploadProgress .progress-bar');
+  var progDiv=document.getElementById('uploadProgress');
+  var errDiv=document.getElementById('uploadError');
+  var cancelBtn=document.getElementById('cancelBtn');
+  var fileInput=document.getElementById('file');
+  var folderInput=document.getElementById('folderInput');
+  var settingsPanel=document.getElementById('settingsPanel');
+  var fileTableBody=document.getElementById('fileTableBody');
+  var saveBtn=document.getElementById('saveResourceBtn');
+  var deleteBtn=document.getElementById('deleteSelectedBtn');
+  var reuploadBtn=document.getElementById('reuploadBtn');
+  var saveErr=document.getElementById('saveError');
+  var saveOk=document.getElementById('saveSuccess');
+
+  function cancelUpload(){
+    uploadCancelled = true;
+    if(currentXHR){currentXHR.abort();currentXHR=null;}
+    progDiv.classList.add('d-none');cancelBtn.classList.add('d-none');
+    errDiv.classList.add('d-none');
+    isUploading = false;
+  }
+  // 按钮通过 onclick="cancelUpload()" 调用：函数定义在 DOMContentLoaded
+  // 内部时不在全局作用域 → ReferenceError，取消上传按钮失效（此前缺陷）
+  window.cancelUpload = cancelUpload;
+
+  // 稳定上传ID：由标题、子目录、路径与文件信息生成（断点续传复用任务目录）。
+  // 同名文件内容更新时不再混用旧分块（服务端 TTL 24h 保留）
+  function makeUploadId(title, path) {
+    var s = title + '|' + path;
+    var h = 0;
+    for (var i = 0; i < s.length; i++) {
+      h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+    }
+    return (h >>> 0).toString(36) + '_' + s.length.toString(36);
+  }
+
+  // 上传单个文件的分块（支持断点续传：先查询已接收块，跳过续传）
+  function uploadFileInChunks(file, title, subfolder, quizMode, onChunkProgress) {
+    return new Promise(function(resolve, reject) {
+      var path = uploadPathOf(file);
+      var uploadId = makeUploadId(title,
+        [subfolder, path, file.size, file.lastModified].join('|'));
+      // 空文件也发送一个空分块，不能跳过请求后把不存在的文件列为成功。
+      var totalChunks = Math.max(1, Math.ceil(file.size / CHUNK_SIZE));
+      var chunkIndex = 0;
+      var recoveryAttempts = 0;
+
+      function completeUpload(response) {
+        if (typeof response.filename !== 'string' || !response.filename) {
+          reject(new Error('服务器未返回已完成文件的路径，请刷新页面后重试'));
+          return;
+        }
+        resolve(response.filename);
+      }
+
+      function uploadNextChunk() {
+        if (uploadCancelled) {
+          reject(new Error('上传已取消'));
+          return;
+        }
+
+        if (chunkIndex >= totalChunks) return;
+
+        var start = chunkIndex * CHUNK_SIZE;
+        var end = Math.min(start + CHUNK_SIZE, file.size);
+        var chunk = file.slice(start, end);
+
+        var fd = new FormData();
+        fd.append('chunk', chunk);
+        fd.append('chunk_index', chunkIndex.toString());
+        fd.append('total_chunks', totalChunks.toString());
+        fd.append('filename', path);
+        fd.append('upload_id', uploadId);
+        fd.append('title', title);
+        fd.append('subfolder', subfolder);
+        fd.append('quiz_mode', quizMode || 'inject');
+        if (window.getCsrfToken) fd.append('csrf_token', window.getCsrfToken());
+
+        var xhr = new XMLHttpRequest();
+        currentXHR = xhr;
+        xhr.open('POST', '/admin/resources/chunk_upload', true);
+        xhr.timeout = 300000; // 5 分钟超时
+
+        // 块级进度：更新当前文件的分块上传进度文本
+        if (onChunkProgress) {
+          xhr.upload.onprogress = function(e) {
+            if (e.lengthComputable) {
+              var doneBytes = chunkIndex * CHUNK_SIZE + e.loaded;
+              onChunkProgress(doneBytes, file.size, chunkIndex, totalChunks);
+            }
+          };
+        }
+
+        xhr.onload = function() {
+          var response = null;
+          try { response = JSON.parse(xhr.responseText); } catch (e) { /* 非 JSON 响应 */ }
+          if (uploadCancelled) { reject(new Error('上传已取消')); return; }
+          if (xhr.status >= 200 && xhr.status < 300 && response && response.success) {
+            if (response.is_complete === true) {
+              completeUpload(response);
+              return;
+            }
+            chunkIndex++;
+            if (chunkIndex >= totalChunks) {
+              // 最后一块收到不代表文件已合并：续传期间旧块可能已失效。
+              // 重新查询并补传缺块，不能把 undefined filename 传给设置表格。
+              if (recoveryAttempts++ >= 2) {
+                reject(new Error('文件分块尚未合并完成，请重试上传'));
+              } else {
+                queryStatus();
+              }
+            } else {
+              setTimeout(uploadNextChunk, 50);
+            }
+          } else {
+            // 服务端 400/413 等错误也带 JSON msg（如具体文件名），
+            // 不能只显示 "HTTP 400" 让用户不知道是哪个文件
+            reject(new Error((response && (response.msg || response.message)) ||
+                             ('HTTP ' + xhr.status)));
+          }
+        };
+
+        xhr.onerror = function() {
+          reject(new Error('网络错误'));
+        };
+
+        xhr.ontimeout = function() {
+          reject(new Error('请求超时'));
+        };
+        xhr.onabort = function() { reject(new Error('上传已取消')); };
+
+        xhr.send(fd);
+      }
+
+      // 初次上传及合并未完成时共用状态查询；返回路径以服务端为准（含子目录）。
+      function queryStatus() {
+        if (uploadCancelled) { reject(new Error('上传已取消')); return; }
+        var statusXhr = new XMLHttpRequest();
+        currentXHR = statusXhr;
+        statusXhr.open('GET',
+          '/admin/resources/chunk_status?upload_id=' + encodeURIComponent(uploadId) +
+          '&filename=' + encodeURIComponent(path) +
+          '&title=' + encodeURIComponent(title) +
+          '&subfolder=' + encodeURIComponent(subfolder || '') +
+          '&total_chunks=' + totalChunks, true);
+        statusXhr.timeout = 30000;
+        statusXhr.onload = function() {
+          if (uploadCancelled) { reject(new Error('上传已取消')); return; }
+          chunkIndex = 0;
+          var resp = null;
+          try { resp = JSON.parse(statusXhr.responseText); } catch (e) { /* 从头传 */ }
+          if (statusXhr.status >= 200 && statusXhr.status < 300 && resp && resp.success) {
+            if (resp.merged) {
+              completeUpload(resp);
+              return;
+            }
+            if (Array.isArray(resp.received)) {
+              var receivedSet = {};
+              resp.received.forEach(function(i) { receivedSet[i] = true; });
+              while (chunkIndex < totalChunks && receivedSet[chunkIndex]) chunkIndex++;
+              // 全部块收到但未合并：重传最后一块触发合并。
+              if (chunkIndex >= totalChunks) chunkIndex = totalChunks - 1;
+            }
+          }
+          uploadNextChunk();
+        };
+        statusXhr.onerror = statusXhr.ontimeout = function() {
+          if (recoveryAttempts) {
+            reject(new Error('无法确认文件合并状态，请重试上传'));
+          } else {
+            chunkIndex = 0;
+            uploadNextChunk();
+          }
+        };
+        statusXhr.onabort = function() { reject(new Error('上传已取消')); };
+        statusXhr.send();
+      }
+      queryStatus();
+    });
+  }
+
+  // 并发控制上传
+  async function uploadWithConcurrency(files, title, subfolder, quizMode, onProgress, onFileProgress) {
+    var results = [];
+    var currentIndex = 0;
+    var totalFiles = files.length;
+    var completedFiles = 0;
+
+    async function uploadNext() {
+      while (currentIndex < totalFiles && !uploadCancelled) {
+        var fileIndex = currentIndex++;
+        var file = files[fileIndex];
+        try {
+          var result = await uploadFileInChunks(file, title, subfolder, quizMode,
+            function(doneBytes, totalBytes, chunkIdx, totalChunks) {
+              if (onFileProgress) {
+                onFileProgress(file.name, doneBytes, totalBytes, chunkIdx, totalChunks);
+              }
+            });
+          results[fileIndex] = result;
+          completedFiles++;
+          if (onProgress) {
+            onProgress(completedFiles, totalFiles);
+          }
+        } catch (error) {
+          console.error('文件上传失败:', file.name, error.message);
+          throw new Error('文件 "' + uploadPathOf(file) + '" 上传失败: ' + error.message);
+        }
+      }
+    }
+
+    // 创建并发任务
+    var workers = [];
+    for (var i = 0; i < Math.min(MAX_CONCURRENT_UPLOADS, totalFiles); i++) {
+      workers.push(uploadNext());
+    }
+
+    await Promise.all(workers);
+    return results;
+  }
+
+  function renderFileTable(files){
+    fileTableBody.innerHTML='';
+    files.forEach(function(f,i){
+      var isWeb=f.match(/\.(html?|php|asp|jsp)$/i);
+      var isFirst=(i===0);
+      var tr=document.createElement('tr');
+      tr.innerHTML=
+        '<td><i class="fas fa-file me-2 text-muted"></i>'+escapeHtml(f)+'</td>'+
+        '<td class="text-center"><input type="radio" name="homepage" value="'+escapeHtml(f)+'" class="homepage-radio" title="设为主页"'+(isFirst?' checked':'')+'></td>'+
+        '<td class="text-center"><input type="checkbox" class="homework-cb" data-file="'+escapeHtml(f)+'" title="设为作业"></td>'+
+        '<td class="text-center"><input type="checkbox" class="show-cb" data-file="'+escapeHtml(f)+'" '+(isFirst?'checked disabled':'checked')+' title="学生端可见"></td>'+
+        '<td class="text-center"><input type="checkbox" class="download-cb" data-file="'+escapeHtml(f)+'" title="学生端可下载" '+(isWeb?'':'checked')+'></td>'+
+        '<td class="text-center">'+(isWeb?'<input type="checkbox" class="inject-cb" data-file="'+escapeHtml(f)+'" title="注入答题采集脚本" checked>':'<span class="text-muted">—</span>')+'</td>'+
+        '<td class="text-center"><input type="checkbox" class="delete-cb" data-file="'+escapeHtml(f)+'" title="勾选以删除"></td>';
+      fileTableBody.appendChild(tr);
+    });
+    // homework toggle → auto check show/download and disable them
+    fileTableBody.querySelectorAll('.homework-cb').forEach(function(cb){
+      cb.addEventListener('change',function(){
+        var row=this.closest('tr');
+        var showCb=row.querySelector('.show-cb');
+        var downCb=row.querySelector('.download-cb');
+        if(this.checked){
+          showCb.checked=true;showCb.disabled=true;
+          downCb.checked=true;downCb.disabled=true;
+        }else{
+          var isHomepage=row.querySelector('.homepage-radio').checked;
+          showCb.checked=true;
+          showCb.disabled=isHomepage;
+          downCb.disabled=false;
+          downCb.checked=!row.querySelector('td').textContent.match(/\.(html?|php|asp|jsp)$/i);
+        }
+      });
+    });
+    // homepage radio → force show checked+disabled, download stays editable
+    fileTableBody.querySelectorAll('.homepage-radio').forEach(function(rd){
+      rd.addEventListener('change',function(){
+        var row=this.closest('tr');
+        var showCb=row.querySelector('.show-cb');
+        var downCb=row.querySelector('.download-cb');
+        var hwCb=row.querySelector('.homework-cb');
+        showCb.checked=true;showCb.disabled=true;
+        downCb.disabled=false;
+        if(hwCb.checked){hwCb.checked=false;}
+      });
+      // Also handle the initially-checked homepage radio
+      if(rd.checked){
+        var row=rd.closest('tr');
+        row.querySelector('.show-cb').checked=true;
+        row.querySelector('.show-cb').disabled=true;
+        row.querySelector('.download-cb').disabled=false;
+      }
+    });
+    // 重置表头全选复选框
+    ['selectAllHomework','selectAllShow','selectAllDownload','selectAllInject','selectAllDelete'].forEach(function(id){
+      var cb = document.getElementById(id);
+      if (cb) cb.checked = false;
+    });
+  }
+
+  function getFileSettings(){
+    var settings=[];
+    var rows=fileTableBody.querySelectorAll('tr');
+    rows.forEach(function(row){
+      var isHomepage=row.querySelector('.homepage-radio').checked;
+      var isHomework=row.querySelector('.homework-cb').checked;
+      var show=row.querySelector('.show-cb').checked;
+      var download=row.querySelector('.download-cb').checked;
+      var injectEl=row.querySelector('.inject-cb');
+      var inject=injectEl?injectEl.checked:false;
+      var toDelete=row.querySelector('.delete-cb').checked;
+      var filename=row.querySelector('.homework-cb').dataset.file;
+      settings.push({file:filename, homepage:isHomepage, homework:isHomework, show:show, download:download, inject:inject, delete:toDelete});
+    });
+    return settings;
+  }
+
+  upForm.addEventListener('submit',function(e){
+    e.preventDefault();
+    if (isUploading) return;
+
+    var title=document.getElementById('title').value.trim();
+    var files=fileInput.files;
+    var folderFiles=folderInput.files;
+    var allFiles=folderFiles.length>0?folderFiles:files;
+    if(!title){showErr('请输入资源标题');return;}
+    if(allFiles.length===0){showErr('请选择文件或文件夹');return;}
+
+    // 上传前先检查整个文件夹：混入 exe/bat 等禁止类型时立即列出具体文件，
+    // 而不是把其余内容传完（进度 99%）才在最后一块合并时失败。
+    var rejected = [];
+    Array.prototype.forEach.call(allFiles, function(f) {
+      var path = uploadPathOf(f);
+      if (REJECT_EXTS.indexOf(fileExtOf(path)) !== -1) rejected.push(path);
+    });
+    if (rejected.length) {
+      var shown = rejected.slice(0, 8).join('、');
+      if (rejected.length > 8) shown += ' 等 ' + rejected.length + ' 个文件';
+      showErr('所选文件/文件夹中包含不允许上传的可执行/脚本文件：' + shown +
+              '。请移除这些文件后重试。');
+      return;
+    }
+
+    var subfolder=document.getElementById('subfolder').value.trim();
+    isUploading = true;
+    uploadCancelled = false;
+    uploadedFiles = [];
+
+    progDiv.classList.remove('d-none');errDiv.classList.add('d-none');saveOk.classList.add('d-none');saveErr.classList.add('d-none');
+    cancelBtn.classList.remove('d-none');
+    progBar.style.width='0%';
+    progBar.textContent='0%';
+
+    var totalFiles = allFiles.length;
+    var completedFiles = 0;
+    var quizMode = document.querySelector('input[name="quiz_mode"]:checked').value;
+
+    var fileDetailEl = document.getElementById('uploadDetail');
+    if (fileDetailEl) fileDetailEl.textContent = '';
+    uploadWithConcurrency(allFiles, title, subfolder, quizMode,
+      function(completed, total) {
+        var pct = Math.round(completed / total * 100);
+        progBar.style.width = pct + '%';
+        progBar.textContent = pct + '% (' + completed + '/' + total + ')';
+      },
+      function(fname, doneBytes, totalBytes, chunkIdx, totalChunks) {
+        // 当前文件块级进度（大文件 5MB/块上传时显示）
+        var el = document.getElementById('uploadDetail');
+        if (!el) return;
+        var pct = totalBytes ? Math.round(doneBytes / totalBytes * 100) : 0;
+        var mb = Math.round(totalBytes / 1048576);
+        el.textContent = '上传中：' + fname + '（' + mb + 'MB，块 ' +
+          (chunkIdx + 1) + '/' + totalChunks + '，' + pct + '%）';
+      }
+    ).then(function(results) {
+      isUploading = false;
+      currentXHR = null;
+      cancelBtn.classList.add('d-none');
+      if (!uploadCancelled) {
+        progDiv.classList.add('d-none');
+        uploadedFiles = results;
+        // 目录名使用安全处理（与后端一致），文件名保持原样
+        uploadDir = title.replace(/[\/\\]/g, '_')
+          .replace(/ /g, '_').replace(/[^a-zA-Z0-9_一-鿯぀-ゟ゠-ヿ.-]/g, '');
+        var _baseName = uploadDir.split('.')[0].toUpperCase();
+        if (/^(CON|AUX|PRN|NUL|COM[1-9]|LPT[1-9])$/.test(_baseName)) uploadDir = '_' + uploadDir;
+        uploadTitle = title;
+        document.getElementById('filesCount').textContent = uploadedFiles.length + ' 个文件';
+        // 使用服务器返回的实际文件名渲染表格
+        renderFileTable(uploadedFiles);
+        settingsPanel.classList.remove('d-none');
+        upForm.querySelector('button[type="submit"]').disabled = true;
+      }
+    }).catch(function(error) {
+      isUploading = false;
+      currentXHR = null;
+      cancelBtn.classList.add('d-none');
+      progDiv.classList.add('d-none');
+      if (!uploadCancelled) {
+        showErr('上传失败: ' + error.message);
+      }
+    });
+  });
+
+  // 保存资源
+  saveBtn.addEventListener('click',function(){
+    var settings=getFileSettings();
+    var toDelete=settings.filter(function(s){return s.delete;}).map(function(s){return s.file;});
+    // 合并"删除选中"按钮移除的文件（removedFiles 记录其文件名）：
+    // 分块上传的文件已直接落盘，仅移除表格行不会删除磁盘文件——
+    // 必须随保存请求下发 delete_files 才能真删（此前缺陷）
+    toDelete=toDelete.concat(removedFiles);
+    var keep=settings.filter(function(s){return s.delete!==true;});
+    if(keep.length===0 && toDelete.length>0){
+      saveErr.innerHTML='<i class="fas fa-exclamation-circle me-1"></i>至少保留一个文件';
+      saveErr.classList.remove('d-none');return;
+    }
+    var payload={
+      title:uploadTitle,
+      directory:uploadDir,
+      subject_id:document.getElementById('subjectId').value,
+      homepage:keep.filter(function(s){return s.homepage;}).map(function(s){return s.file;})[0]||'',
+      homework:keep.filter(function(s){return s.homework;}).map(function(s){return s.file;}),
+      inject_files:keep.filter(function(s){return s.inject;}).map(function(s){return s.file;}),
+      permissions:{},
+      delete_files:toDelete,
+      show_in_student:document.getElementById('showInStudent').checked,
+      show_in_classroom:document.getElementById('showInClassroom').checked,
+      allow_related_files:document.getElementById('allowRelatedFiles').checked,
+      quiz_mode:document.querySelector('input[name="quiz_mode"]:checked').value
+    };
+    keep.forEach(function(s){
+      if(!s.homework){
+        payload.permissions[s.file]={show:s.show,download:s.download};
+      }
+    });
+    saveBtn.disabled=true;saveBtn.innerHTML='<i class="fas fa-spinner fa-spin me-1"></i>保存中...';
+    fetch('/admin/resources/save_with_settings',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
+    }).then(function(r){return r.json();})
+    .then(function(d){
+      saveBtn.disabled=false;saveBtn.innerHTML='<i class="fas fa-check me-1"></i>保存资源';
+      if(d.success){
+        setIconMessage(saveOk, 'fas fa-check-circle me-1', d.msg);
+        saveOk.classList.remove('d-none');saveErr.classList.add('d-none');
+        if(d.redirect) setTimeout(function(){window.location.href=d.redirect;},1500);
+      }else{
+        setIconMessage(saveErr, 'fas fa-exclamation-circle me-1', d.msg);
+        saveErr.classList.remove('d-none');
+      }
+    }).catch(function(){
+      saveBtn.disabled=false;saveBtn.innerHTML='<i class="fas fa-check me-1"></i>保存资源';
+      saveErr.innerHTML='<i class="fas fa-exclamation-circle me-1"></i>网络错误';
+      saveErr.classList.remove('d-none');
+    });
+  });
+
+  // 删除选中文件
+  deleteBtn.addEventListener('click',function(){
+    var checked=fileTableBody.querySelectorAll('.delete-cb:checked');
+    if(checked.length===0){alert('请先勾选要删除的文件');return;}
+    if(!confirm('确定删除选中的 '+checked.length+' 个文件？此操作不可恢复。')) return;
+    checked.forEach(function(cb){
+      // 记录文件名（保存时随 delete_files 下发真正删除磁盘文件）
+      var row=cb.closest('tr');
+      var fname=row.querySelector('.homework-cb').dataset.file;
+      if(fname) removedFiles.push(fname);
+      row.remove();
+    });
+    var remaining=fileTableBody.querySelectorAll('tr');
+    document.getElementById('filesCount').textContent=remaining.length+' 个文件';
+    if(remaining.length===0){
+      settingsPanel.classList.add('d-none');
+      upForm.querySelector('button[type="submit"]').disabled=false;
+    }
+  });
+
+  // 重新上传
+  reuploadBtn.addEventListener('click',function(){
+    settingsPanel.classList.add('d-none');
+    upForm.querySelector('button[type="submit"]').disabled=false;
+    uploadedFiles=[];uploadDir='';uploadTitle='';
+    // 重置删除清单：否则上一轮"删除选中"的文件名会随下次保存真删
+    // 同名的新上传文件（此前缺陷）
+    removedFiles=[];
+  });
+
+  function setIconMessage(el, iconClass, msg){
+    el.textContent = '';
+    var icon = document.createElement('i');
+    icon.className = iconClass;
+    el.appendChild(icon);
+    el.appendChild(document.createTextNode(msg || ''));
+  }
+  function showErr(msg){setIconMessage(errDiv, 'fas fa-exclamation-circle me-1', msg);errDiv.classList.remove('d-none');cancelBtn.classList.add('d-none');}
+  function escapeHtml(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+});
+</script>
+{% endblock %}

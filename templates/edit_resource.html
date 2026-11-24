@@ -1,0 +1,510 @@
+{% extends 'base.html' %}
+{% block title %}编辑资源{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h3 class="mb-4"><i class="fas fa-edit text-primary me-2"></i>编辑资源</h3>
+  <div class="row">
+    <div class="col-md-6">
+      <div class="card shadow-sm mb-3">
+        <div class="card-body">
+          <form method="post" id="editForm">
+            <div class="mb-3">
+              <label class="form-label">资源标题</label>
+              <input type="text" name="title" class="form-control rounded-pill" value="{{ res.title }}" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">所属学科</label>
+              <select class="form-select rounded-pill" name="subject_id">
+                <option value="">未分类</option>
+                {% for s in subjects %}
+                <option value="{{ s.id }}" {% if res.subject_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">创建者</label>
+              <input type="text" class="form-control rounded-pill" disabled
+                     value="{{ res.creator_name or ('管理员' if res.creator_type != 'teacher' else '教师') }}">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">资源可见性</label>
+              <div>
+                <label class="form-check form-check-inline">
+                  <input type="checkbox" class="form-check-input" name="show_in_student" value="1" {% if res.show_in_student %}checked{% endif %}> <i class="fas fa-user-graduate me-1"></i>学生端可见
+                </label>
+                <label class="form-check form-check-inline">
+                  <input type="checkbox" class="form-check-input" name="show_in_classroom" value="1" {% if res.show_in_classroom %}checked{% endif %}> <i class="fas fa-chalkboard-teacher me-1"></i>教师端可见
+                </label>
+              </div>
+              <small class="text-muted">均不勾选则仅后台可见</small>
+            </div>
+            {% if session.get('is_admin') and not res.is_builtin %}
+            <div class="mb-3">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="is_public" value="1" id="isPublic"
+                       {% if res.is_public %}checked{% endif %}>
+                <label class="form-check-label" for="isPublic">
+                  <i class="fas fa-globe me-1"></i>公开资源（全体教师课堂可见可用）
+                </label>
+              </div>
+              <small class="text-muted">公开资源无需逐位教师共享；教师可课堂使用但不可编辑，仅管理员可修改资源本身。</small>
+            </div>
+            {% elif session.get('is_admin') and res.is_builtin %}
+            <div class="alert alert-info py-2 small mb-0">
+              <i class="fas fa-user-check me-1"></i>
+              内置资源的课堂呈现由「课堂授权范围（年级 × 学科）」管理，见右侧授权卡片；课件内容随版本升级维护。
+            </div>
+            {% endif %}
+            {% if res.url and res.url.startswith('/static/uploads/') %}
+            <div class="mb-3">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="allow_related_files" value="1" id="allowRelatedFiles"
+                       {% if res.allow_related_files %}checked{% endif %}>
+                <label class="form-check-label" for="allowRelatedFiles">
+                  <i class="fas fa-link me-1"></i>允许打开页面相关链接
+                </label>
+              </div>
+              <small class="text-muted">
+                勾选后，学生仍只看到上方“展示”的文件；但同资源目录内未勾选“展示”的页面与依赖文件也可通过链接/直链读取（请勿把答案等敏感文件放在该资源目录）。
+              </small>
+            </div>
+            {% endif %}
+            <div class="mb-3">
+              <label class="form-label">答题数据采集</label>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="quiz_mode" id="quizInject" value="inject" {% if res.quiz_mode != 'runtime' and res.quiz_mode != 'none' %}checked{% endif %} form="editForm">
+                <label class="form-check-label" for="quizInject"><strong>注入采集</strong>（保存后检测，通过才应用）</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="quiz_mode" id="quizNone" value="none" {% if res.quiz_mode == 'none' or res.quiz_mode == 'runtime' %}checked{% endif %} form="editForm">
+                <label class="form-check-label" for="quizNone"><strong>不采集</strong></label>
+              </div>
+              <!-- 运行时注入已移除（sandbox 隔离下不可用），存量 runtime 资源按不采集显示 -->
+              {% if res.quiz_mode == 'inject' and res.url and res.url.startswith('/static/uploads/') %}
+              {% set revert_endpoint = 'resources.revert_resource_injection' if session.get('is_admin') else 'resources.teacher_revert_resource_injection' %}
+              <div class="mt-2 d-flex flex-wrap gap-1">
+                <a href="{{ url_for('resources.resource_quiz_check', res_id=res.id) }}" class="btn btn-sm btn-outline-primary rounded-pill">
+                  <i class="fas fa-vial me-1"></i>打开注入检测
+                  {% if res.quiz_inject_state == 'pending' %}<span class="badge bg-warning text-dark ms-1">待检测</span>{% endif %}
+                </a>
+                {% if res.injected %}
+                <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill"
+                        data-revert-url="{{ url_for(revert_endpoint, res_id=res.id) }}"
+                        onclick="revertInjection(this)" title="从 .bak 备份还原注入前的 HTML 文件">
+                  <i class="fas fa-undo me-1"></i>撤销注入
+                </button>
+                {% endif %}
+              </div>
+              {% endif %}
+            </div>
+            <button type="submit" class="btn btn-primary w-100 rounded-pill">保存修改</button>
+          </form>
+          <a href="{{ url_for('resources.teacher_resource_library') if session.get('is_teacher') and not session.get('is_admin') else url_for('resources.admin_resources') }}" class="btn btn-link mt-3"><i class="fas fa-arrow-left"></i> 返回</a>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      {% if audience_scope %}
+      <div class="card shadow-sm mb-3" id="audienceCard">
+        <div class="card-header"><strong><i class="fas fa-user-check me-1"></i>课堂授权范围（年级 × 学科）</strong></div>
+        <div class="card-body">
+          <div class="small text-muted mb-2">
+            当前：<strong>{{ audience_scope.summary }}</strong>。
+            交集语义：教师年级与任教学科需同时命中；「不限」表示该维度不限制。
+          </div>
+          <form method="post" action="{{ url_for('resources.admin_resource_audience', res_id=res.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="form-check mb-1">
+              <input class="form-check-input" type="checkbox" name="all_grades" value="1" id="audAllGrades"
+                     {% if audience_scope.all_grades %}checked{% endif %}>
+              <label class="form-check-label" for="audAllGrades">不限年级（全体年级可用）</label>
+            </div>
+            <select multiple class="form-select form-select-sm mb-3" name="grades" size="5" id="audGrades"
+                    {% if audience_scope.all_grades %}disabled{% endif %}>
+              {% for g in audience_grade_options %}
+              <option value="{{ g }}" {% if g in audience_scope.grades %}selected{% endif %}>{{ g }}</option>
+              {% endfor %}
+            </select>
+            <div class="form-check mb-1">
+              <input class="form-check-input" type="checkbox" name="all_subjects" value="1" id="audAllSubjects"
+                     {% if audience_scope.all_subjects %}checked{% endif %}>
+              <label class="form-check-label" for="audAllSubjects">不限学科（全体学科可用）</label>
+            </div>
+            <select multiple class="form-select form-select-sm mb-3" name="subject_ids" size="5" id="audSubjects"
+                    {% if audience_scope.all_subjects %}disabled{% endif %}>
+              {% for s in audience_subjects %}
+              <option value="{{ s.id }}" {% if s.id in audience_scope.subject_ids %}selected{% endif %}>{{ s.name }}</option>
+              {% endfor %}
+            </select>
+            <button class="btn btn-primary btn-sm rounded-pill"><i class="fas fa-save me-1"></i>保存授权范围</button>
+          </form>
+          <div class="small text-muted mt-2">授权变更立即生效；学生端随任课教师范围展示。</div>
+        </div>
+      </div>
+      <script>
+        (function () {
+          var ag = document.getElementById('audAllGrades');
+          var g = document.getElementById('audGrades');
+          var as = document.getElementById('audAllSubjects');
+          var s = document.getElementById('audSubjects');
+          if (ag && g) ag.addEventListener('change', function () { g.disabled = ag.checked; });
+          if (as && s) as.addEventListener('change', function () { s.disabled = as.checked; });
+        })();
+      </script>
+      {% endif %}
+      {% if res.url and res.url.startswith('/chem-lab') %}
+      <div class="card shadow-sm">
+        <div class="card-header"><strong><i class="fas fa-flask-vial me-1"></i>资源内容</strong></div>
+        <div class="card-body">
+          <div class="alert alert-info mb-0">
+            <i class="fas fa-info-circle me-1"></i>
+            该资源为系统内置的<strong>化学仿真工作台</strong>（2D 结构绘制、
+            在线/预置检索、3D 分子查看与可视化化学模型），内容随系统版本维护，
+            无需上传文件。教师与学生可直接在资源页点击「打开化学仿真」进入；
+            本页仅维护名称、学科、可见性与公开属性。
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="card shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <strong><i class="fas fa-folder-open me-1"></i>文件设置 ({{ files|length }})</strong>
+        </div>
+        <div class="card-body" style="max-height:500px;overflow-y:auto;">
+          {% if files %}
+          <div class="alert alert-info small mb-2 py-2">
+            <i class="fas fa-info-circle me-1"></i>设置文件属性后点击下方"保存修改"按钮。主页文件固定展示，作业文件固定展示/下载；注入备份 .bak 不显示、不参与属性设置。
+          </div>
+          <table class="table table-sm align-middle mb-0">
+            <thead class="table-light"><tr><th>文件名</th><th style="width:50px;">主页</th><th style="width:48px;"><input type="checkbox" onclick="toggleAll(this, '.homework-cb')" title="全选/取消"> 作业</th><th style="width:42px;"><input type="checkbox" onclick="toggleAll(this, '.show-cb:not([disabled])')" title="全选/取消"> 展示</th><th style="width:42px;"><input type="checkbox" onclick="toggleAll(this, '.download-cb:not([disabled])')" title="全选/取消"> 下载</th><th style="width:42px;"><input type="checkbox" onclick="toggleAll(this, '.inject-cb')" title="全选/取消HTML文件"> 采集</th><th style="width:42px;"><input type="checkbox" onclick="toggleAll(this, '.delete-cb')" title="全选/取消"> 删除</th></tr></thead>
+            <tbody>
+              {% for f in files %}
+              <tr>
+                <td><small><i class="fas fa-file me-1 text-muted"></i>{{ f.name }}</small></td>
+                <td class="text-center">
+                  <input type="radio" name="homepage" value="{{ f.name }}" class="homepage-radio" {% if f.is_homepage %}checked{% endif %} form="editForm">
+                </td>
+                <td class="text-center">
+                  <input type="checkbox" name="homework_files" value="{{ f.name }}" class="homework-cb" {% if f.is_homework %}checked{% endif %} form="editForm">
+                </td>
+                <td class="text-center">
+                  <input type="checkbox" name="perm_show_{{ f.name }}" value="1" class="show-cb" {% if f.is_homepage or f.is_homework or f.can_show %}checked{% endif %} {% if f.is_homepage or f.is_homework %}disabled{% endif %} title="{% if f.is_homepage %}主页文件固定展示{% elif f.is_homework %}作业文件固定展示{% else %}学生端是否展示{% endif %}" form="editForm">
+                </td>
+                <td class="text-center">
+                  <input type="checkbox" name="perm_download_{{ f.name }}" value="1" class="download-cb" {% if f.is_homework or f.can_download %}checked{% endif %} {% if f.is_homework %}disabled{% endif %} title="{% if f.is_homework %}作业文件固定允许下载{% else %}学生端是否允许下载{% endif %}" form="editForm">
+                </td>
+                <td class="text-center">
+                  {% if f.name.lower().endswith(('.html', '.htm')) %}
+                  <input type="checkbox" name="inject_files" value="{{ f.name }}" class="inject-cb" {% if f.has_collector or f.queued %}checked{% endif %} title="加入注入检测" form="editForm">
+                  {% else %}
+                  <span class="text-muted">—</span>
+                  {% endif %}
+                </td>
+                <td class="text-center">
+                  <input type="checkbox" name="delete_files" value="{{ f.name }}" class="delete-cb" form="editForm">
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% elif res.url and (res.url.startswith('http://') or res.url.startswith('https://')) %}
+          <div class="p-3 bg-light rounded">
+            <i class="fas fa-globe text-info me-2"></i>外链资源
+            <div class="mb-2 mt-2">
+              <label class="form-label small">链接URL</label>
+              <input type="text" name="url" class="form-control form-control-sm" value="{{ res.url }}" form="editForm">
+            </div>
+          </div>
+          {% else %}
+          <small class="text-muted">无文件</small>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+      <div class="card shadow-sm mt-3">
+        <div class="card-header"><strong><i class="fas fa-user-friends me-1"></i>共享给其他教师（只读）</strong></div>
+        <div class="card-body">
+          {% if can_share %}
+          <form method="post" action="{{ url_for('resources.teacher_resource_share', res_id=res.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="small text-muted mb-2">被授权教师只能在课堂中只读使用本资源，不能编辑、删除或管理活动。</div>
+            <div class="row g-2 mb-2">
+              <div class="col-md-6">
+                <select class="form-select form-select-sm" id="shareGradeFilter">
+                  <option value="">全部年级</option>
+                  {% for g in shareable_grades %}<option value="{{ g }}">{{ g }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="col-md-6">
+                <select class="form-select form-select-sm" id="shareSubjectFilter">
+                  <option value="">全部学科</option>
+                  {% for s in subjects %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+                </select>
+              </div>
+            </div>
+            <div style="max-height:180px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:8px;padding:8px;">
+              {% for t in shareable_teachers %}
+              <label class="form-check small mb-1 share-teacher-choice"
+                     data-grade="{{ t.grade or '' }}"
+                     data-subjects="{% for s in t.subjects %}{{ s.id }}{% if not loop.last %},{% endif %}{% endfor %}">
+                <input class="form-check-input" type="checkbox" name="teacher_ids" value="{{ t.id }}"
+                       {% if t.id in shared_teacher_ids %}checked{% endif %}>
+                {{ t.display_name or t.username }}（{{ t.username }}）
+                {% if t.grade %}<span class="text-muted">· {{ t.grade }}</span>{% endif %}
+              </label>
+              {% else %}
+              <div class="text-muted small">暂无其他启用教师</div>
+              {% endfor %}
+            </div>
+            <button class="btn btn-sm btn-primary rounded-pill mt-2"><i class="fas fa-save me-1"></i>保存共享授权</button>
+          </form>
+          {% else %}
+          <div class="small text-muted">只有创建者或管理员可以修改共享授权。</div>
+          {% endif %}
+        </div>
+      </div>
+      {% if res.url and res.url.startswith('/static/uploads/') %}
+      <div class="card shadow-sm mt-3">
+        <div class="card-header"><strong><i class="fas fa-cloud-upload-alt me-1"></i>新增 / 替换资源文件</strong></div>
+        <div class="card-body">
+          <form id="resourceUploadForm" enctype="multipart/form-data">
+            <div class="mb-2">
+              <label class="form-label small mb-1">选择文件（可多选）</label>
+              <input type="file" class="form-control form-control-sm" name="files" multiple>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small mb-1">或选择整个文件夹</label>
+              <input type="file" class="form-control form-control-sm" name="folder"
+                     webkitdirectory directory multiple>
+            </div>
+            <div class="row g-2 align-items-end">
+              <div class="col-md-5">
+                <label class="form-label small mb-1">子目录（可选）</label>
+                <input type="text" class="form-control form-control-sm" name="subfolder"
+                       placeholder="例如：images">
+              </div>
+              <div class="col-md-4">
+                <label class="form-check small mb-1">
+                  <input type="checkbox" class="form-check-input" name="replace" value="1" checked>
+                  覆盖同名文件
+                </label>
+              </div>
+              <div class="col-md-3">
+                <button type="submit" class="btn btn-primary btn-sm w-100">
+                  <i class="fas fa-upload me-1"></i>上传 / 替换
+                </button>
+              </div>
+            </div>
+            <div id="resourceUploadMsg" class="small mt-2"></div>
+          </form>
+        </div>
+      </div>
+      {% endif %}
+      {% if res.url and res.url.startswith('/static/uploads/') %}
+      <div class="card shadow-sm mt-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <strong><i class="fas fa-sitemap me-1"></i>课堂编排</strong>
+          <span class="badge {% if not lesson_tree_is_default %}bg-success{% else %}bg-secondary{% endif %}" id="lessonTreeBadge">
+            {% if not lesson_tree_is_default %}已编排{% else %}默认编排（可编辑）{% endif %}
+          </span>
+        </div>
+        <div class="card-body">
+          <div class="d-flex gap-2 align-items-center flex-wrap">
+            <button type="button" class="btn btn-sm btn-primary" id="lessonEditorOpen"><i class="fas fa-edit me-1"></i>打开编排器</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="lessonTreeReset"><i class="fas fa-rotate-left me-1"></i>恢复默认</button>
+            <small class="text-muted">
+              {% if lesson_tree_is_default %}当前展示系统默认编排，添加章节/条目并保存后会转为自定义编排；{% endif %}
+              自定义课堂章节树（章节/分支/条目与角色可见性）；未编排时课堂页按文件自动生成
+            </small>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if res.url and res.url.startswith('/static/uploads/') %}
+<link rel="stylesheet" href="{{ versioned_static('css/lesson_editor.css') }}">
+<script>
+window.LESSON_EDITOR_DATA = {
+  resourceId: {{ res.id }},
+  currentFile: {{ current_file|tojson }},
+  activities: {{ lesson_activities|tojson }},
+  surveys: {{ lesson_surveys|tojson }},
+  tree: {{ lesson_tree|tojson }}
+};
+</script>
+<script src="{{ versioned_static('js/lesson_editor.js') }}"></script>
+{% endif %}
+<script>
+// 全选/取消全选某一列
+function toggleAll(masterCb, selector) {
+  document.querySelectorAll(selector).forEach(function(cb) {
+    cb.checked = masterCb.checked;
+    cb.dispatchEvent(new Event('change', {bubbles: true}));
+  });
+}
+// homework toggle → auto check show/download and disable them
+document.querySelectorAll('.homework-cb').forEach(function(cb){
+  cb.addEventListener('change',function(){
+    var row=this.closest('tr');
+    var showCb=row.querySelector('.show-cb');
+    var downCb=row.querySelector('.download-cb');
+    if(this.checked){
+      showCb.checked=true;showCb.disabled=true;
+      downCb.checked=true;downCb.disabled=true;
+    }else{
+      var isHomepage=row.querySelector('.homepage-radio').checked;
+      showCb.checked=true;
+      showCb.disabled=isHomepage;
+      downCb.disabled=false;
+    }
+  });
+});
+// homepage radio → force show checked+disabled, download stays editable
+document.querySelectorAll('.homepage-radio').forEach(function(rd){
+  rd.addEventListener('change',function(){
+    var row=this.closest('tr');
+    var showCb=row.querySelector('.show-cb');
+    var downCb=row.querySelector('.download-cb');
+    var hwCb=row.querySelector('.homework-cb');
+    showCb.checked=true;showCb.disabled=true;
+    downCb.disabled=false;
+    if(hwCb.checked){hwCb.checked=false;}
+  });
+});
+
+// 已上传资源：新增/替换文件或整个文件夹
+(function(){
+  var form=document.getElementById('resourceUploadForm');
+  if(!form) return;
+  // 与后端 resources.py 的 _RESOURCE_REJECT_EXTS 保持一致
+  var REJECT_EXTS = ['exe', 'bat', 'cmd', 'com', 'msi', 'msix', 'scr',
+                     'vbs', 'ps1', 'dll', 'so', 'sh', 'pyc', 'jar'];
+  function fileExtOf(path) {
+    var name = (path || '').split('/').pop();
+    var dot = name.lastIndexOf('.');
+    return dot >= 0 ? name.slice(dot + 1).toLowerCase() : '';
+  }
+  form.addEventListener('submit', async function(e){
+    e.preventDefault();
+    var msg=document.getElementById('resourceUploadMsg');
+    var btn=form.querySelector('button[type=submit]');
+    var files=form.querySelector('input[name=files]');
+    var folder=form.querySelector('input[name=folder]');
+    var picked=[];
+    Array.prototype.forEach.call(files.files || [], function(f){
+      picked.push({file:f, path:f.name});
+    });
+    Array.prototype.forEach.call(folder.files || [], function(f){
+      picked.push({file:f, path:f.webkitRelativePath || f.name});
+    });
+    if (!picked.length) {
+      msg.className='small mt-2 text-danger';
+      msg.textContent='请选择文件或文件夹';
+      return;
+    }
+    var rejected=picked.filter(function(x){
+      return REJECT_EXTS.indexOf(fileExtOf(x.path)) !== -1;
+    }).map(function(x){ return x.path; });
+    if (rejected.length) {
+      var shown=rejected.slice(0, 8).join('、');
+      if (rejected.length > 8) shown += ' 等 ' + rejected.length + ' 个文件';
+      msg.className='small mt-2 text-danger';
+      msg.textContent='所选文件/文件夹中包含不允许上传的可执行/脚本文件：' + shown +
+        '。请移除这些文件后重试。';
+      return;
+    }
+    var tooBig=picked.filter(function(x){ return x.file.size > 200*1024*1024; });
+    if (tooBig.length) {
+      msg.className='small mt-2 text-danger';
+      msg.textContent='单文件不能超过 200MB：' + tooBig.map(function(x){return x.path;}).join('、')
+        + '。大文件请使用“上传资源”页的分块上传。';
+      return;
+    }
+    btn.disabled=true;
+    var subfolder=form.querySelector('input[name=subfolder]').value;
+    var replace=form.querySelector('input[name=replace]').checked;
+    var okCount=0;
+    var needsCheck=false;
+    try {
+      for (var i=0; i<picked.length; i++) {
+        msg.className='small mt-2 text-muted';
+        msg.textContent='正在上传 ' + (i+1) + '/' + picked.length + '：' + picked[i].path;
+        var fd=new FormData();
+        fd.append('files', picked[i].file, picked[i].path);
+        fd.append('subfolder', subfolder);
+        fd.append('replace', replace ? '1' : '0');
+        var resp=await fetch('/admin/resources/{{ res.id }}/upload_files', {
+          method:'POST', body:fd, credentials:'same-origin',
+          headers:{'X-CSRFToken': window.CSRF_TOKEN || ''}
+        });
+        var raw=await resp.text();
+        var data;
+        try { data=JSON.parse(raw); } catch (e) { data={success:false, msg:'HTTP '+resp.status}; }
+        if (!resp.ok || !data.success) throw new Error(data.msg || ('HTTP '+resp.status));
+        if (data.needs_check) needsCheck=true;
+        okCount++;
+      }
+      msg.className='small mt-2 text-success';
+      msg.textContent='已保存 '+okCount+' 个文件，正在刷新...';
+      setTimeout(function(){
+        if (needsCheck) {
+          location.href='{{ url_for('resources.resource_quiz_check', res_id=res.id) }}';
+        } else {
+          location.reload();
+        }
+      }, 500);
+    } catch(err) {
+      msg.className='small mt-2 text-danger';
+      msg.textContent=(okCount ? '已保存 '+okCount+' 个，' : '') + (err.message || '上传失败');
+      btn.disabled=false;
+    }
+  });
+})();
+</script>
+<script>
+// 资源授权：先选年级/学科，再勾选对应教师
+(function () {
+  var grade = document.getElementById('shareGradeFilter');
+  var subject = document.getElementById('shareSubjectFilter');
+  if (!grade || !subject) return;
+  function applyFilter() {
+    var g = grade.value, sid = subject.value;
+    document.querySelectorAll('.share-teacher-choice').forEach(function (label) {
+      var subjects = (label.dataset.subjects || '').split(',');
+      var visible = (!g || label.dataset.grade === g) &&
+        (!sid || subjects.indexOf(sid) !== -1);
+      label.style.display = visible ? '' : 'none';
+    });
+  }
+  grade.addEventListener('change', applyFilter);
+  subject.addEventListener('change', applyFilter);
+  applyFilter();
+})();
+
+// 撤销采集器注入（教师创建者/管理员）
+function revertInjection(btn) {
+  var url = btn && btn.dataset ? btn.dataset.revertUrl : '';
+  if (!url) return;
+  if (!confirm('撤销采集器注入？将从 .bak 备份还原注入前的 HTML 文件（未注入过的不受影响）。')) return;
+  btn.disabled = true;
+  fetch(url, {method: 'POST', credentials: 'same-origin'})
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (d.success) {
+        alert(d.msg || '已还原');
+        location.reload();
+      } else {
+        alert(d.msg || '还原失败');
+        btn.disabled = false;
+      }
+    })
+    .catch(function () {
+      alert('网络错误，请重试');
+      btn.disabled = false;
+    });
+}
+</script>
+{% endblock %}

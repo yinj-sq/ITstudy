@@ -1,0 +1,301 @@
+{% extends 'base.html' %}
+{% block title %}教师账号{% endblock %}
+{% block content %}
+{% macro cb_dropdown(field, placeholder, name, options, single=False, selected=[]) -%}
+<div class="dropdown cb-dropdown" data-cb-dropdown data-single="{{ '1' if single else '0' }}"
+     data-field="{{ field }}" data-placeholder="{{ placeholder }}">
+  <button class="btn btn-outline-secondary dropdown-toggle w-100" type="button"
+          data-bs-toggle="dropdown" data-bs-auto-close="outside">
+    <span class="cb-label text-muted">{{ placeholder }}</span>
+  </button>
+  <div class="dropdown-menu w-100 p-2">
+    {% for opt in options %}
+    {% set val = opt.id if opt.id is defined else opt %}
+    {% set text = opt.name if opt.name is defined else opt %}
+    <label class="form-check d-block mb-1">
+      <input class="form-check-input cb-input" type="checkbox" name="{{ name }}"
+             value="{{ val }}" {% if val in selected %}checked{% endif %}>
+      <span class="form-check-label">{{ text }}</span>
+    </label>
+    {% endfor %}
+  </div>
+</div>
+{%- endmacro %}
+<div class="container py-4">
+  <style>
+    .cb-dropdown .dropdown-menu { min-width: 100%; max-height: 220px; overflow-y: auto; }
+    .cb-dropdown .dropdown-toggle { text-align: left; }
+    .cb-dropdown .dropdown-toggle::after { float: right; margin-top: .5rem; }
+    .cb-dropdown .cb-label { display: inline-block; max-width: calc(100% - 1.5rem);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
+  </style>
+
+  <h2 class="mb-4"><i class="fas fa-chalkboard-teacher me-2"></i>教师账号体系</h2>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-header"><strong><i class="fas fa-user-plus me-1"></i>新建教师</strong></div>
+    <div class="card-body">
+      <form method="post" class="row g-3">
+        <input type="hidden" name="action" value="create">
+        <div class="col-md-3">
+          <label class="form-label">用户名</label>
+          <input type="text" name="username" class="form-control" required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">显示名称</label>
+          <input type="text" name="display_name" class="form-control" placeholder="如：张老师">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">初始密码</label>
+          <input type="password" name="password" class="form-control" minlength="6" required>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">年级 <span class="text-danger">*</span></label>
+          {{ cb_dropdown('create-grade', '请选择年级', 'grade', grade_options, True) }}
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <button class="btn btn-primary w-100 rounded-pill"><i class="fas fa-plus me-1"></i>创建</button>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">所属学科 <span class="text-danger">*</span></label>
+          {{ cb_dropdown('create-subjects', '请选择学科', 'subject_ids', subjects) }}
+          <small class="text-muted">可勾选多个学科</small>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">任课班级 <span class="text-danger">*</span></label>
+          {{ cb_dropdown('create-classes', '请选择班级', 'class_ids', classes) }}
+          <small class="text-muted">可勾选多个班级</small>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <strong><i class="fas fa-key me-1"></i>教师只读访问码</strong>
+      <span class="badge bg-{{ 'success' if readonly_code_configured else 'secondary' }}">
+        {{ '已启用' if readonly_code_configured else '未配置' }}
+      </span>
+    </div>
+    <div class="card-body">
+      <p class="small text-muted mb-2">教师登录默认勾选只读模式，使用此全校访问码进入课堂；编辑模式需个人密码。修改/清除后旧只读会话立即失效。</p>
+      <div class="d-flex flex-wrap gap-2 align-items-end">
+        <form method="post" class="d-flex gap-2 align-items-end">
+          <input type="hidden" name="action" value="set_readonly_code">
+          <div>
+            <label class="form-label small mb-1">设置/重置访问码</label>
+            <input type="password" name="readonly_code" class="form-control form-control-sm" minlength="6" placeholder="至少6位" required>
+          </div>
+          <button class="btn btn-primary btn-sm">保存</button>
+        </form>
+        {% if readonly_code_configured %}
+        <form method="post" onsubmit="return confirm('清除后教师将无法使用只读模式登录，确定？')">
+          <input type="hidden" name="action" value="clear_readonly_code">
+          <button class="btn btn-outline-danger btn-sm">清除访问码</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr><th>用户名</th><th>显示名称</th><th>学科</th><th>年级/班级</th><th>状态</th><th>最近登录</th><th style="width:360px;">操作</th></tr>
+        </thead>
+        <tbody>
+          {% for t in teachers %}
+          <tr>
+            <td><strong>{{ t.username }}</strong></td>
+            <td>{{ t.display_name or t.username }}</td>
+            <td class="small">
+              {% for s in t.subjects %}
+              <div class="mb-1"><span class="badge bg-light text-dark border">{{ s.name }}</span></div>
+              {% else %}<span class="text-muted">未分配</span>{% endfor %}
+            </td>
+            <td class="small">
+              <div>{{ t.grade or '未分年级' }}</div>
+              <div class="text-muted">{{ t.classes|map(attribute='name')|join('、') or '未分班' }}</div>
+            </td>
+            <td><span class="badge bg-{{ 'success' if t.is_active else 'secondary' }}">{{ '启用' if t.is_active else '停用' }}</span></td>
+            <td class="small text-muted">{{ t.last_login_at.strftime('%Y-%m-%d %H:%M') if t.last_login_at else '从未登录' }}</td>
+            <td>
+              <div class="d-flex flex-wrap gap-1">
+                <button type="button" class="btn btn-outline-secondary btn-sm assign-btn"
+                        data-bs-toggle="modal" data-bs-target="#assignModal"
+                        data-teacher-id="{{ t.id }}"
+                        data-teacher-name="{{ t.display_name or t.username }}"
+                        data-grade="{{ t.grade or '' }}"
+                        data-subject-ids="{{ t.subjects|map(attribute='id')|join(',') }}"
+                        data-class-ids="{{ t.classes|map(attribute='id')|join(',') }}">
+                  <i class="fas fa-user-tag me-1"></i>分配
+                </button>
+                <button type="button" class="btn btn-outline-primary btn-sm password-btn"
+                        data-bs-toggle="modal" data-bs-target="#passwordModal"
+                        data-teacher-id="{{ t.id }}"
+                        data-teacher-name="{{ t.display_name or t.username }}">
+                  <i class="fas fa-key me-1"></i>改密
+                </button>
+                <form method="post">
+                  <input type="hidden" name="action" value="toggle">
+                  <input type="hidden" name="teacher_id" value="{{ t.id }}">
+                  <button class="btn btn-outline-warning btn-sm">{{ '停用' if t.is_active else '启用' }}</button>
+                </form>
+                <form method="post" onsubmit="return confirm('确定删除该教师账号？')">
+                  <input type="hidden" name="action" value="delete">
+                  <input type="hidden" name="teacher_id" value="{{ t.id }}">
+                  <button class="btn btn-outline-danger btn-sm">删除</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7" class="text-center text-muted py-4">暂无教师账号</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="assignModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <form method="post">
+        <input type="hidden" name="action" value="assign">
+        <input type="hidden" name="teacher_id" value="">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-user-tag me-1"></i>分配年级 / 学科 / 班级</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted mb-3">教师：<strong class="assign-name"></strong></p>
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label">年级 <span class="text-danger">*</span></label>
+              {{ cb_dropdown('assign-grade', '请选择年级', 'grade', grade_options, True) }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">所属学科 <span class="text-danger">*</span></label>
+              {{ cb_dropdown('assign-subjects', '请选择学科', 'subject_ids', subjects) }}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">任课班级 <span class="text-danger">*</span></label>
+              {{ cb_dropdown('assign-classes', '请选择班级', 'class_ids', classes) }}
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i>保存分配</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="passwordModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post">
+        <input type="hidden" name="action" value="password">
+        <input type="hidden" name="teacher_id" value="">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-key me-1"></i>修改教师密码</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted">教师：<strong class="password-name"></strong></p>
+          <label class="form-label">新密码 <span class="text-danger">*</span></label>
+          <input type="password" name="password" class="form-control" minlength="6" required>
+          <small class="text-muted">至少 6 位；保存后该教师已登录的旧会话立即失效。</small>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i>更新密码</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  function updateLabel(dd) {
+    var checked = dd.querySelectorAll('.cb-input:checked');
+    var label = dd.querySelector('.cb-label');
+    if (!label) return;
+    if (!checked.length) {
+      label.textContent = dd.getAttribute('data-placeholder') || '请选择';
+      label.classList.add('text-muted');
+      return;
+    }
+    label.textContent = Array.prototype.map.call(checked, function (box) {
+      var item = box.closest('label');
+      var text = item ? item.querySelector('.form-check-label') : null;
+      return text ? text.textContent.trim() : box.value;
+    }).join('、');
+    label.classList.remove('text-muted');
+  }
+
+  function initDropdown(dd) {
+    if (dd.dataset.cbReady === '1') return;
+    dd.dataset.cbReady = '1';
+    var single = dd.getAttribute('data-single') === '1';
+    dd.querySelectorAll('.cb-input').forEach(function (box) {
+      box.addEventListener('change', function () {
+        if (single && box.checked) {
+          dd.querySelectorAll('.cb-input').forEach(function (other) {
+            if (other !== box) other.checked = false;
+          });
+        }
+        updateLabel(dd);
+      });
+    });
+    updateLabel(dd);
+  }
+
+  function setValues(dd, values) {
+    if (!dd) return;
+    var chosen = {};
+    (values || []).forEach(function (v) { if (v !== '' && v != null) chosen[String(v)] = true; });
+    dd.querySelectorAll('.cb-input').forEach(function (box) {
+      box.checked = !!chosen[String(box.value)];
+    });
+    updateLabel(dd);
+  }
+
+  document.querySelectorAll('[data-cb-dropdown]').forEach(initDropdown);
+
+  var assignModal = document.getElementById('assignModal');
+  if (assignModal) {
+    assignModal.addEventListener('show.bs.modal', function (event) {
+      var btn = event.relatedTarget;
+      if (!btn) return;
+      var form = assignModal.querySelector('form');
+      form.querySelector('input[name="teacher_id"]').value = btn.getAttribute('data-teacher-id') || '';
+      assignModal.querySelector('.assign-name').textContent = btn.getAttribute('data-teacher-name') || '';
+      setValues(assignModal.querySelector('[data-field="assign-grade"]'),
+        [btn.getAttribute('data-grade') || '']);
+      setValues(assignModal.querySelector('[data-field="assign-subjects"]'),
+        (btn.getAttribute('data-subject-ids') || '').split(','));
+      setValues(assignModal.querySelector('[data-field="assign-classes"]'),
+        (btn.getAttribute('data-class-ids') || '').split(','));
+    });
+  }
+
+  var passwordModal = document.getElementById('passwordModal');
+  if (passwordModal) {
+    passwordModal.addEventListener('show.bs.modal', function (event) {
+      var btn = event.relatedTarget;
+      if (!btn) return;
+      var form = passwordModal.querySelector('form');
+      form.querySelector('input[name="teacher_id"]').value = btn.getAttribute('data-teacher-id') || '';
+      passwordModal.querySelector('.password-name').textContent = btn.getAttribute('data-teacher-name') || '';
+      form.querySelector('input[name="password"]').value = '';
+    });
+  }
+})();
+</script>
+{% endblock %}

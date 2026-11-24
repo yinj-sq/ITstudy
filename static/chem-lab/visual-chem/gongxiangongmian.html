@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="1sVyAPS1SKnL3O12izQ5HY">
+<head data-page-node-id="rIcIvPsmXKuli6veSa2vZD">
+    <meta charset="UTF-8" data-page-node-id="Qx4JSLxs9jR1hxva0l1otb">
+    
+    <title>有机分子与官能团共面展示系统 - 完整终极版</title>
+    <link rel="icon" type="image/png" href="favicon.png" data-page-node-id="6srUnoSZx0kGB9G42ut2dr">
+    <link rel="stylesheet" href="ui-glass.css" data-page-node-id="cf5u78Sp25jBLXeh1Rp6Fg">
+    <style>
+        html, body { margin: 0; height: 100%; overflow: hidden; font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif; user-select: none; }
+        #app-container { display: flex; flex-direction: column; height: 100vh; }
+
+        /* 画布区：外层容器 = 画布方框 + 框外版权 */
+        #canvas-wrap { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; gap: 6px; }
+        #canvas-area {
+            flex: 1; position: relative; overflow: hidden; box-sizing: border-box;
+            border: 1.5px solid rgba(150, 190, 255, 0.45);
+            box-shadow: 0 0 14px rgba(120, 180, 255, 0.12), inset 0 0 18px rgba(120, 180, 255, 0.06);
+        }
+        #canvas-area canvas { display: block; }
+
+        /* 左侧控制栏：可滚动的玻璃面板容器（修好滚动链：sidebar flex + controls-panel 受限高） */
+        #sidebar { display: flex; flex-direction: column; min-height: 0; }
+        #controls-panel { flex: 1; min-height: 0; gap: 10px; padding: 12px !important;
+            overflow-y: auto; scrollbar-gutter: stable; }
+        .glass-panel { gap: 6px; }
+
+        /* 衍生官能团：独立滚动区（避免把下方「考点分析」挤出屏幕） */
+        .mol-scroll { display: flex; flex-direction: column; gap: 6px;
+            max-height: 190px; overflow-y: auto; padding-right: 2px; }
+        .mol-scroll::-webkit-scrollbar { width: 6px; }
+        .mol-scroll::-webkit-scrollbar-thumb { background: rgba(150,170,200,0.45); border-radius: 3px; }
+        .mol-scroll::-webkit-scrollbar-track { background: rgba(0,0,0,0.15); border-radius: 3px; }
+
+        /* 分子按钮（玻璃风，对齐站点配色） */
+        .mol-btn {
+            display: block; width: 100%; padding: 7px 11px; margin-bottom: 0;
+            background: rgba(255,255,255,0.07); color: #eaf2ff;
+            border: 1px solid rgba(255,255,255,0.16); border-radius: 12px;
+            font-size: 12.5px; cursor: pointer; transition: all .2s; text-align: left;
+            font-family: inherit; white-space: nowrap;
+        }
+        .mol-btn:hover { background: rgba(255,170,85,0.22); border-color: #ffaa66; color: #fff; }
+        .mol-btn.group-btn { background: rgba(80,180,220,0.16); border-color: rgba(90,200,230,0.40); }
+        .mol-btn.group-btn:hover { background: rgba(80,180,220,0.34); border-color: #5ac8e6; }
+        .mol-btn.analysis-btn { background: rgba(230,126,34,0.20); border-color: rgba(230,126,34,0.50); }
+        .mol-btn.analysis-btn:hover { background: rgba(230,126,34,0.40); }
+        .mol-btn.analysis-btn2 { background: rgba(231,76,60,0.20); border-color: rgba(231,76,60,0.50); }
+        .mol-btn.analysis-btn2:hover { background: rgba(231,76,60,0.40); }
+        .mol-btn.btn-clear { background: rgba(231,76,60,0.24); border-color: rgba(231,76,60,0.55); font-weight: bold; }
+        .mol-btn.btn-clear:hover { background: rgba(231,76,60,0.46); }
+
+        /* 右侧状态 / 旋转面板内容 */
+        /* 右侧面板：多块内容时按各自内容高度堆叠，不再被 flex 拉满整列 */
+        #info-sidebar .glass-panel { flex: 0 0 auto; max-height: 100%; overflow-y: auto; }
+
+        /* 当前分子统计 */
+        .stat-row { display: flex; justify-content: space-between; gap: 6px; align-items: baseline;
+            font-size: 11px; padding: 2px 0; }
+        .stat-row span { color: #9fb3d1; flex-shrink: 0; }
+        .stat-row b { color: #fff; font-weight: 600; text-align: right; }
+        .stat-row b sub { font-size: 9px; }
+        /* 共面判据速查 */
+        .ref-row { font-size: 11px; color: #dbe4f2; padding: 2px 0; line-height: 1.45; }
+        .ref-row b { color: #ffaa55; font-weight: 700; }
+        .ref-note { font-size: 10.5px; color: #ffd9b0; line-height: 1.5; margin-top: 5px;
+            padding-top: 5px; border-top: 1px dashed rgba(255, 255, 255, 0.12); }
+        /* 原子图例 */
+        #atom-legend { display: flex; flex-wrap: wrap; gap: 6px 10px; }
+        .lg { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: #dbe4f2; }
+        .lg i { width: 11px; height: 11px; border-radius: 50%; display: inline-block;
+            border: 1px solid rgba(255, 255, 255, 0.35); }
+
+        /* ===== 画布左上角浮动操作面板：考点分析 + 二面角旋转 ===== */
+        #float-panel {
+            position: absolute; top: 12px; left: 12px; z-index: 20;
+            width: 188px; padding: 8px 10px 9px; gap: 6px;
+        }
+        #float-panel .panel-title { letter-spacing: 2px; }
+        .fp-sep { height: 1px; background: rgba(255,255,255,0.12); margin: 2px 0; }
+        #rot-hint { font-size: 11px; color: #9fb3d1; text-align: center; padding: 3px 0 1px; }
+
+        #info-box { padding: 6px 4px; font-size: 13px; line-height: 1.65; color: #dbe4f2; font-weight: normal; }
+        #rotation-panel { display: none; padding: 4px 2px; text-align: center; }
+        #rotation-panel b { display: block; margin-bottom: 10px; color: #ffd9b0; font-size: 14px; font-weight: 600; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: #ffaa55; }
+        #angle-val { display: block; margin-top: 8px; font-size: 18px; color: #ffaa55; font-weight: bold; }
+
+        .instructions { margin-top: 6px; font-size: 11.5px; line-height: 1.55; color: #c4d2e6;
+            background: rgba(0,0,0,0.25); padding: 8px 10px; border-radius: 8px; }
+        .instructions span { color: #ffd9b0; font-weight: bold; }
+
+        /* 面板滚动条（深色） */
+        #controls-panel::-webkit-scrollbar, #info-sidebar::-webkit-scrollbar { width: 6px; }
+        #controls-panel::-webkit-scrollbar-thumb, #info-sidebar::-webkit-scrollbar-thumb { background: rgba(150,170,200,0.45); border-radius: 3px; }
+
+        /* 版权署名：置于画布方框之外（画布下方居中） */
+        .wm-copyright {
+            flex-shrink: 0; text-align: center; padding-top: 1px;
+            color: rgba(255,255,255,0.42); font-size: 12px; letter-spacing: 1px;
+            white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        }
+
+        /* 窄窗口/竖屏：仍保持「左控制 / 中画布 / 右信息」三栏，
+           状态信息与二面角旋转稳定停靠右侧，不被 ui-glass.css 的竖屏规则挤到下方 */
+        @media (orientation: portrait) {
+            #main-row { flex-direction: row !important; padding: 0 10px 10px; }
+            #sidebar { width: 196px !important; }
+            #info-sidebar { width: 206px !important; flex-direction: column !important; }
+        }
+        @media (max-width: 620px) {
+            /* 仅极窄屏（手机竖屏）才改为上下堆叠，保证单栏可读 */
+            #main-row { flex-direction: column !important; }
+            #sidebar, #info-sidebar { width: 100% !important; }
+            #info-sidebar { flex-direction: row !important; }
+        }
+
+        /* 浅色模式微调（ui-glass.css 已含主体，这里补页面级元素） */
+        #app-container.light-bg .instructions { background: rgba(255,255,255,0.4); color: #445; }
+        #app-container.light-bg .instructions span { color: #b06a00; }
+        #app-container.light-bg #info-box { color: #223; }
+        #app-container.light-bg #rotation-panel b { color: #b06a00; }
+        #app-container.light-bg #angle-val { color: #b06a00; }
+        #app-container.light-bg .wm-copyright { color: rgba(30,50,80,0.5); }
+        #app-container.light-bg #canvas-area { border-color: rgba(70, 110, 170, 0.55);
+            box-shadow: 0 0 14px rgba(70, 110, 170, 0.15); }
+        #app-container.light-bg #rot-hint { color: #667; }
+        #app-container.light-bg .fp-sep { background: rgba(70, 90, 120, 0.25); }
+        #app-container.light-bg .stat-row span { color: #667; }
+        #app-container.light-bg .stat-row b { color: #112; }
+        #app-container.light-bg .ref-row { color: #334; }
+        #app-container.light-bg .ref-note { color: #a05a00; border-top-color: rgba(70, 90, 120, 0.25); }
+        #app-container.light-bg .lg { color: #334; }
+        #app-container.light-bg .lg i { border-color: rgba(70, 90, 120, 0.5); }
+    </style>
+
+<style id="chem-lab-embed-style">
+  /* ITstudy 化学仿真统一壳：隐藏原站顶栏/品牌/版权水印。
+     不强制页面高度与 overflow —— 各页面自有布局（周期表需要滚动，
+     3D 页需要全屏），统一覆盖会把周期表底部裁掉。 */
+  #topbar, #copyright, .wm-copyright, #btn-home,
+  .topbar-actions, .back-home-btn,
+  .brand, .brand-title, #brand-logo { display: none !important; }
+  canvas { max-width: 100%; }
+  /* 课堂 iframe 高度较小时：周期表隐藏趋势图、压缩行高，保证 118 元素可见 */
+  @media (max-height: 720px) {
+    #chart-panel { display: none !important; }
+    .ptable.size-s { grid-auto-rows: 32px !important; }
+    #info-sidebar { width: 220px; }
+  }
+</style>
+</head>
+<body data-page-node-id="VukcTxttDyVCQoZxGHtyDn">
+
+<div id="app-container" data-page-node-id="7GGe19H0kEWx2EhjN7wsTg">
+
+    <!-- 顶部品牌栏（站点统一规范） -->
+    <div id="topbar" class="glass" data-page-node-id="K0WYGtsqErmK4YEhP8be1f">
+        <div class="brand" data-page-node-id="H2vHDQ9xECacMcnAzn3Fns">
+            <img id="brand-logo" src="favicon.png" alt="可视化化学" data-page-node-id="KGMj2GI2Asid4LyBH7OVXw">
+            <div class="brand-text" data-page-node-id="KEG0FfIpa3885pHFYZFxno">
+                <div class="brand-title" data-page-node-id="hb49ekDag05fOg2W2ENtXi">可视化化学<span class="brand-divider" data-page-node-id="mvGQAP5WW4Gwb5c7jbxqFJ">·</span>可视化学</div>
+                <div class="brand-sub" data-page-node-id="L9whkgieT42kTDKB1Jxkxi">让微观结构，触手可及！</div>
+            </div>
+        </div>
+        <div class="topbar-actions" data-page-node-id="O1OLVfwoGsFzsHIXb9wUDc">
+            <a class="top-btn" id="btn-home" href="index.html" target="_top" data-page-node-id="Xz2DVCAHWHlIyUYpgWVfY6">主页</a>
+            <button class="top-btn" id="btn-reset-view"><svg class="tb-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>重置视角</button>
+        </div>
+    </div>
+
+    <!-- 主区：左控制栏 / 中画布 / 右信息栏 -->
+    <div id="main-row" data-page-node-id="aiEQS7J8sZCMmWctaPz9Ht">
+
+        <div id="sidebar" data-page-node-id="OVnrCzDEcWlxZc0f3qvk9y">
+            <div id="controls-panel" data-page-node-id="s7wFQ8nBUfv3NR7SFhMi2Y">
+                <div class="glass-panel" data-page-node-id="tnh7UlG0WfM3dfpu1Qb3IZ">
+                    <div class="panel-title" data-page-node-id="SL3nNvFvvPb2HRTSle0X2D">基础碳骨架</div>
+                    <button class="mol-btn" onclick="addMolecule('benzene')" data-page-node-id="MnN1vWkOC3CQJYgliw9jg7">苯环 (C6H6)</button>
+                    <button class="mol-btn" onclick="addMolecule('ethylene')" data-page-node-id="E2mZJQEsm4fxiMQJeH0apq">乙烯 (C2H4)</button>
+                    <button class="mol-btn" onclick="addMolecule('acetylene')" data-page-node-id="gaVoRjJYJjKOBNse0P82Uw">乙炔 (C2H2)</button>
+                    <button class="mol-btn" onclick="addMolecule('methane')" data-page-node-id="3eVLX1u5AZw9merAUNn3ji">甲烷 (CH4)</button>
+                </div>
+
+                <div class="glass-panel" data-page-node-id="R4pIWAgYU84eCD0zJSWEUH">
+                    <div class="panel-title" data-page-node-id="rnqFWtFpqjlqyjL7ttpY0y">衍生官能团</div>
+                    <div class="mol-scroll">
+                    <button class="mol-btn group-btn" onclick="addMolecule('carboxyl')" data-page-node-id="kqr4pMai0Ot7I6vEDtES1f">羧基 (-COOH)</button>
+                    <button class="mol-btn group-btn" onclick="addMolecule('hydroxyl')" data-page-node-id="vdM62Yfme6zNVbCouMcgG7">羟基 (-OH)</button>
+                    <button class="mol-btn group-btn" onclick="addMolecule('aldehyde')" data-page-node-id="HoPjvkfDgKrJiYwmW9Kuyu">醛基 (-CHO)</button>
+                    <button class="mol-btn group-btn" onclick="addMolecule('amino')" data-page-node-id="37WVwapujRX2ceGk3HGDps">氨基 (-NH2)</button>
+                    <button class="mol-btn group-btn" onclick="addMolecule('cyano')" data-page-node-id="iOyzexAYW1igl3xEv2p9Ab">氰基 (-CN)</button>
+                    <button class="mol-btn group-btn" onclick="addMolecule('nitro')" data-page-node-id="xShyXAnjiVL0WU2GpeeB2r">硝基 (-NO2)</button>
+                    <button class="mol-btn group-btn" onclick="addMolecule('sulfonic')" data-page-node-id="LlWSkyHMIPSoqztnuPng8W">磺酸基 (-SO3H)</button>
+                        <button class="mol-btn group-btn" onclick="addMolecule('ester')">酯基 (-COO-)</button>
+                        <button class="mol-btn group-btn" onclick="addMolecule('amide')">酰胺基 (-CONH-)</button>
+                        <button class="mol-btn group-btn" onclick="addMolecule('ketone')">酮羰基 (>C=O)</button>
+                        <button class="mol-btn group-btn" onclick="addMolecule('chloro')">卤素原子 (-Cl)</button>
+                        <button class="mol-btn group-btn" onclick="addMolecule('ether')">醚键 (-O-)</button>
+                    </div>
+                </div>
+
+                <div class="glass-panel" data-page-node-id="a1v5kBpK07YNJNX1az3l7K">
+                    <div class="panel-title" data-page-node-id="gPKztJ8yv5aYeNy5QarJb8">操作指引</div>
+                    <div class="instructions" data-page-node-id="8tUG4Teli5H44ExBT4u22B">
+                        <b data-page-node-id="VVh833K1oPREzjgmkbEn4V">操作流：</b><br data-page-node-id="Bv61L6f4VaHjCvjJCwzFQe">
+                        1. 点击左侧添加基础分子。<br data-page-node-id="C2G5pZy8DK8rbxhK4jrEzV">
+                        2. 点击场景中<span data-page-node-id="I3OjzXM7c2uiNrHD19oiA2">白色的氢原子</span>(变红)<br data-page-node-id="hLEiVc4ldPrT9FHArrPlp6">
+                        3. 点击左侧任意基团进行拼接。<br data-page-node-id="Qo5qfmOqX4nuOYWUYB2h55">
+                        4. 点击拼接生成的<span data-page-node-id="f2icAlejZFGeuQTjT1HNjp">淡蓝色单键</span>(变黄)，拖动右侧滑块观察共面旋转。
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="canvas-wrap">
+            <div id="canvas-area" data-page-node-id="WhBDHUlsW52d1f2gBEaIep">
+                <!-- 3D 画布由脚本注入此处 -->
+                <!-- 浮动操作面板：考点分析 + 二面角旋转（画布左上角） -->
+                <div id="float-panel" class="glass-panel">
+                    <div class="panel-title">考点分析</div>
+                    <button class="mol-btn analysis-btn" onclick="showMaxCoplanar()">自动寻优：最大共面</button>
+                    <button class="mol-btn analysis-btn2" onclick="showMaxCollinear()">检测高亮：最大共线</button>
+                    <div class="fp-sep"></div>
+                    <div class="panel-title">二面角旋转</div>
+                    <div id="rotation-panel">
+                        <input type="range" id="bond-rotation" min="-180" max="180" value="0">
+                        <span id="angle-val">0°</span>
+                    </div>
+                    <div id="rot-hint">请先点选蓝色拼接键</div>
+                    <div class="fp-sep"></div>
+                    <button class="mol-btn btn-clear" onclick="clearScene()">彻底清空</button>
+                </div>
+            </div>
+            <div class="wm-copyright" data-page-node-id="xkHWurxozBUDABu7tB52KW">　</div>
+        </div>
+
+        <div id="info-sidebar" data-page-node-id="Zm8hEus0kyjH36vbJ9haVY">
+            <div class="glass-panel info-glass" data-page-node-id="x9Jzuh5DrZeXqh1876Zanm">
+                <div class="panel-title" data-page-node-id="yW7xjzdKeTYgSosHshEFWK">状态信息</div>
+                <div id="info-box" data-page-node-id="hhdrDTqBw98nUAwdfyP1Dx">请点击左侧物质栏添加第一个基础分子作为母体</div>
+            </div>
+
+            <div class="glass-panel">
+                <div class="panel-title">当前分子</div>
+                <div class="stat-row"><span>分子式</span><b id="stat-formula">—</b></div>
+                <div class="stat-row"><span>相对分子质量</span><b id="stat-mass">—</b></div>
+                <div class="stat-row"><span>原子总数</span><b id="stat-count">—</b></div>
+                <div class="stat-row"><span>可旋转键</span><b id="stat-rot">—</b></div>
+            </div>
+
+            <div class="glass-panel">
+                <div class="panel-title">共面统计</div>
+                <div class="stat-row"><span>最多碳原子共面</span><b id="stat-maxc">—</b></div>
+                <div class="stat-row"><span>最少原子共面</span><b id="stat-mina">—</b></div>
+                <div class="stat-row"><span>最少碳原子共面</span><b id="stat-minc">—</b></div>
+                <div class="ref-note">「最少」＝可旋转键转到最不利角度后仍共面的原子数（即躲不开的部分）</div>
+            </div>
+
+            <div class="glass-panel">
+                <div class="panel-title">共面判据</div>
+                <div class="ref-row">sp³ 四面体 → 最多 <b>3</b> 原子共面</div>
+                <div class="ref-row">sp² 平面形 → 乙烯 <b>6</b> 原子共面</div>
+                <div class="ref-row">sp 直线形 → 乙炔 <b>4</b> 原子共线</div>
+                <div class="ref-row">苯环 → <b>12</b> 原子共面</div>
+                <div class="ref-note">单键可旋转 ⇒ 可能共面；双键 / 苯环不可旋转 ⇒ 一定共面</div>
+            </div>
+
+            <div class="glass-panel">
+                <div class="panel-title">原子图例</div>
+                <div id="atom-legend"></div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+    <script src="./three.min.js"></script>
+    <script src="./OrbitControls-umd.js"></script>
+    
+    <script>
+        // ================= 基础配置与分子坐标 =================
+        const MOLECULES = {
+            methane: {
+                atoms:[{id:'c1',el:'C',pos:[0,0,0]}, {id:'h1',el:'H',pos:[0.63,0.63,0.63]}, {id:'h2',el:'H',pos:[-0.63,-0.63,0.63]}, {id:'h3',el:'H',pos:[0.63,-0.63,-0.63]}, {id:'h4',el:'H',pos:[-0.63,0.63,-0.63]}],
+                bonds: [['c1','h1',1],['c1','h2',1],['c1','h3',1],['c1','h4',1]]
+            },
+            ethylene: { 
+                atoms:[{id:'c1',el:'C',pos:[-0.67,0,0]}, {id:'c2',el:'C',pos:[0.67,0,0]}, {id:'h1',el:'H',pos:[-1.215,0.944,0]}, {id:'h2',el:'H',pos:[-1.215,-0.944,0]}, {id:'h3',el:'H',pos:[1.215,0.944,0]}, {id:'h4',el:'H',pos:[1.215,-0.944,0]}],
+                bonds: [['c1','c2',2],['c1','h1',1],['c1','h2',1],['c2','h3',1],['c2','h4',1]]
+            },
+            acetylene: {
+                atoms:[{id:'c1',el:'C',pos:[-0.60,0,0]}, {id:'c2',el:'C',pos:[0.60,0,0]}, {id:'h1',el:'H',pos:[-1.66,0,0]}, {id:'h2',el:'H',pos:[1.66,0,0]}],
+                bonds: [['c1','c2',3],['c1','h1',1],['c2','h2',1]]
+            },
+            benzene: {
+                atoms:[
+                    {id:'c1',el:'C',pos:[1.4,0,0]}, {id:'c2',el:'C',pos:[0.7,1.212,0]}, {id:'c3',el:'C',pos:[-0.7,1.212,0]}, {id:'c4',el:'C',pos:[-1.4,0,0]}, {id:'c5',el:'C',pos:[-0.7,-1.212,0]}, {id:'c6',el:'C',pos:[0.7,-1.212,0]},
+                    {id:'h1',el:'H',pos:[2.49,0,0]}, {id:'h2',el:'H',pos:[1.245,2.156,0]}, {id:'h3',el:'H',pos:[-1.245,2.156,0]}, {id:'h4',el:'H',pos:[-2.49,0,0]}, {id:'h5',el:'H',pos:[-1.245,-2.156,0]}, {id:'h6',el:'H',pos:[1.245,-2.156,0]}
+                ],
+                bonds: [['c1','c2',2],['c2','c3',1],['c3','c4',2],['c4','c5',1],['c5','c6',2],['c6','c1',1],['c1','h1',1],['c2','h2',1],['c3','h3',1],['c4','h4',1],['c5','h5',1],['c6','h6',1]]
+            },
+            // ==== 衍生官能团（约定：首个 H 为占位氢，其所连原子即拼接位点）====
+            // 坐标按 VSEPR 理论生成：sp² 120°、sp³ 109.47°、sp 180°
+            hydroxyl: {
+                atoms:[{id:'o1',el:'O',pos:[0,0,0]}, {id:'h1',el:'H',pos:[-0.96,0,0]}, {id:'h2',el:'H',pos:[0.305,-0.91,0]}],
+                bonds:[['o1','h1',1],['o1','h2',1]]
+            },
+            carboxyl: {
+                atoms:[{id:'c1',el:'C',pos:[0,0,0]}, {id:'o1',el:'O',pos:[0.615,-1.065,0]}, {id:'o2',el:'O',pos:[0.68,1.178,0]}, {id:'h1',el:'H',pos:[-1.09,0,0]}, {id:'h2',el:'H',pos:[1.611,0.946,0]}],
+                bonds:[['c1','o1',2],['c1','o2',1],['c1','h1',1],['o2','h2',1]]
+            },
+            aldehyde: {
+                atoms:[{id:'c1',el:'C',pos:[0,0,0]}, {id:'o1',el:'O',pos:[0.605,-1.048,0]}, {id:'h1',el:'H',pos:[-1.09,0,0]}, {id:'h2',el:'H',pos:[0.545,0.944,0]}],
+                bonds:[['c1','o1',2],['c1','h1',1],['c1','h2',1]]
+            },
+            amino: {
+                atoms:[{id:'n1',el:'N',pos:[0,0,0]}, {id:'h1',el:'H',pos:[-1.01,0,0]}, {id:'h2',el:'H',pos:[0.337,0.476,0.825]}, {id:'h3',el:'H',pos:[0.337,0.476,-0.825]}],
+                bonds:[['n1','h1',1],['n1','h2',1],['n1','h3',1]]
+            },
+            cyano: {
+                atoms:[{id:'c1',el:'C',pos:[0,0,0]}, {id:'n1',el:'N',pos:[1.16,0,0]}, {id:'h1',el:'H',pos:[-1.09,0,0]}],
+                bonds:[['c1','n1',3],['c1','h1',1]]
+            },
+            nitro: {
+                atoms:[{id:'n1',el:'N',pos:[0,0,0]}, {id:'o1',el:'O',pos:[0.605,-1.048,0]}, {id:'o2',el:'O',pos:[0.605,1.048,0]}, {id:'h1',el:'H',pos:[-1,0,0]}],
+                bonds:[['n1','o1',2],['n1','o2',1],['n1','h1',1]]
+            },
+            sulfonic: {
+                atoms:[{id:'s1',el:'S',pos:[0,0,0]}, {id:'o1',el:'O',pos:[0.477,-1.348,0]}, {id:'o2',el:'O',pos:[0.477,0.674,1.168]}, {id:'o3',el:'O',pos:[0.523,0.74,-1.282]}, {id:'h1',el:'H',pos:[-1.3,0,0]}, {id:'h2',el:'H',pos:[1.368,0.353,-1.524]}],
+                bonds:[['s1','o1',2],['s1','o2',2],['s1','o3',1],['s1','h1',1],['o3','h2',1]]
+            },
+            // 酯基 -COOCH3：经羰基碳 c1 拼接；酯基为平面结构（键角已按 VSEPR 校正）
+            ester: {
+                atoms:[{id:'c1',el:'C',pos:[0,0,0]}, {id:'o1',el:'O',pos:[0.605,-1.048,0]}, {id:'o2',el:'O',pos:[0.68,1.178,0]}, {id:'c2',el:'C',pos:[-0.12,2.363,0]}, {id:'h1',el:'H',pos:[-1.09,0,0]}, {id:'h2',el:'H',pos:[0.529,3.239,0]}, {id:'h3',el:'H',pos:[-0.749,2.377,0.89]}, {id:'h4',el:'H',pos:[-0.749,2.377,-0.89]}],
+                bonds:[['c1','o1',2],['c1','o2',1],['c1','h1',1],['o2','c2',1],['c2','h2',1],['c2','h3',1],['c2','h4',1]]
+            },
+            // 酰胺基（肽键）-CONH-：经羰基碳 c1 拼接；肽键为平面结构（键角已按 VSEPR 校正）
+            amide: {
+                atoms:[{id:'c1',el:'C',pos:[0,0,0]}, {id:'o1',el:'O',pos:[0.605,-1.048,0]}, {id:'n1',el:'N',pos:[0.665,1.152,0]}, {id:'h1',el:'H',pos:[-1.09,0,0]}, {id:'h2',el:'H',pos:[0.16,2.026,0]}],
+                bonds:[['c1','o1',2],['c1','n1',1],['c1','h1',1],['n1','h2',1]]
+            },
+            // 酮羰基 -COCH3：经羰基碳 c1 拼接（键角已按 VSEPR 校正）
+            ketone: {
+                atoms:[{id:'c1',el:'C',pos:[0,0,0]}, {id:'o1',el:'O',pos:[0.605,-1.048,0]}, {id:'c2',el:'C',pos:[0.755,1.308,0]}, {id:'h1',el:'H',pos:[-1.09,0,0]}, {id:'h2',el:'H',pos:[1.827,1.109,0]}, {id:'h3',el:'H',pos:[0.492,1.879,0.89]}, {id:'h4',el:'H',pos:[0.492,1.879,-0.89]}],
+                bonds:[['c1','o1',2],['c1','c2',1],['c1','h1',1],['c2','h2',1],['c2','h3',1],['c2','h4',1]]
+            },
+            // 卤素原子 -Cl：经 Cl 拼接，形成 C-Cl（卤代烃）
+            chloro: {
+                atoms:[{id:'cl1',el:'Cl',pos:[0,0,0]}, {id:'h1',el:'H',pos:[-1,0,0]}],
+                bonds:[['cl1','h1',1]]
+            },
+            // 醚键 -O-（甲氧基 -OCH3）：经 O 拼接，形成 R-O-CH3（键角已按 VSEPR 校正）
+            ether: {
+                atoms:[{id:'o1',el:'O',pos:[0,0,0]}, {id:'c2',el:'C',pos:[0.512,-1.335,0]}, {id:'h1',el:'H',pos:[-0.96,0,0]}, {id:'h2',el:'H',pos:[-0.317,-2.043,0]}, {id:'h3',el:'H',pos:[1.122,-1.49,0.89]}, {id:'h4',el:'H',pos:[1.122,-1.49,-0.89]}],
+                bonds:[['o1','h1',1],['o1','c2',1],['c2','h2',1],['c2','h3',1],['c2','h4',1]]
+            },
+        };
+
+        // ================= 场景与渲染器 =================
+        const canvasArea = document.getElementById('canvas-area');
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0e1420);
+
+        const camera = new THREE.PerspectiveCamera(45, canvasArea.clientWidth / Math.max(canvasArea.clientHeight, 1), 0.1, 100);
+        camera.position.set(0, 5, 12);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        canvasArea.appendChild(renderer.domElement);
+
+        function fitCanvas() {
+            const w = canvasArea.clientWidth, h = canvasArea.clientHeight;
+            if (!w || !h) return;
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+        }
+        fitCanvas();
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+        const d1 = new THREE.DirectionalLight(0xffffff, 0.9); d1.position.set(10, 15, 10); scene.add(d1);
+        const d2 = new THREE.DirectionalLight(0xffffff, 0.5); d2.position.set(-10, -10, -10); scene.add(d2);
+
+        // ================= 材质与外观属性 =================
+        const BOND_RADIUS = 0.08;
+        const BOND_LENGTH = 1.48;
+
+        const bondMat = new THREE.MeshPhongMaterial({ color: 0xeeeeee, specular: 0xffffff, shininess: 80 });
+        const assemblyBondMat = new THREE.MeshPhongMaterial({ color: 0x3498db, specular: 0xffffff, shininess: 80 });
+        
+        const ATOM_PROPS = {
+            'C': { radius: 0.4, color: 0x6a6a6a }, 
+            'H': { radius: 0.25, color: 0xffffff }, 
+            'O': { radius: 0.35, color: 0xe74c3c }, 
+            'N': { radius: 0.35, color: 0x3498db }, 
+            'S': { radius: 0.42, color: 0xf1c40f },
+            'Cl': { radius: 0.45, color: 0x2ecc71 }
+        };
+
+        function getAtomMaterial(el) {
+            let props = ATOM_PROPS[el] || { color: 0xcccccc };
+            return new THREE.MeshPhongMaterial({ color: props.color, shininess: 60 });
+        }
+
+        // 相对原子质量（用于实时计算相对分子质量）
+        const ATOMIC_MASS = { C: 12.01, H: 1.008, O: 16.00, N: 14.01, S: 32.06, Cl: 35.45 };
+
+        // 原子图例由 ATOM_PROPS 自动生成 —— 保证图例配色与 3D 模型永远一致，不会改色后忘记同步
+        (function buildAtomLegend() {
+            const box = document.getElementById('atom-legend');
+            if (!box) return;
+            box.innerHTML = Object.keys(ATOM_PROPS).map(el =>
+                '<span class="lg"><i style="background:#' +
+                ATOM_PROPS[el].color.toString(16).padStart(6, '0') + '"></i>' + el + '</span>'
+            ).join('');
+        })();
+        
+        let raycaster = new THREE.Raycaster();
+        let mouse = new THREE.Vector2();
+        let clickableObjects = [];
+        let hasRoot = false;
+        let selectedAtom = null;
+        let selectedBondData = null;
+        
+        // 用于统一管理和清除共面/共线特效模型
+        let analysisObjects = [];
+
+        function clearAnalysis() {
+            analysisObjects.forEach(obj => {
+                scene.remove(obj);
+                if(obj.geometry) obj.geometry.dispose();
+                if(obj.material) obj.material.dispose();
+            });
+            analysisObjects.length = 0;
+        }
+
+        function updateInfo(msg) { document.getElementById('info-box').innerText = msg; }
+
+        // 实时统计当前分子：分子式（Hill 记号）/ 相对分子质量 / 原子总数 / 可旋转键数
+        function updateMoleculeStats() {
+            const counts = {};
+            let total = 0;
+            scene.traverse(child => {
+                if (child.userData && child.userData.type === 'atom') {
+                    counts[child.userData.el] = (counts[child.userData.el] || 0) + 1;
+                    total++;
+                }
+            });
+            const setTxt = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+            if (total === 0) {
+                setTxt('stat-formula', '—'); setTxt('stat-mass', '—');
+                setTxt('stat-count', '—');  setTxt('stat-rot', '—');
+                return;
+            }
+            // Hill 记号：C、H 在前，其余按字母序
+            const others = Object.keys(counts).filter(e => e !== 'C' && e !== 'H').sort();
+            const order = ['C', 'H'].filter(e => counts[e]).concat(others);
+            const fEl = document.getElementById('stat-formula');
+            if (fEl) {
+                fEl.innerHTML = order
+                    .map(e => e + (counts[e] > 1 ? '<sub>' + counts[e] + '</sub>' : ''))
+                    .join('');
+            }
+            let mass = 0;
+            Object.keys(counts).forEach(e => { mass += (ATOMIC_MASS[e] || 0) * counts[e]; });
+            setTxt('stat-mass', mass.toFixed(1));
+            setTxt('stat-count', String(total));
+            // 可旋转键 = 拼接键对应的 pivot 去重计数
+            setTxt('stat-rot', String(collectPivots().length));
+
+            // 共面统计：在「最有利 / 最不利」构象下求解
+            // （optimizeCoplanar 内部会还原当前构象，画面与选中状态不受影响）
+            if (total >= 3) {
+                setTxt('stat-maxc', String(optimizeCoplanar('max', IS_CARBON)));
+                setTxt('stat-mina', String(optimizeCoplanar('min', null)));
+                setTxt('stat-minc', String(optimizeCoplanar('min', IS_CARBON)));
+            }
+        }
+
+        // ================= 核心构建函数 =================
+        function createBondMesh(p1, p2, order, customRadius = BOND_RADIUS, customMat = bondMat) {
+            let group = new THREE.Group();
+            let dir = new THREE.Vector3().subVectors(p2, p1);
+            let len = dir.length(); 
+            
+            let perp = new THREE.Vector3(0,1,0);
+            if (Math.abs(dir.clone().normalize().y) > 0.9) perp = new THREE.Vector3(1,0,0);
+            perp.cross(dir).normalize();
+            
+            let offsets = [0];
+            if (order === 2) offsets = [-0.15, 0.15];
+            if (order === 3) offsets = [-0.22, 0, 0.22];
+
+            offsets.forEach(off => {
+                let geom = new THREE.CylinderGeometry(customRadius, customRadius, len, 16);
+                geom.translate(0, len/2, 0); 
+                geom.rotateX(Math.PI/2); 
+                let mesh = new THREE.Mesh(geom, customMat.clone());
+                mesh.position.copy(p1).add(perp.clone().multiplyScalar(off));
+                mesh.lookAt(p2.clone().add(perp.clone().multiplyScalar(off)));
+                group.add(mesh);
+            });
+            return group;
+        }
+
+        function buildMoleculeGroup(type) {
+            let data = MOLECULES[type];
+            let group = new THREE.Group();
+            group.userData = { atoms: [], bonds:[] };
+            
+            data.atoms.forEach(a => {
+                let r = ATOM_PROPS[a.el] ? ATOM_PROPS[a.el].radius : 0.3;
+                let geom = new THREE.SphereGeometry(r, 32, 32);
+                let mesh = new THREE.Mesh(geom, getAtomMaterial(a.el));
+                mesh.userData = { type: 'atom', id: a.id, el: a.el, parentGroup: group, originalColor: mesh.material.color.getHex() };
+                mesh.position.set(a.pos[0], a.pos[1], a.pos[2]);
+                group.add(mesh);
+                group.userData.atoms.push({ id: a.id, el: a.el, mesh: mesh });
+            });
+            
+            data.bonds.forEach(b => {
+                let m1 = group.userData.atoms.find(a => a.id === b[0]).mesh;
+                let m2 = group.userData.atoms.find(a => a.id === b[1]).mesh;
+                let bondGroup = createBondMesh(m1.position, m2.position, b[2]);
+                group.add(bondGroup);
+                group.userData.bonds.push({ pairs: [b[0], b[1]], mesh: bondGroup });
+            });
+
+            if (type === 'carboxyl') {
+                let c1 = group.userData.atoms.find(a => a.id === 'c1').mesh;
+                let o2 = group.userData.atoms.find(a => a.id === 'o2').mesh;
+                let h2 = group.userData.atoms.find(a => a.id === 'h2').mesh;
+                let bond_c1_o2 = group.userData.bonds.find(b => (b.pairs.includes('c1') && b.pairs.includes('o2'))).mesh;
+                let bond_o2_h2 = group.userData.bonds.find(b => (b.pairs.includes('o2') && b.pairs.includes('h2'))).mesh;
+
+                let pivot = new THREE.Group();
+                pivot.position.copy(o2.position);
+                group.add(pivot);
+
+                o2.position.sub(pivot.position);
+                h2.position.sub(pivot.position);
+                bond_o2_h2.children.forEach(mesh => mesh.position.sub(pivot.position));
+
+                pivot.add(o2);
+                pivot.add(h2);
+                pivot.add(bond_o2_h2);
+
+                pivot.userData.baseQuaternion = pivot.quaternion.clone();
+                pivot.userData.baseAttachAtom = c1;
+
+                bond_c1_o2.userData = { type: 'assembly_bond', pivot: pivot };
+                bond_c1_o2.children.forEach(c => {
+                    c.material = assemblyBondMat.clone();
+                    c.userData = bond_c1_o2.userData;
+                    clickableObjects.push(c);
+                });
+            }
+
+            return group;
+        }
+
+        // ================= 动态组装逻辑 =================
+        function getConnectedAtomMesh(parentGroup, h_id) {
+            let bond = parentGroup.userData.bonds.find(b => b.pairs.includes(h_id));
+            if(!bond) return null;
+            let attached_id = bond.pairs[0] === h_id ? bond.pairs[1] : bond.pairs[0];
+            return parentGroup.userData.atoms.find(a => a.id === attached_id).mesh;
+        }
+
+        function removeAtomAndBonds(group, atomId) {
+            let atomItem = group.userData.atoms.find(a => a.id === atomId);
+            if (atomItem.mesh.parent) atomItem.mesh.parent.remove(atomItem.mesh);
+            clickableObjects = clickableObjects.filter(obj => obj !== atomItem.mesh);
+            
+            let bondsToRemove = group.userData.bonds.filter(b => b.pairs.includes(atomId));
+            bondsToRemove.forEach(b => {
+                if (b.mesh.parent) b.mesh.parent.remove(b.mesh);
+            });
+            group.userData.bonds = group.userData.bonds.filter(b => !b.pairs.includes(atomId));
+        }
+
+        window.addMolecule = function(type) {
+            clearAnalysis(); 
+            if (hasRoot) {
+                if (!selectedAtom) {
+                    alert("请先在场景中点击一个白色的氢原子（作为连接位点，选中后会变红），然后再点击左侧的基团！");
+                    return;
+                }
+                attachMolecule(type);
+            } else {
+                let mol = buildMoleculeGroup(type);
+                scene.add(mol);
+                mol.userData.atoms.forEach(a => {
+                    if (a.el === 'H') clickableObjects.push(a.mesh);
+                });
+                hasRoot = true;
+                updateInfo("添加成功！请点击分子上白色的氢原子继续组装或替换官能团");
+            }
+            updateMoleculeStats();
+        }
+
+        function attachMolecule(type) {
+            let baseH = selectedAtom;
+            let baseGroup = baseH.userData.parentGroup;
+            let baseH_id = baseH.userData.id;
+            let baseAttachAtom = getConnectedAtomMesh(baseGroup, baseH_id); 
+
+            let wPosH = new THREE.Vector3(); baseH.getWorldPosition(wPosH);
+            let wPosC = new THREE.Vector3(); baseAttachAtom.getWorldPosition(wPosC);
+            let vBaseWorld = new THREE.Vector3().subVectors(wPosH, wPosC).normalize();
+
+            let newMol = buildMoleculeGroup(type);
+            let newH_item = newMol.userData.atoms.find(a => a.el === 'H');
+            let newAttachAtom = getConnectedAtomMesh(newMol, newH_item.id); 
+
+            let lPosH = newH_item.mesh.position.clone();
+            let lPosC = newAttachAtom.position.clone();
+            let vNewLocal = new THREE.Vector3().subVectors(lPosH, lPosC).normalize();
+
+            let q = new THREE.Quaternion().setFromUnitVectors(vNewLocal, vBaseWorld.clone().negate());
+            newMol.quaternion.copy(q);
+
+            let targetPosWorld = wPosC.clone().add(vBaseWorld.clone().multiplyScalar(BOND_LENGTH));
+            let pivot = new THREE.Group();
+            scene.add(pivot);
+            pivot.position.copy(targetPosWorld);
+            
+            let offset = lPosC.clone().applyQuaternion(q).negate();
+            newMol.position.copy(offset);
+            pivot.add(newMol);
+
+            removeAtomAndBonds(baseGroup, baseH_id);
+            removeAtomAndBonds(newMol, newH_item.id);
+
+            let rotBondGroup = createBondMesh(wPosC, targetPosWorld, 1, 0.1, assemblyBondMat);
+            
+            baseAttachAtom.parent.attach(pivot); 
+            baseAttachAtom.parent.attach(rotBondGroup); 
+
+            pivot.userData.baseQuaternion = pivot.quaternion.clone();
+            pivot.userData.baseAttachAtom = baseAttachAtom; 
+
+            rotBondGroup.userData = { type: 'assembly_bond', pivot: pivot };
+            rotBondGroup.children.forEach(c => {
+                c.userData = rotBondGroup.userData;
+                clickableObjects.push(c); 
+            });
+
+            newMol.userData.atoms.forEach(a => {
+                if (a.el === 'H' && a.id !== newH_item.id) clickableObjects.push(a.mesh);
+            });
+
+            clearSelection();
+            updateInfo("基团拼接成功！点击生成的【淡蓝色】单键即可展示共面/非共面旋转。");
+        }
+
+        // ================= 清空场景 =================
+        window.clearScene = function() {
+            clearAnalysis(); 
+            let toRemove =[];
+            scene.children.forEach(child => {
+                if (child.type === 'Group') {
+                    toRemove.push(child);
+                }
+            });
+            toRemove.forEach(child => {
+                scene.remove(child);
+            });
+            
+            clickableObjects.length = 0; 
+            hasRoot = false;
+            selectedAtom = null;
+            selectedBondData = null;
+            
+            document.getElementById('rotation-panel').style.display = 'none';
+            document.getElementById('rot-hint').style.display = 'block';
+            updateMoleculeStats();
+            updateInfo("场景已彻底清空，请点击左侧栏重新添加基础分子");
+        };
+
+        // ================= 交互与射线检测 =================
+        let pointerDownPos = new THREE.Vector2();
+
+        window.addEventListener('resize', () => { fitCanvas(); requestAnimationFrame(fitCanvas); });
+
+        function inCanvas(x, y, target) {
+            // 点在浮动操作面板上时不算画布点击，避免误触发射线拾取 / 取消选中（否则拖动滑块会被打断）
+            if (target && target.closest && target.closest('#float-panel')) return false;
+            const r = canvasArea.getBoundingClientRect();
+            return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+        }
+
+        window.addEventListener('pointerdown', e => {
+            if (!inCanvas(e.clientX, e.clientY, e.target)) return;
+            pointerDownPos.set(e.clientX, e.clientY);
+        });
+
+        window.addEventListener('pointerup', e => {
+            if (!inCanvas(e.clientX, e.clientY, e.target)) return;
+            let currentPos = new THREE.Vector2(e.clientX, e.clientY);
+            if(currentPos.distanceTo(pointerDownPos) > 5) return; 
+
+            const rect = canvasArea.getBoundingClientRect();
+            mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            
+            let intersects = raycaster.intersectObjects(clickableObjects, false);
+            if (intersects.length > 0) {
+                let obj = intersects[0].object;
+                if (obj.userData.type === 'atom' && obj.userData.el === 'H') {
+                    selectAtom(obj);
+                } else if (obj.userData.type === 'assembly_bond') {
+                    selectBond(obj);
+                }
+            } else {
+                clearSelection(); 
+            }
+        });
+
+        function selectAtom(mesh) {
+            clearSelection();
+            selectedAtom = mesh;
+            mesh.material.color.setHex(0xe74c3c); 
+            updateInfo("已选中氢原子，点击左侧栏即可在此处替换基团");
+        }
+
+        function selectBond(mesh) {
+            clearSelection();
+            selectedBondData = mesh.userData;
+            
+            clickableObjects.forEach(obj => {
+                if (obj.userData.type === 'assembly_bond' && obj.userData.pivot === selectedBondData.pivot) {
+                    obj.material.color.setHex(0xf1c40f);
+                }
+            });
+            
+            document.getElementById('rotation-panel').style.display = 'block';
+            document.getElementById('rot-hint').style.display = 'none';
+            document.getElementById('bond-rotation').value = 0;
+            document.getElementById('angle-val').innerText = '0°';
+            
+            selectedBondData.pivot.userData.baseQuaternion = selectedBondData.pivot.quaternion.clone();
+            updateInfo("已选中拼接键，请拖动右侧滑块观察分子的共平面现象。");
+        }
+
+        function clearSelection() {
+            if (selectedAtom) {
+                selectedAtom.material.color.setHex(selectedAtom.userData.originalColor); 
+                selectedAtom = null;
+            }
+            if (selectedBondData) {
+                clickableObjects.forEach(obj => {
+                    if (obj.userData.type === 'assembly_bond' && obj.userData.pivot === selectedBondData.pivot) {
+                        obj.material.color.setHex(0x3498db); 
+                    }
+                });
+                selectedBondData = null;
+            }
+            document.getElementById('rotation-panel').style.display = 'none';
+            document.getElementById('rot-hint').style.display = 'block';
+            if (hasRoot) updateInfo("当前无选中目标，可拖拽场景，或重新点击");
+        }
+
+        // ================= 旋转共面展示核心逻辑 =================
+        document.getElementById('bond-rotation').addEventListener('input', function(e) {
+            clearAnalysis(); 
+            if (!selectedBondData) return;
+            
+            let angleDeg = e.target.value;
+            document.getElementById('angle-val').innerText = angleDeg + '°';
+            
+            let pivot = selectedBondData.pivot;
+            let angleRad = THREE.MathUtils.degToRad(angleDeg);
+            
+            let localPosPivot = pivot.position.clone();
+            let localPosAttach = pivot.userData.baseAttachAtom.position.clone();
+            let axis = new THREE.Vector3().subVectors(localPosPivot, localPosAttach).normalize();
+            
+            let qRotate = new THREE.Quaternion().setFromAxisAngle(axis, angleRad);
+            pivot.quaternion.copy(pivot.userData.baseQuaternion).premultiply(qRotate);
+        });
+
+        // ================= 动态数学暴算共线与共面 (终极版) =================
+        
+        // 获取当前场景所有原子的世界坐标
+        function getAllAtomsData() {
+            let allAtoms = [];
+            scene.traverse(child => {
+                if (child.userData && child.userData.type === 'atom') {
+                    let wPos = new THREE.Vector3();
+                    child.getWorldPosition(wPos); 
+                    allAtoms.push({ mesh: child, pos: wPos, id: child.userData.id, el: child.userData.el });
+                }
+            });
+            return allAtoms;
+        }
+
+        // 提取核心的找平面算法
+        // filter 可选：传入 (a)=>bool 则只统计符合条件的原子（如只统计碳），但平面仍由全部原子任取三点确定
+        function getPlaneInfo(atoms, filter) {
+            let maxCoplanarAtoms = [];
+            let bestPlane = null;
+            const TOLERANCE = 0.15; 
+
+            for (let i = 0; i < atoms.length - 2; i++) {
+                for (let j = i + 1; j < atoms.length - 1; j++) {
+                    for (let k = j + 1; k < atoms.length; k++) {
+                        let p1 = atoms[i].pos, p2 = atoms[j].pos, p3 = atoms[k].pos;
+                        let v1 = new THREE.Vector3().subVectors(p2, p1);
+                        let v2 = new THREE.Vector3().subVectors(p3, p1);
+                        let normal = new THREE.Vector3().crossVectors(v1, v2);
+
+                        if (normal.lengthSq() < 0.001) continue; 
+                        normal.normalize();
+
+                        let coplanarCount = [];
+                        atoms.forEach(a => {
+                            if (filter && !filter(a)) return;   // 只统计目标原子（如仅碳）
+                            let vec = new THREE.Vector3().subVectors(a.pos, p1);
+                            let dist = Math.abs(normal.dot(vec));
+                            if (dist < TOLERANCE) coplanarCount.push(a);
+                        });
+
+                        if (coplanarCount.length > maxCoplanarAtoms.length) {
+                            maxCoplanarAtoms = coplanarCount;
+                            bestPlane = { p1, normal };
+                        }
+                    }
+                }
+            }
+            return { plane: bestPlane, atoms: maxCoplanarAtoms };
+        }
+
+        // ===== 共面统计：求「最多 / 最少」共面数 =====
+        const IS_CARBON = a => a.el === 'C';
+
+        // 收集所有可旋转键（同一 pivot 去重）
+        function collectPivots() {
+            const pivots = [];
+            scene.traverse(child => {
+                const ud = child.userData;
+                if (ud && ud.type === 'assembly_bond' && ud.pivot && !pivots.includes(ud.pivot)) {
+                    pivots.push(ud.pivot);
+                }
+            });
+            return pivots;
+        }
+
+        // 可旋转键的转轴（沿拼接键方向）
+        function pivotAxis(pivot) {
+            return new THREE.Vector3()
+                .subVectors(pivot.position.clone(), pivot.userData.baseAttachAtom.position.clone())
+                .normalize();
+        }
+
+        // 在固定参考平面内计数（优化过程中的快速评估，O(n)）
+        function countInPlane(atoms, plane, filter) {
+            let n = 0;
+            atoms.forEach(a => {
+                if (filter && !filter(a)) return;
+                const vec = new THREE.Vector3().subVectors(a.pos, plane.p1);
+                if (Math.abs(plane.normal.dot(vec)) < 0.15) n++;
+            });
+            return n;
+        }
+
+        // 坐标下降：把各可旋转键转到「最有利」或「最不利」角度，
+        // 返回该构象下真正的最大共面数；无论成功与否都还原当前构象（不改变用户看到的模型）。
+        // mode: 'max' 求最多，'min' 求最少；filter 可限定只统计某元素（如仅碳）
+        function optimizeCoplanar(mode, filter) {
+            const atoms0 = getAllAtomsData();
+            if (atoms0.length < 3) return 0;
+            const pivots = collectPivots();
+            // 参考平面：优先取"按 filter 统计"的最优平面，取不到再退回全体原子的最优平面
+            let ref = getPlaneInfo(atoms0, filter).plane;
+            if (!ref) ref = getPlaneInfo(atoms0).plane;
+            if (!ref || pivots.length === 0) return getPlaneInfo(atoms0, filter).atoms.length;
+
+            const saved = pivots.map(p => p.quaternion.clone());
+            try {
+                for (let pass = 0; pass < 2; pass++) {
+                    pivots.forEach(pivot => {
+                        const axis = pivotAxis(pivot);
+                        const base = pivot.userData.baseQuaternion;
+                        let bestAng = 0;
+                        let bestVal = (mode === 'max') ? -Infinity : Infinity;
+                        for (let ang = 0; ang < 360; ang += 10) {
+                            const q = new THREE.Quaternion()
+                                .setFromAxisAngle(axis, THREE.MathUtils.degToRad(ang));
+                            pivot.quaternion.copy(base).premultiply(q);
+                            scene.updateMatrixWorld(true);
+                            const v = countInPlane(getAllAtomsData(), ref, filter);
+                            if (mode === 'max' ? v > bestVal : v < bestVal) { bestVal = v; bestAng = ang; }
+                        }
+                        const q = new THREE.Quaternion()
+                            .setFromAxisAngle(axis, THREE.MathUtils.degToRad(bestAng));
+                        pivot.quaternion.copy(base).premultiply(q);
+                        scene.updateMatrixWorld(true);
+                    });
+                }
+                return getPlaneInfo(getAllAtomsData(), filter).atoms.length;
+            } finally {
+                pivots.forEach((p, i) => p.quaternion.copy(saved[i]));
+                scene.updateMatrixWorld(true);
+            }
+        }
+
+        // 升级版：一键生成最大共面（含自动旋转寻优功能）
+        window.showMaxCoplanar = function() {
+            clearAnalysis();
+            let initialAtoms = getAllAtomsData();
+            if (initialAtoms.length < 3) {
+                updateInfo("原子数量不足，无法构成平面。");
+                return;
+            }
+
+            // ================= 阶段 1：自动旋转寻优 (贪心算法) =================
+            let pivots = [];
+            scene.traverse(child => {
+                if (child.userData && child.userData.type === 'assembly_bond' && child.userData.pivot) {
+                    if (!pivots.includes(child.userData.pivot)) {
+                        pivots.push(child.userData.pivot);
+                    }
+                }
+            });
+
+            if (pivots.length > 0) {
+                let basePlaneInfo = getPlaneInfo(initialAtoms);
+                if (basePlaneInfo.plane) {
+                    let basePlane = basePlaneInfo.plane;
+                    
+                    pivots.forEach(pivot => {
+                        let bestAngleRad = 0;
+                        let maxInPlane = 0;
+                        let localPosPivot = pivot.position.clone();
+                        let localPosAttach = pivot.userData.baseAttachAtom.position.clone();
+                        let axis = new THREE.Vector3().subVectors(localPosPivot, localPosAttach).normalize();
+
+                        for(let angle = 0; angle < 360; angle += 5) {
+                            let angleRad = THREE.MathUtils.degToRad(angle);
+                            let qRotate = new THREE.Quaternion().setFromAxisAngle(axis, angleRad);
+                            pivot.quaternion.copy(pivot.userData.baseQuaternion).premultiply(qRotate);
+                            scene.updateMatrixWorld(true); 
+                            
+                            let currentAtoms = getAllAtomsData();
+                            let count = 0;
+                            currentAtoms.forEach(a => {
+                                let vec = new THREE.Vector3().subVectors(a.pos, basePlane.p1);
+                                let dist = Math.abs(basePlane.normal.dot(vec));
+                                if(dist < 0.15) count++; 
+                            });
+                            
+                            if(count > maxInPlane) {
+                                maxInPlane = count;
+                                bestAngleRad = angleRad;
+                            }
+                        }
+                        
+                        let qBest = new THREE.Quaternion().setFromAxisAngle(axis, bestAngleRad);
+                        pivot.quaternion.copy(pivot.userData.baseQuaternion).premultiply(qBest);
+                        scene.updateMatrixWorld(true);
+                        
+                        if (selectedBondData && selectedBondData.pivot === pivot) {
+                            let deg = Math.round(THREE.MathUtils.radToDeg(bestAngleRad));
+                            if (deg > 180) deg -= 360;
+                            document.getElementById('bond-rotation').value = deg;
+                            document.getElementById('angle-val').innerText = deg + '°';
+                        }
+                    });
+                }
+            }
+
+            // ================= 阶段 2：渲染亚克力蓝共面结果 =================
+            let finalAtoms = getAllAtomsData();
+            let finalResult = getPlaneInfo(finalAtoms);
+
+            if (finalResult.atoms.length >= 3) {
+                let center = new THREE.Vector3();
+                finalResult.atoms.forEach(a => center.add(a.pos));
+                center.divideScalar(finalResult.atoms.length);
+
+                // 按参与共面的原子实际分布自适应计算平面尺寸：贴合分子，不再用写死的大平面遮挡视野
+                const nrm = finalResult.plane.normal.clone().normalize();
+                const refAxis = Math.abs(nrm.z) < 0.9 ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(0, 1, 0);
+                const axU = new THREE.Vector3().crossVectors(refAxis, nrm).normalize();
+                const axV = new THREE.Vector3().crossVectors(nrm, axU).normalize();
+                let extU = 0, extV = 0;
+                finalResult.atoms.forEach(a => {
+                    const d = new THREE.Vector3().subVectors(a.pos, center);
+                    extU = Math.max(extU, Math.abs(d.dot(axU)));
+                    extV = Math.max(extV, Math.abs(d.dot(axV)));
+                });
+                const PLANE_PAD = 0.8;                        // 留边，覆盖原子半径
+                const clampSize = x => Math.min(Math.max(x, 2.2), 9);
+                const sizeU = clampSize((extU + PLANE_PAD) * 2);
+                const sizeV = clampSize((extV + PLANE_PAD) * 2);
+
+                let planeGeom = new THREE.PlaneGeometry(sizeU, sizeV);
+                let planeMat = new THREE.MeshPhysicalMaterial({
+                    color: 0x55aaff,       
+                    metalness: 0.2, 
+                    roughness: 0.1,        
+                    transmission: 0.3,     
+                    transparent: true, 
+                    opacity: 0.65,         
+                    side: THREE.DoubleSide, 
+                    depthWrite: false
+                });
+                let planeMesh = new THREE.Mesh(planeGeom, planeMat);
+                
+                planeMesh.position.copy(center);
+                // 用 (axU, axV, nrm) 正交基定向：使矩形长宽方向与原子实际分布一致
+                planeMesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(axU, axV, nrm));
+                
+                scene.add(planeMesh);
+                analysisObjects.push(planeMesh);
+                
+                updateInfo(`已自动旋转至最佳角度！当前分子结构【最多】有 ${finalResult.atoms.length} 个原子共面。`);
+            }
+        };
+
+        // 一键生成最大共线 (发光轴)
+        window.showMaxCollinear = function() {
+            clearAnalysis();
+            let atoms = getAllAtomsData();
+            if (atoms.length < 2) return;
+
+            let maxCollinearAtoms = [];
+            let bestLine = null;
+            const TOLERANCE = 0.15; 
+
+            for (let i = 0; i < atoms.length - 1; i++) {
+                for (let j = i + 1; j < atoms.length; j++) {
+                    let p1 = atoms[i].pos, p2 = atoms[j].pos;
+                    let dir = new THREE.Vector3().subVectors(p2, p1);
+                    if (dir.lengthSq() < 0.001) continue;
+                    dir.normalize();
+
+                    let collinearCount = [];
+                    atoms.forEach(a => {
+                        let vec = new THREE.Vector3().subVectors(a.pos, p1);
+                        let dist = new THREE.Vector3().crossVectors(vec, dir).length();
+                        if (dist < TOLERANCE) collinearCount.push(a);
+                    });
+
+                    if (collinearCount.length > maxCollinearAtoms.length) {
+                        maxCollinearAtoms = collinearCount;
+                        bestLine = { p1, dir };
+                    }
+                }
+            }
+
+            if (maxCollinearAtoms.length >= 3) {
+                let minT = Infinity, maxT = -Infinity;
+                maxCollinearAtoms.forEach(a => {
+                    let vec = new THREE.Vector3().subVectors(a.pos, bestLine.p1);
+                    let t = vec.dot(bestLine.dir);
+                    if (t < minT) minT = t;
+                    if (t > maxT) maxT = t;
+                });
+
+                let start = bestLine.p1.clone().add(bestLine.dir.clone().multiplyScalar(minT - 1.5));
+                let end = bestLine.p1.clone().add(bestLine.dir.clone().multiplyScalar(maxT + 1.5));
+                let length = start.distanceTo(end);
+
+                let cylGeom = new THREE.CylinderGeometry(0.12, 0.12, length, 16);
+                let cylMat = new THREE.MeshBasicMaterial({
+                    color: 0x00ffcc, transparent: true, opacity: 0.8,
+                    blending: THREE.AdditiveBlending, depthWrite: false 
+                });
+                let cylMesh = new THREE.Mesh(cylGeom, cylMat);
+
+                let center = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
+                cylMesh.position.copy(center);
+                cylMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), bestLine.dir);
+
+                scene.add(cylMesh);
+                analysisObjects.push(cylMesh);
+                
+                updateInfo(`检测完毕！当前分子结构最多有 ${maxCollinearAtoms.length} 个原子共线。`);
+            } else {
+                updateInfo("当前分子中没有发现 3 个或以上共线的原子（任意两点都共线）。");
+            }
+        };
+
+        // 重置视角：回到初始机位与朝向
+        document.getElementById('btn-reset-view').addEventListener('click', () => {
+            camera.position.set(0, 5, 12);
+            controls.target.set(0, 0, 0);
+            controls.update();
+        });
+
+        // ================= 动画渲染循环 =================
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update(); 
+            renderer.render(scene, camera);
+        }
+        
+        animate();
+        requestAnimationFrame(fitCanvas);
+
+    </script>
+
+    <script>window.BACK_SUBNAV = 'subnav-organic';</script>
+    
+</body>
+</html>

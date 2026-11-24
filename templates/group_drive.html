@@ -1,0 +1,149 @@
+{% extends 'base.html' %}
+{% block title %}共享网盘 - {{ group.name }}组{% endblock %}
+{% block content %}
+<style>
+  .drive-actions .btn { border-color: transparent !important; }
+  .drive-actions .btn:hover { border-color: inherit !important; }
+</style>
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0"><i class="fas fa-folder-open me-2"></i>{{ group.name }}组 共享网盘</h2>
+    <a href="{{ url_for('student_groups.my_groups') }}" class="btn btn-outline-primary btn-sm">
+      <i class="fas fa-arrow-left me-1"></i>返回小组
+    </a>
+  </div>
+
+  <!-- 容量信息 -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-4">
+      <div class="card bg-light">
+        <div class="card-body text-center py-3">
+          <small class="text-muted">已用空间</small>
+          <h4 class="mb-0">{{ "%.1f"|format(total_size / 1024 / 1024) }}MB</h4>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card bg-light">
+        <div class="card-body text-center py-3">
+          <small class="text-muted">总容量</small>
+          <h4 class="mb-0">{{ max_space // (1024*1024) }}MB</h4>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card bg-light">
+        <div class="card-body text-center py-3">
+          <small class="text-muted">文件数量</small>
+          <h4 class="mb-0">{{ files|length }}</h4>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 上传 -->
+  {% if group.drive_enabled and group.upload_enabled %}
+  <div class="card mb-4">
+    <div class="card-body">
+      <form method="post" action="{{ url_for('student_groups.drive_upload') }}" enctype="multipart/form-data" class="row g-2 align-items-end">
+        <div class="col-md-9">
+          <label class="form-label small">上传文件（≤20MB）</label>
+          <input type="file" class="form-control" name="file" required>
+        </div>
+        <div class="col-md-3">
+          <button type="submit" class="btn btn-success w-100">
+            <i class="fas fa-upload me-1"></i>上传
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% elif not group.drive_enabled %}
+  <div class="alert alert-warning"><i class="fas fa-lock me-1"></i>网盘已关闭</div>
+  {% else %}
+  <div class="alert alert-warning"><i class="fas fa-ban me-1"></i>上传功能已被禁用</div>
+  {% endif %}
+
+  <!-- 文件列表 -->
+  <div class="card">
+    <div class="card-header bg-dark text-white">
+      <h5 class="mb-0">文件列表</h5>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead><tr><th>文件名</th><th>大小</th><th>上传者</th><th>时间</th><th>操作</th></tr></thead>
+        <tbody>
+          {% if files %}
+            {% for f in files %}
+            <tr>
+              <td>
+                <i class="fas {% if f.original_filename.endswith('.pdf') %}fa-file-pdf text-danger
+                              {% elif f.original_filename.split('.')[-1] in ('png','jpg','jpeg','gif','bmp','webp') %}fa-file-image text-info
+                              {% elif f.original_filename.split('.')[-1] in ('mp3','wav','ogg') %}fa-file-audio text-warning
+                              {% elif f.original_filename.split('.')[-1] in ('mp4','webm','avi') %}fa-file-video text-success
+                              {% else %}fa-file text-secondary{% endif %} me-2"></i>
+                {{ f.original_filename }}
+              </td>
+              <td class="text-muted small">
+                {% if f.file_size >= 1024*1024 %}{{ "%.1f"|format(f.file_size/1024/1024) }}MB
+                {% elif f.file_size >= 1024 %}{{ (f.file_size/1024)|int }}KB
+                {% else %}{{ f.file_size }}B{% endif %}
+              </td>
+              <td>{{ f.uploader.name if f.uploader else '-' }}</td>
+              <td class="text-muted small">{{ f.upload_time.strftime('%m-%d %H:%M') if f.upload_time else '-' }}</td>
+              <td class="text-nowrap">
+                <div class="d-inline-flex gap-1 align-items-center drive-actions">
+                  {% set f_ext = f.original_filename.split('.')[-1].lower() if '.' in f.original_filename else '' %}
+                  {% if f_ext in ('ppt', 'pptx') %}
+                  <a href="{{ url_for('student_groups.drive_edit', file_id=f.id) }}" class="btn btn-outline-info btn-sm shadow-none" target="_blank" title="在 PPTist 中编辑">
+                    <i class="fas fa-edit"></i>
+                  </a>
+                  {% endif %}
+                  <a href="{{ url_for('student_groups.drive_preview', file_id=f.id) }}" class="btn btn-outline-primary btn-sm shadow-none" target="_blank" title="预览">
+                    <i class="fas fa-eye"></i>
+                  </a>
+                  <a href="{{ url_for('student_groups.drive_download', file_id=f.id) }}" class="btn btn-outline-success btn-sm shadow-none" title="下载">
+                    <i class="fas fa-download"></i>
+                  </a>
+                  {% if f.uploader_id == student.id or group.leader_id == student.id %}
+                  <form method="post" action="{{ url_for('student_groups.drive_delete', file_id=f.id) }}" class="d-inline-flex m-0" onsubmit="return confirm('确定删除？')">
+                    <button class="btn btn-outline-danger btn-sm shadow-none" title="删除"><i class="fas fa-trash"></i></button>
+                  </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr><td colspan="5" class="text-center text-muted py-4">暂无文件</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+    {% if pagination and pagination.pages > 1 %}
+    <div class="card-footer bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span class="text-muted small">共 {{ pagination.total }} 个文件，第 {{ pagination.page }} / {{ pagination.pages }} 页</span>
+        <nav aria-label="小组网盘分页">
+            <ul class="pagination justify-content-center mb-0 flex-wrap">
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('student_groups.group_drive', page=pagination.prev_num) if pagination.has_prev else '#' }}">上一页</a>
+                </li>
+                {% for p in range(1, pagination.pages + 1) %}
+                    {% if p == 1 or p == pagination.pages or (p >= pagination.page - 2 and p <= pagination.page + 2) %}
+                    <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                        <a class="page-link" href="{{ url_for('student_groups.group_drive', page=p) }}">{{ p }}</a>
+                    </li>
+                    {% elif p == 2 or p == pagination.pages - 1 %}
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('student_groups.group_drive', page=pagination.next_num) if pagination.has_next else '#' }}">下一页</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

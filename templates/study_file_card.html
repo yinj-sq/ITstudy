@@ -1,0 +1,69 @@
+{# 单个文件卡片 — 由 study.html 通过 {% include %} 调用，变量 f 需预先定义 #}
+{% set previewable = f.ext in ('html','htm','php','asp','jsp','pdf','png','jpg','jpeg','gif','bmp','webp','mp4','webm','avi','mp3','wav','ogg','txt','ggb') %}
+{% if not f.can_download and not previewable %}
+<div class="file-card file-card-gray" title="{{ f.name }}">
+  <i class="fas fa-file file-card-icon"></i><span class="file-card-name">{{ f.name }}</span>
+</div>
+{% elif f.ext in ('html','htm','php','asp','jsp') %}
+<a href="/study/link?url={{ f.url|urlencode }}&title={{ f.name|urlencode }}&resource_id={{ res.id }}&quiz_mode={{ res.quiz_mode|default('inject') }}" target="_blank" class="file-card file-card-green" title="{{ f.name }} — 含 AI 助手打开">
+  <i class="fas fa-globe file-card-icon"></i><span class="file-card-name">{{ f.name }}</span>
+</a>
+{% elif f.ext in ('pdf',) %}
+<a href="/study/preview?file={{ f.url|urlencode }}&name={{ f.name|urlencode }}" target="_blank" class="file-card file-card-red" title="{{ f.name }}">
+  <i class="fas fa-file-pdf file-card-icon"></i><span class="file-card-name">{{ f.name }}</span>
+</a>
+{% elif f.ext in ('doc','docx','xls','xlsx','ppt','pptx') %}
+{% set office_icon = 'fa-file-word' if f.ext in ('doc','docx') else 'fa-file-excel' if f.ext in ('xls','xlsx') else 'fa-file-powerpoint' %}
+{% set office_color = 'file-card-primary' if f.ext in ('doc','docx') else 'file-card-teal' if f.ext in ('xls','xlsx') else 'file-card-orange' %}
+<div class="file-card {{ office_color }}" style="flex-direction:column;gap:4px;padding:8px 12px;cursor:default">
+  <div style="display:flex;align-items:center;gap:6px">
+    <i class="fas {{ office_icon }} file-card-icon"></i><span class="file-card-name">{{ f.name }}</span>
+  </div>
+  <div style="display:flex;gap:4px;flex-wrap:wrap">
+    <a href="/study/preview?file={{ f.url|urlencode }}&name={{ f.name|urlencode }}" target="_blank" class="btn btn-sm btn-outline-primary" style="font-size:11px;padding:2px 8px" title="在线预览"><i class="fas fa-eye me-1"></i>预览</a>
+    {% if f.ext in ('ppt','pptx') %}
+    <a href="/static/pptist/index.html" target="_blank" class="btn btn-sm btn-outline-info" style="font-size:11px;padding:2px 8px" title="在 PPTist 中编辑（用其上传入口导入本文件）"><i class="fas fa-edit me-1"></i>编辑</a>
+    {% endif %}
+    {% if f.can_download %}
+    <a href="{{ f.url }}" download class="btn btn-sm btn-outline-secondary" style="font-size:11px;padding:2px 8px"><i class="fas fa-download me-1"></i>下载</a>
+    {% endif %}
+  </div>
+</div>
+{% elif f.ext in ('png','jpg','jpeg','gif','bmp','webp') %}
+<a href="#" onclick='previewImage({{ f.url|tojson }}, {{ f.name|tojson }});return false' class="file-card file-card-blue" title="{{ f.name }}">
+  <i class="fas fa-image file-card-icon"></i><span class="file-card-name">{{ f.name }}</span>
+</a>
+{% elif f.ext in ('mp4','webm','avi','mp3','wav','ogg') %}
+{% if f.can_download %}
+<a href="{{ f.url }}" download class="file-card file-card-yellow" title="{{ f.name }}">
+  <i class="fas fa-download file-card-icon"></i><span class="file-card-name">{{ f.name }}</span>
+</a>
+{% else %}
+<a href="#" onclick='playMedia({{ f.url|tojson }}, {{ f.name|tojson }}, {{ ("audio" if f.ext in ("mp3","wav","ogg") else "video")|tojson }});return false' class="file-card file-card-yellow" title="{{ f.name }} — 点击播放">
+  <i class="fas fa-play file-card-icon"></i><span class="file-card-name">{{ f.name }}</span>
+</a>
+{% endif %}
+{% elif f.ext in ('zip','rar','7z') %}
+<a href="{{ f.url }}" download class="file-card file-card-gray" title="{{ f.name }}">
+  <i class="fas fa-file-archive file-card-icon"></i><span class="file-card-name">{{ f.name }}</span>
+</a>
+{% elif f.ext == 'ggb' %}
+<div class="file-card file-card-blue" style="flex-direction:column;gap:4px;padding:8px 12px;cursor:default">
+  <div style="display:flex;align-items:center;gap:6px">
+    <i class="fas fa-cubes file-card-icon"></i><span class="file-card-name">{{ f.name }}</span>
+  </div>
+  <div style="display:flex;gap:4px;flex-wrap:wrap">
+    <a href="{{ url_for('resources.geogebra_player', res_id=res.id, file=f.name) }}" target="_blank"
+       class="btn btn-sm btn-outline-primary" style="font-size:11px;padding:2px 8px" title="在 GeoGebra 中打开（课堂可用）">
+      <i class="fas fa-play me-1"></i>打开（GeoGebra）
+    </a>
+    {% if f.can_download %}
+    <a href="{{ f.url }}" download class="btn btn-sm btn-outline-secondary" style="font-size:11px;padding:2px 8px"><i class="fas fa-download me-1"></i>下载</a>
+    {% endif %}
+  </div>
+</div>
+{% else %}
+<a href="{{ f.url }}" {% if f.can_download %}download{% else %}target="_blank"{% endif %} class="file-card file-card-gray" title="{{ f.name }}">
+  <i class="fas fa-file file-card-icon"></i><span class="file-card-name">{{ f.name }}</span>
+</a>
+{% endif %}

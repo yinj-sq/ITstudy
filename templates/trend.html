@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% block title %}成绩趋势分析{% endblock %}
+{% block content %}
+<div class="mx-auto" style="max-width:900px;">
+  <h2 class="mb-4"><i class="fas fa-chart-line text-primary me-2"></i>成绩趋势分析</h2>
+  
+  {% if scores %}
+  <div class="mb-4 card p-3 shadow-sm">
+    <canvas id="trendChart"></canvas>
+  </div>
+  
+  <table class="table table-bordered table-striped table-hover table-sm">
+    <thead class="table-light"><tr><th>考试</th><th>分数</th><th>时间</th></tr></thead>
+    <tbody>
+    {% for e, s, t in trend_rows %}
+    <tr><td>{{ e }}</td><td>{{ s }}</td><td>{{ t }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="alert alert-info">
+    <p>您还没有参加过任何考试，暂无成绩数据可显示。</p>
+    <p>请前往<a href="{{ url_for('online_exam.exam') }}" class="alert-link">在线测试</a>页面参加考试</p>
+  </div>
+  {% endif %}
+  
+  <a href="/study" class="btn btn-link"><i class="fas fa-arrow-left"></i> 返回学习页</a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if scores %}
+<script>window.DEFERRED_SCRIPTS = window.DEFERRED_SCRIPTS || []; window.DEFERRED_SCRIPTS.push('chart_js');</script>
+<script>
+// Chart.js 为延迟加载（DEFERRED_SCRIPTS），等待 resource-loader 派发 all-scripts-loaded 事件后初始化；
+// 兜底：事件未触发时轮询 typeof Chart，最多等待 5 秒
+var _trendChartInited = false;
+var _trendPollTries = 0;
+function initTrendChart() {
+    if (_trendChartInited) return;
+    if (typeof Chart === 'undefined') {
+        if (_trendPollTries < 25) { // 每 200ms 轮询一次，最多 5 秒
+            _trendPollTries++;
+            setTimeout(initTrendChart, 200);
+        } else {
+            console.error('Chart.js 加载超时，成绩趋势图初始化失败');
+        }
+        return;
+    }
+    _trendChartInited = true;
+    const ctx = document.getElementById('trendChart').getContext('2d');
+    const labels = {{ times|tojson }};
+    const data = {{ scores|tojson }};
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '分数',
+                data: data,
+                borderColor: 'rgba(54, 162, 235, 1)',
+                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                fill: true,
+                tension: 0.2
+            }]
+        },
+        options: {
+            scales: {
+                y: { beginAtZero: true }
+            }
+        }
+    });
+}
+window.addEventListener('all-scripts-loaded', initTrendChart);
+initTrendChart();
+</script>
+{% endif %}
+{% endblock %} 

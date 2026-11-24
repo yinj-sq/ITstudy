@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}优秀作品 - {{ work.activity.title }}{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <h2 class="mb-1"><i class="fas fa-star text-warning me-2"></i>{{ work.activity.title }}</h2>
+      <div class="text-muted mb-3">{{ work.student.name if work.student else '学生已删除' }}</div>
+      {% if work.evaluation %}
+      <div class="mb-3">
+        <span class="badge bg-warning text-dark">{{ work.evaluation.grade or '优秀' }}</span>
+        {% if work.evaluation.score is not none %}<span class="badge bg-primary">{{ work.evaluation.score }} 分</span>{% endif %}
+      </div>
+      {% if work.evaluation.comment %}
+      <div class="alert alert-light border" style="white-space:pre-wrap;">{{ work.evaluation.comment }}</div>
+      {% endif %}
+      {% endif %}
+      {% if work.text_content %}
+      <div class="mb-3" style="white-space:pre-wrap;word-break:break-word;">{{ work.text_content }}</div>
+      {% endif %}
+      {% if work.file_path %}
+      <a href="{{ url_for('activities.public_work_preview', token=work.public_token) }}" target="_blank" class="btn btn-outline-primary rounded-pill"><i class="fas fa-eye me-1"></i>预览作品文件</a>
+      <a href="{{ url_for('activities.public_work_file', token=work.public_token) }}" class="btn btn-outline-success rounded-pill"><i class="fas fa-download me-1"></i>下载</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

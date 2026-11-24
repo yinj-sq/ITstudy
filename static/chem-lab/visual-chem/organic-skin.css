@@ -1,0 +1,100 @@
+/* ===================================================================
+   organic-skin.css —— 有机反应页统一皮肤（配合 ui-glass.css 使用）
+   作用：把各页原有的 .sidebar-section 变成全站一致的磨砂玻璃面板，
+        并补齐品牌顶栏留白 / 主区间距 / 画布圆角。
+   页面 JS 只依赖 id 与 .btn-reaction，本文件不改任何结构，纯视觉。
+   用法：在 </style> 之后按顺序引入
+        <link rel="stylesheet" href="ui-glass.css">
+        <link rel="stylesheet" href="organic-skin.css">
+   =================================================================== */
+
+/* ---- 侧栏：透明容器 + 面板间距，滚动态交给侧栏本身 ---- */
+.sidebar {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    gap: 10px;
+    overflow-y: auto;
+}
+.sidebar-left, .sidebar-right { flex: 0 0 232px !important; }
+
+/* ---- 原有 .sidebar-section → 磨砂玻璃面板（对齐 ui-glass 的 .glass-panel） ---- */
+.sidebar-section {
+    flex: 0 0 auto !important;
+    padding: 7px 9px 6px !important;
+    border: 1px solid rgba(120, 140, 175, 0.35) !important;
+    border-radius: 16px;
+    background: rgba(235, 240, 248, 0.78);
+    box-shadow: 0 10px 30px rgba(30, 50, 80, 0.18);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+}
+.sidebar-section.fill { overflow: visible; }
+
+/* ---- 面板标题：橙色、居中、加字距（全站统一） ---- */
+.sidebar-section .panel-title {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #b06a00;
+    text-align: center;
+    letter-spacing: 3px;
+    border-bottom: 1px solid rgba(120, 140, 175, 0.35);
+    padding-bottom: 3px;
+    margin: 0 0 2px;
+    justify-content: center;
+}
+.sidebar-section .panel-title::before { display: none; }
+
+/* ---- 面板内各类内容的浅色底（避免白底割裂玻璃质感） ---- */
+.sidebar-section .category-title {
+    color: #5b6b7d;
+    border-bottom-color: rgba(120, 140, 175, 0.4);
+    margin: 2px 0 4px;
+}
+.sidebar-section .formula-display {
+    background: rgba(255, 255, 255, 0.6);
+    border-color: rgba(120, 140, 175, 0.35);
+    color: #1e7a67;
+}
+/* 方程式较长时必须折行：老皮肤里的 .formula-main 是 nowrap，170px 的盒子会把
+   "CH₂=CH₂ + Br₂ → CH₂Br-CH₂Br" 这类方程式直接裁掉右半截 */
+.sidebar-section .formula-main {
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+    line-height: 1.5;
+}
+.sidebar-section .info-box {
+    background: rgba(255, 255, 255, 0.55);
+    border-left-color: #0f6e56;
+    color: #26333f;
+}
+.sidebar-section .legend {
+    background: rgba(255, 255, 255, 0.6);
+    border-color: rgba(120, 140, 175, 0.35);
+}
+.sidebar-section .adv-panel {
+    background: rgba(255, 255, 255, 0.6);
+    border-color: rgba(120, 140, 175, 0.35);
+    color: #26333f;
+}
+.sidebar-section .adv-details summary {
+    background: rgba(255, 255, 255, 0.55);
+    border-color: rgba(120, 140, 175, 0.4);
+    color: #1a5f8a;
+}
+.sidebar-section .tier-main { background: rgba(46, 134, 193, 0.16); }
+
+/* ---- 画布圆角（与晶胞页一致） ---- */
+#canvas-container { border-radius: 16px; overflow: hidden; }
+
+/* ---- 竖屏：侧栏改横向排布时保持面板间距 ---- */
+@media screen and (max-width: 900px) {
+    .sidebar-left, .sidebar-right {
+        flex: 1 1 auto !important;
+        width: 100%;
+        flex-direction: row;
+        flex-wrap: wrap;
+        overflow-y: visible;
+    }
+    .sidebar-section { flex: 1 1 150px !important; }
+}

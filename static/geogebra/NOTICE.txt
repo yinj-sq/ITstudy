@@ -1,0 +1,26 @@
+GeoGebra Math Apps Bundle (offline)
+===================================
+
+Version : 5.4.934.0
+Source  : https://download.geogebra.org/package/geogebra-math-apps-bundle
+Included: GeoGebra/deployggb.js
+          GeoGebra/HTML5/5.0/web3d/
+          GeoGebra/HTML5/5.0/css/
+
+License
+-------
+GeoGebra is free to copy, distribute and transmit for non-commercial
+purposes. See https://www.geogebra.org/license for the full license terms.
+
+Bundled third-party font licenses are kept in
+GeoGebra/HTML5/5.0/web3d/fonts/licences/ (e.g. Knuth_License.txt,
+License_for_dsrom.txt).
+
+Notes
+-----
+- This directory is served as static assets; the application loads it with
+  `applet.setHTML5Codebase('/static/geogebra/GeoGebra/HTML5/5.0/web3d/')`
+  so GeoGebra never needs the public CDN in offline classrooms.
+- Upgrade: download the bundle zip, replace deployggb.js and the
+  HTML5/5.0/web3d + css directories, update this NOTICE, then run
+  `tools/precompress_static.py` (full) and rebuild the installer.

@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+    
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>电化学 · 电解池 - 可视化化学</title>
+<link rel="icon" type="image/png" href="favicon.png">
+<style>
+  :root {
+    --accent: #66aaff;
+    --accent2: #35d0ff;
+    --text-1: #eaf2ff;
+    --text-2: #9fb3d1;
+    --glass-bg: linear-gradient(145deg, rgba(175,205,245,0.20) 0%, rgba(135,165,215,0.13) 45%, rgba(100,130,180,0.10) 100%);
+    --glass-border: rgba(255,255,255,0.12);
+    --ease-out: cubic-bezier(0.23,1,0.32,1);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+    background: #000; color: #fff; overflow: hidden;
+  }
+  #app-container {
+    height: 100vh; min-height: 0; display: flex; flex-direction: column; gap: 10px;
+    padding: 10px 14px 12px;
+    background-image:
+      radial-gradient(620px 460px at 8% 4%, rgba(70,130,255,0.20), transparent 65%),
+      radial-gradient(520px 400px at 94% 22%, rgba(60,210,205,0.12), transparent 66%),
+      radial-gradient(760px 540px at 50% 112%, rgba(45,140,190,0.16), transparent 70%);
+  }
+  .glass, #topbar, .glass-panel {
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(22px) saturate(165%);
+    backdrop-filter: blur(22px) saturate(165%);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.16), 0 16px 44px rgba(0,0,0,0.26), inset 0 1px 0 rgba(255,255,255,0.20);
+  }
+
+  /* ---------- 顶栏 ---------- */
+  #topbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 9px 14px; flex-wrap: wrap; }
+  .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .brand-logo { width: 32px; height: 32px; display: block; object-fit: contain; }
+  .brand-text { line-height: 1.25; display: flex; align-items: baseline; gap: 10px; }
+  .brand-title { font-size: 15px; font-weight: 700; letter-spacing: 1px; white-space: nowrap; color: #fff; }
+  .brand-divider { color: #fff; opacity: .9; margin: 0 5px; }
+  .brand-sub { font-size: 10.5px; color: var(--text-2); letter-spacing: 2px; white-space: nowrap; }
+  .topbar-actions { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+  .mode-switch { display: flex; gap: 3px; padding: 3px; border-radius: 11px; background: rgba(10,18,32,0.42); border: 1px solid rgba(255,255,255,0.10); }
+  .mode-btn {
+    appearance: none; border: 0; cursor: pointer; padding: 7px 11px; border-radius: 8px;
+    background: transparent; color: var(--text-2); font-size: 12px; font-family: inherit;
+    transition: all .22s var(--ease-out); white-space: nowrap; letter-spacing: .3px;
+  }
+  .mode-btn:hover { color: #fff; background: rgba(120,180,255,0.12); }
+  .mode-btn.active { background: linear-gradient(145deg, rgba(102,170,255,0.34), rgba(53,208,255,0.20)); color: #fff; box-shadow: inset 0 1px 0 rgba(255,255,255,0.28); }
+  .top-btn {
+    appearance: none; cursor: pointer; padding: 7px 12px; border-radius: 10px; font-size: 12px; font-family: inherit;
+    color: #cfe3ff; text-decoration: none; white-space: nowrap;
+    background: rgba(20,34,54,0.5); border: 1px solid rgba(140,190,255,0.24);
+    transition: all .22s var(--ease-out);
+  }
+  .top-btn:hover { background: rgba(60,110,180,0.42); color: #fff; border-color: rgba(160,210,255,0.46); }
+  .top-btn.on { background: linear-gradient(145deg, rgba(102,170,255,0.32), rgba(53,208,255,0.18)); color: #fff; }
+
+  /* ---------- 主体 ---------- */
+  #main-row { display: flex; gap: 12px; align-items: stretch; flex: 1 1 auto; min-height: 0; }
+  #stage-col { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; }
+  .glass-panel { padding: 9px 12px 10px; min-height: 0; }
+  .panel-title { font-size: 12px; font-weight: 700; letter-spacing: 1.2px; color: #b9d2f2; margin: 0 0 6px; }
+
+  #stage-wrap { position: relative; flex: 1 1 auto; min-height: 0; border-radius: 12px; overflow: hidden;
+    background: radial-gradient(130% 100% at 50% -10%, #16304f 0%, #0c1b2e 48%, #060d17 100%);
+    box-shadow: inset 0 0 90px rgba(0,0,0,0.5); }
+  #scene { display: block; width: 100%; height: 100%; }
+  #hint { position: absolute; left: 14px; bottom: 10px; font-size: 11px; color: rgba(180,205,235,0.55); letter-spacing: .5px; }
+  #stage-msg { position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+    text-align: center; font-size: 13px; color: #ffb0a0; padding: 24px; line-height: 1.8; }
+
+  /* 状态胶囊（左上角） */
+  #status-chip { position: absolute; left: 14px; top: 12px; display: flex; align-items: center; gap: 9px;
+    padding: 7px 15px 7px 12px; border-radius: 999px; font-size: 12.5px; letter-spacing: .8px;
+    color: #e8f2ff; background: rgba(7,16,29,0.78); border: 1px solid rgba(255,255,255,0.12);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.35); }
+  #status-chip .dot { width: 8px; height: 8px; border-radius: 50%; background: #ffc247;
+    box-shadow: 0 0 10px 2px rgba(255,194,71,0.75); animation: chipPulse 1.7s ease-in-out infinite; }
+  #status-chip.off .dot { background: #7d8fa6; box-shadow: none; animation: none; }
+  #status-chip.off { color: #9fb3d1; }
+  @keyframes chipPulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .45; transform: scale(.8); } }
+
+  /* SVG 内动画 */
+  .wave { animation: waveMove 4.4s linear infinite; }
+  @keyframes waveMove { from { transform: translateX(0); } to { transform: translateX(-56px); } }
+  #psu.off { opacity: .55; }
+  .knob { transform-box: fill-box; transform-origin: 0% 50%; transition: transform .26s var(--ease-out); }
+  #psu:hover rect { stroke: rgba(160,225,255,0.85); }
+
+  #scene text { font-family: "Microsoft YaHei", system-ui, sans-serif; }
+
+  /* ---------- 侧栏 ---------- */
+  #sidebar { flex: 0 0 258px; display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow-y: auto; }
+  /* 侧栏不出滚动条：需要时可用滚轮，但不显示滑条 */
+  #sidebar { scrollbar-width: none; -ms-overflow-style: none; }
+  #sidebar::-webkit-scrollbar { width: 0; height: 0; }
+  #sidebar .glass-panel { flex: 0 0 auto; }
+  #sidebar .glass-panel.grow { flex: 0 0 auto; }
+  #sidebar .glass-panel:last-child { flex: 1 1 auto; min-height: auto; }
+  .mat-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 2px 0; }
+  .mat-row span { font-size: 12px; color: var(--text-2); white-space: nowrap; }
+  .mat-row b { font-size: 12.5px; color: #eaf2ff; font-weight: 600; text-align: right; letter-spacing: .2px; }
+  .rxn-block { font-size: 12.5px; line-height: 1.62; }
+  .rxn-line { display: flex; gap: 8px; align-items: baseline; }
+  .rxn-line span:first-child { color: #7f96b4; font-size: 11px; flex: 0 0 46px; }
+  .rxn-line span:last-child { color: #ffe0a0; font-family: "Cambria Math", "Microsoft YaHei", serif; letter-spacing: .3px; }
+  .rxn-total { margin-top: 4px; padding-top: 6px; border-top: 1px dashed rgba(255,255,255,0.12); }
+  .rxn-total span:last-child { color: #9fe8ff; }
+  #explain { font-size: 12px; line-height: 1.62; color: #b9cbe2; }
+  #explain em { color: #ffd479; font-style: normal; }
+  #explain .k { color: #8fe0c0; }
+
+  /* 版权页脚 */
+  /* 版权页脚：照 nacl 页水印的字重（粗体、白字、双色） */
+  #copyright { flex: 0 0 auto; text-align: center; font-size: 13px; font-weight: 700;
+    letter-spacing: 1.2px; padding: 3px 0 0; user-select: none;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.70), 0 0 6px rgba(0,0,0,0.40); }
+  #copyright .wm-main { color: rgba(255,255,255,0.92); }
+  #copyright .wm-sub { color: rgba(255,255,255,0.60); margin-left: 14px; }
+
+  @media (max-width: 1080px) {
+    #main-row { flex-direction: column; }
+    #sidebar { flex: 0 1 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    body { overflow: auto; }
+    #app-container { height: auto; min-height: 100vh; }
+    #stage-wrap { min-height: 380px; }
+  }
+  @media (max-width: 760px) {
+    #sidebar { grid-template-columns: 1fr; }
+    .brand-sub { display: none; }
+    #app-container { padding: 10px 10px 18px; }
+  }
+</style>
+
+<style id="chem-lab-embed-style">
+  /* ITstudy 化学仿真统一壳：隐藏原站顶栏/品牌/版权水印。
+     不强制页面高度与 overflow —— 各页面自有布局（周期表需要滚动，
+     3D 页需要全屏），统一覆盖会把周期表底部裁掉。 */
+  #topbar, #copyright, .wm-copyright, #btn-home,
+  .topbar-actions, .back-home-btn,
+  .brand, .brand-title, #brand-logo { display: none !important; }
+  canvas { max-width: 100%; }
+  /* 课堂 iframe 高度较小时：周期表隐藏趋势图、压缩行高，保证 118 元素可见 */
+  @media (max-height: 720px) {
+    #chart-panel { display: none !important; }
+    .ptable.size-s { grid-auto-rows: 32px !important; }
+    #info-sidebar { width: 220px; }
+  }
+</style>
+</head>
+<body>
+<div id="app-container">
+
+  <!-- ============ 顶栏 ============ -->
+  <div id="topbar" class="glass">
+    <div class="brand">
+      <img class="brand-logo" src="favicon.png" alt="可视化化学">
+      <div class="brand-text">
+        <div class="brand-title">可视化化学<span class="brand-divider">·</span>可视化学</div>
+        <div class="brand-sub">电化学 · 电解池原理</div>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <div class="mode-switch" id="mode-switch" role="group" aria-label="电解池类型" hidden>
+        <button class="mode-btn active" data-cell="zn_zncl2">铜锌电解池</button>
+      </div>
+      <button class="top-btn" id="btn-play">暂停</button>
+      <a class="top-btn" id="btn-home" href="index.html" target="_top">主页</a>
+    </div>
+  </div>
+
+  <!-- ============ 主体 ============ -->
+  <div id="main-row">
+    <div id="stage-col">
+      <div class="glass-panel" style="flex:1 1 auto; display:flex; flex-direction:column; min-height:0;">
+        <div class="panel-title" id="scene-title">电解池（Zn–Cu–CuCl₂ 溶液）</div>
+        <div id="stage-wrap">
+          <div id="status-chip"><span class="dot"></span><span id="status-text">正在电解</span></div>
+          <svg id="scene" viewBox="0 0 1000 720" preserveAspectRatio="xMidYMid meet" aria-label="电解池装置示意图"></svg>
+          <div id="hint">点顶部电源可断开电路</div>
+          <div id="stage-msg"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="sidebar">
+      <div class="glass-panel">
+        <div class="panel-title">装置组成</div>
+        <div id="mat-list"></div>
+      </div>
+      <div class="glass-panel">
+        <div class="panel-title">电极反应</div>
+        <div class="rxn-block" id="rxn"></div>
+      </div>
+      <div class="glass-panel grow">
+        <div class="panel-title">原理说明</div>
+        <div id="explain"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="copyright"><span class="wm-main"></span><span class="wm-sub"></span></div>
+
+</div>
+
+<script>window.BACK_SUBNAV = 'subnav-electrochem'; /* 回到「电化学·化学电源」分类页 */</script>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ================= 电池数据 ================= */
+  var BATS = {
+    /* ---- 铜锌电解池：Zn 阳极、Cu 阴极、ZnCl₂ 溶液 ---- */
+    zn_zncl2: {
+      group: "single",
+      title: "电解池（Zn 阳极 · Cu 阴极 · ZnCl₂ 溶液）",
+      neg: { name: "Zn", label: "Zn 锌片", ion: "Zn²⁺", top: "#a9b5c3", mid: "#69727f", bot: "#333b46" },
+      pos: { name: "Cu", label: "Cu 铜片", ion: "Cu²⁺", top: "#d8914f", mid: "#95521f", bot: "#5c2409" },
+      liqA: "#6f9ab8", liqB: "#6f9ab8",
+      leftName: "ZnCl₂ 溶液", rightName: "ZnCl₂ 溶液",
+      electrolyte: "ZnCl₂ 溶液",
+      cation: "Zn²⁺", anion: "Cl⁻",
+      anodeEq: "Zn − 2e⁻ = Zn²⁺",
+      cathodeEq: "2H⁺ + 2e⁻ = H₂↑",
+      total: "Zn + 2H⁺ = Zn²⁺ + H₂↑",
+      ionic: "Zn + 2H⁺ = Zn²⁺ + H₂↑",
+      pillL: "Zn → Zn²⁺",
+      pillR: "H⁺ → H₂↑",
+      cap: "电解液：ZnCl₂ 溶液（不通电时 Zn 不反应）",
+      gas: true, gasFill: "rgba(255,255,255,0.80)", gasStroke: "rgba(190,235,255,0.75)",
+      gasLabel: "H₂", gasText: "#0b2b3a",
+      deposit: false,
+      explain: "外接直流电源，把<em>电能转成化学能</em>：锌和氯化锌本来不反应，通电后才被强制拆开。" +
+               "<br>接电源 <span class='k'>正极</span> 的一极叫 <em>阳极</em>，发生氧化 —— Zn 失去电子溶解、板子变薄；" +
+               "接电源 <span class='k'>负极</span> 的一极叫 <em>阴极</em>，发生还原 —— 溶液中的 H⁺ 得电子，铜片上冒出 <span class='k'>H₂ 气泡</span>，铜本身不反应。" +
+               "<br>溶液里 Zn²⁺ 移向阴极、Cl⁻ 移向阳极，把电荷接上，电流才能持续。" +
+               "<br>对照原电池：<em>氧化永远在阳极、还原永远在阴极</em>；只是原电池里那个氧化极叫「负极」。名字变了，本质没变。"
+    }
+  };
+
+  var state = { cell: "zn_zncl2" };
+  var playing = true, circuitOpen = false;
+
+  function el(id) { return document.getElementById(id); }
+
+  /* ================= 版面（1000 × 720 坐标系） ================= */
+  var VW = 1000, VH = 720;
+  var LIQ_TOP = 258, E_TOP = 176, E_BOT = 512, E_W = 56, WIRE_Y = 104;
+
+  function layout() {
+    if (BATS[state.cell].group === "dual") {
+      return {
+        dual: true,
+        tanks: [ { x: 56, y: 206, w: 336, h: 344 }, { x: 608, y: 206, w: 336, h: 344 } ],
+        negX: 196, posX: 804,
+        pills: [ { x: 56, w: 336 }, { x: 608, w: 336 } ]
+      };
+    }
+    return {
+      dual: false,
+      tanks: [ { x: 170, y: 206, w: 660, h: 344 } ],
+      negX: 336, posX: 664,
+      pills: [ { x: 170, w: 300 }, { x: 530, w: 300 } ]
+    };
+  }
+
+  /* ================= 工具 ================= */
+  function wavePath(x0, w, y, amp, period) {
+    var d = "M " + x0.toFixed(1) + " " + y.toFixed(1);
+    for (var i = 4; i <= w; i += 4) {
+      d += " L " + (x0 + i).toFixed(1) + " " + (y + Math.sin((i / period) * Math.PI * 2) * amp).toFixed(2);
+    }
+    return d;
+  }
+  function tagWidth(text, fs) {
+    var n = 0;
+    for (var i = 0; i < text.length; i++) {
+      var c = text.charCodeAt(i);
+      n += (c > 255 && /[²³⁺⁻₀-₉]/.test(text[i])) ? fs * 0.46 : (/[A-Za-z0-9]/.test(text[i]) ? fs * 0.58 : fs);
+    }
+    return Math.max(38, n + 22);
+  }
+  /* 固定随机（同一页面每次重绘图案一致，不会闪） */
+  function hash01(i, s) {
+    var x = Math.sin((i + 1) * 12.9898 + (s + 1) * 78.233) * 43758.5453;
+    return x - Math.floor(x);
+  }
+  /* 负极边缘啃蚀：两侧 + 液面收颈 + 底缘，k = 出现阈值（0 早 / 1 晚） */
+  function erodeBites(w) {
+    var arr = [], i, y, s;
+    var y0 = LIQ_TOP + 12, y1 = E_BOT - 10;
+    for (s = 0; s < 2; s++) {
+      for (i = 0; i < 8; i++) {
+        y = y0 + (y1 - y0) * ((i + 0.5 + (hash01(i, s) - 0.5) * 0.6) / 8);
+        arr.push({
+          side: s, y: y,
+          r: 4.6 + hash01(i + 30, s) * 4.6,
+          k: 0.03 + hash01(i + 60, s) * 0.60
+        });
+      }
+      /* 液面处腐蚀最快，先在这里收颈 */
+      arr.push({ side: s, y: LIQ_TOP + 9, r: 6.5 + hash01(s + 7, 9) * 2.6, k: 0.02 });
+    }
+    for (i = 0; i < 6; i++) {
+      arr.push({
+        side: 2, y: 0, x: w * (0.12 + i * 0.152),
+        r: 5.5 + hash01(i + 90, 3) * 4.6,
+        k: 0.05 + hash01(i + 120, 3) * 0.55
+      });
+    }
+    return arr;
+  }
+  /* 腐蚀麻点 */
+  function pitSpecs(w) {
+    var arr = [], i;
+    for (i = 0; i < 32; i++) {
+      arr.push({
+        x: 6 + hash01(i, 11) * (w - 12),
+        y: LIQ_TOP + 18 + hash01(i, 13) * (E_BOT - LIQ_TOP - 36),
+        rx: 1.2 + hash01(i, 17) * 2.5,
+        ry: 1.0 + hash01(i, 19) * 2.3,
+        k: hash01(i, 23) * 0.78
+      });
+    }
+    return arr;
+  }
+  /* 不规则小块：铜粒不是圆球，是不规则的结晶颗粒（略圆润，但边缘仍有起伏） */
+  function blobPath(cx, cy, r, seed, n) {
+    n = n || 7;
+    var pts = [], i, a, rr;
+    for (i = 0; i < n; i++) {
+      a = (i / n) * Math.PI * 2 + (hash01(i, seed) - 0.5) * 0.32;
+      rr = r * (0.78 + hash01(i + 17, seed) * 0.34);
+      pts.push((cx + Math.cos(a) * rr).toFixed(1) + " " + (cy + Math.sin(a) * rr * 0.95).toFixed(1));
+    }
+    return "M " + pts.join(" L ") + " Z";
+  }
+
+  /* 沉积层轮廓：贴着极板轮廓起伏（外扩部分会被裁掉），不是另画一层壳 */
+  function crustPath(fx, w) {
+    var top = LIQ_TOP + 4, bot = E_BOT - 1, i, y, o;
+    var d = "M " + (fx + 2).toFixed(1) + " " + top.toFixed(1);
+    for (i = 0; i <= 12; i++) {
+      y = top + (bot - top) * (i / 12);
+      o = -1.2 + hash01(i, 5) * 3.4;
+      d += " L " + (fx - o).toFixed(1) + " " + y.toFixed(1);
+    }
+    for (i = 1; i <= 6; i++) {
+      d += " L " + (fx - 1 + (w + 2) * (i / 6)).toFixed(1) + " " +
+           (bot + (hash01(i, 7) - 0.6) * 4).toFixed(1);
+    }
+    for (i = 12; i >= 0; i--) {
+      y = top + (bot - top) * (i / 12);
+      o = -1.2 + hash01(i, 9) * 3.4;
+      d += " L " + (fx + w + o).toFixed(1) + " " + y.toFixed(1);
+    }
+    return d + " Z";
+  }
+
+  /* 正极析出的疏松铜粒：面内铺满 + 边缘外凸（让轮廓毛糙，而不是整体变粗）
+     每颗 = 暗色底 + 亮铜高光，叠起来才有颗粒结晶的感觉 */
+  function depGrains(w) {
+    var arr = [], i, gy, u, out;
+    var dark = ["#74300d", "#86390f", "#964313", "#a44d16"];
+    var lite = ["#cc7c33", "#dc8f42", "#e6a054", "#c26d28"];
+    for (i = 0; i < 420; i++) {
+      gy = LIQ_TOP + 8 + hash01(i, 31) * (E_BOT - LIQ_TOP - 12);
+      u = 0.55 * ((gy - LIQ_TOP) / (E_BOT - LIQ_TOP)) + 0.45 * hash01(i, 37);
+      arr.push({
+        x: 1.5 + hash01(i, 41) * (w - 3), y: gy,
+        u: Math.min(0.94, u),
+        r: (1.0 + hash01(i, 43) * 1.5) * (i % 11 === 0 ? 1.85 : 1),
+        c: dark[Math.floor(hash01(i, 47) * dark.length)],
+        h: lite[Math.floor(hash01(i, 49) * lite.length)]
+      });
+    }
+    for (i = 0; i < 56; i++) {
+      out = hash01(i, 53) < 0.5 ? -1 : 1;
+      gy = LIQ_TOP + 14 + hash01(i, 59) * (E_BOT - LIQ_TOP - 26);
+      arr.push({
+        x: out < 0 ? -(0.8 + hash01(i, 61) * 3.6) : w + 0.8 + hash01(i, 61) * 3.6,
+        y: gy, u: 0.44 + hash01(i, 67) * 0.46,
+        r: (1.1 + hash01(i, 71) * 1.4) * (i % 9 === 0 ? 1.6 : 1),
+        c: dark[1 + Math.floor(hash01(i, 73) * 3)],
+        h: lite[1 + Math.floor(hash01(i, 75) * 3)]
+      });
+    }
+    return arr;
+  }
+
+  /* ================= 绘制 ================= */
+  var devX = [0, 0], svgEl, wirePath, bridgeRail, eDots = [], eSurfEls = [], ionEls = [], bridgeIons = [], bubbleEls = [], meterG, switchG, annotsG;
+  var biteEls = [], pitEls = [], flakeEls = [], grEls = [], crustEl = null, liqFadeEl = null;
+
+  function buildSVG() {
+    var L = layout();
+    var B = BATS[state.cell];
+    var m = B.neg, c = B.pos;
+    var dual = L.dual;
+    var MX = 500;                 /* 直流电源中心：落在顶部导线正中 */
+    var SWX = MX;                 /* 电源盒本身就是开关：点它断电 */
+    devX[0] = MX; devX[1] = MX;
+
+    /* ---- defs ---- */
+    var h = '';
+    h += '<defs>';
+    h += '<linearGradient id="tankFill" x1="0" y1="0" x2="0" y2="1">' +
+         '<stop offset="0" stop-color="#c3ecff" stop-opacity=".17"/>' +
+         '<stop offset=".45" stop-color="#7fb6d8" stop-opacity=".08"/>' +
+         '<stop offset="1" stop-color="#2a5d86" stop-opacity=".10"/></linearGradient>';
+    /* 对角霜面：左上受光、右下背光，玻璃才有厚度 */
+    h += '<linearGradient id="glassFace" x1=".08" y1="0" x2=".92" y2="1">' +
+         '<stop offset="0" stop-color="#dff4ff" stop-opacity=".15"/>' +
+         '<stop offset=".34" stop-color="#9fd0ea" stop-opacity=".04"/>' +
+         '<stop offset=".72" stop-color="#0b2138" stop-opacity=".10"/>' +
+         '<stop offset="1" stop-color="#04101e" stop-opacity=".20"/></linearGradient>';
+    /* 杯口厚壁：上白下透 */
+    h += '<linearGradient id="glassRim" x1="0" y1="0" x2="0" y2="1">' +
+         '<stop offset="0" stop-color="#ffffff" stop-opacity=".40"/>' +
+         '<stop offset=".55" stop-color="#d8f1ff" stop-opacity=".14"/>' +
+         '<stop offset="1" stop-color="#ffffff" stop-opacity=".02"/></linearGradient>';
+    /* 地面投影 */
+    h += '<radialGradient id="groundShadow">' +
+         '<stop offset="0" stop-color="#000814" stop-opacity=".62"/>' +
+         '<stop offset=".6" stop-color="#000814" stop-opacity=".26"/>' +
+         '<stop offset="1" stop-color="#000814" stop-opacity="0"/></radialGradient>';
+    h += '<linearGradient id="liqA" x1="0" y1="0" x2="0" y2="1">' +
+         '<stop offset="0" stop-color="' + B.liqA + '" stop-opacity=".62"/>' +
+         '<stop offset="1" stop-color="' + B.liqA + '" stop-opacity=".34"/></linearGradient>';
+    h += '<linearGradient id="liqB" x1="0" y1="0" x2="0" y2="1">' +
+         '<stop offset="0" stop-color="' + B.liqB + '" stop-opacity=".68"/>' +
+         '<stop offset="1" stop-color="' + B.liqB + '" stop-opacity=".40"/></linearGradient>';
+    /* 液面亮带：向下淡出，不留一条硬横线 */
+    h += '<linearGradient id="surfGlow" x1="0" y1="0" x2="0" y2="1">' +
+         '<stop offset="0" stop-color="#cef2ff" stop-opacity=".20"/>' +
+         '<stop offset="1" stop-color="#cef2ff" stop-opacity="0"/></linearGradient>';
+    /* 液体深处压暗：整段渐变，避免中部出现水平分界 */
+    h += '<linearGradient id="liqDepth" x1="0" y1="0" x2="0" y2="1">' +
+         '<stop offset="0" stop-color="#03101f" stop-opacity="0"/>' +
+         '<stop offset=".66" stop-color="#03101f" stop-opacity=".05"/>' +
+         '<stop offset="1" stop-color="#03101f" stop-opacity=".40"/></linearGradient>';
+    /* 杯壁内侧柔光：由壁向杯心淡出，不再出现“液体比杯子窄”的硬边 */
+    h += '<linearGradient id="wallL" x1="0" y1="0" x2="1" y2="0">' +
+         '<stop offset="0" stop-color="#e6f8ff" stop-opacity=".24"/>' +
+         '<stop offset="1" stop-color="#e6f8ff" stop-opacity="0"/></linearGradient>';
+    h += '<linearGradient id="wallR" x1="1" y1="0" x2="0" y2="0">' +
+         '<stop offset="0" stop-color="#9fd0f0" stop-opacity=".17"/>' +
+         '<stop offset="1" stop-color="#9fd0f0" stop-opacity="0"/></linearGradient>';
+    /* 板身横向几乎平：只在最右缘（背面）压暗一点，正面没有任何接缝 */
+    h += '<linearGradient id="negGrad" x1="0" y1="0" x2="1" y2="0">' +
+         '<stop offset="0" stop-color="' + (m.mid || m.top) + '"/>' +
+         '<stop offset=".30" stop-color="' + m.top + '"/>' +
+         '<stop offset=".78" stop-color="' + (m.mid || m.top) + '"/>' +
+         '<stop offset="1" stop-color="' + m.bot + '"/></linearGradient>';
+    h += '<linearGradient id="posGrad" x1="0" y1="0" x2="1" y2="0">' +
+         '<stop offset="0" stop-color="' + (c.mid || c.top) + '"/>' +
+         '<stop offset=".30" stop-color="' + c.top + '"/>' +
+         '<stop offset=".78" stop-color="' + (c.mid || c.top) + '"/>' +
+         '<stop offset="1" stop-color="' + c.bot + '"/></linearGradient>';
+    /* 金属表面：上亮下暗 */
+    h += '<linearGradient id="metalVert" x1="0" y1="0" x2="0" y2="1">' +
+         '<stop offset="0" stop-color="#ffffff" stop-opacity=".10"/>' +
+         '<stop offset=".22" stop-color="#ffffff" stop-opacity=".02"/>' +
+         '<stop offset=".72" stop-color="#000000" stop-opacity=".06"/>' +
+         '<stop offset="1" stop-color="#000000" stop-opacity=".22"/></linearGradient>';
+    /* 浸入液体部分：整体泛一层冷色，软过渡，不画线 */
+    h += '<linearGradient id="submerge" x1="0" y1="0" x2="0" y2="1">' +
+         '<stop offset="0" stop-color="#8fd6f5" stop-opacity="0"/>' +
+         '<stop offset=".55" stop-color="#8fd6f5" stop-opacity=".07"/>' +
+         '<stop offset="1" stop-color="#8fd6f5" stop-opacity=".14"/></linearGradient>';
+    h += '<radialGradient id="ionAn" cx=".34" cy=".30" r=".78">' +
+         '<stop offset="0" stop-color="#b0efdc"/><stop offset="1" stop-color="#17735f"/></radialGradient>';
+    h += '<radialGradient id="ionCat" cx=".34" cy=".30" r=".78">' +
+         '<stop offset="0" stop-color="#ffe6a0"/><stop offset="1" stop-color="#c9871c"/></radialGradient>';
+    h += '<radialGradient id="curtain"><stop offset="0" stop-color="#2b6294" stop-opacity=".38"/>' +
+         '<stop offset="1" stop-color="#2b6294" stop-opacity="0"/></radialGradient>';
+    h += '<filter id="softGlow" x="-140%" y="-140%" width="380%" height="380%">' +
+         '<feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/>' +
+         '<feMergeNode in="SourceGraphic"/></feMerge></filter>';
+    h += '<filter id="softShadow" x="-60%" y="-60%" width="220%" height="260%">' +
+         '<feGaussianBlur stdDeviation="7"/></filter>';
+    for (var t = 0; t < L.tanks.length; t++) {
+      var tk = L.tanks[t];
+      h += '<clipPath id="clip' + t + '"><rect x="' + tk.x + '" y="' + tk.y + '" width="' + tk.w +
+           '" height="' + tk.h + '" rx="30"/></clipPath>';
+    }
+    h += '</defs>';
+
+    /* ---- 背景柔光 ---- */
+    h += '<ellipse cx="500" cy="470" rx="420" ry="180" fill="url(#curtain)"/>';
+
+    /* ---- 烧杯 + 液体 ---- */
+    for (t = 0; t < L.tanks.length; t++) {
+      tk = L.tanks[t];
+      var gid = (t === 0) ? "liqA" : "liqB";
+      var liqBot = tk.y + tk.h;   /* 液面直到底：底部圆角自动跟烧杯重合 */
+      h += '<ellipse cx="' + (tk.x + tk.w / 2) + '" cy="' + (tk.y + tk.h + 10) +
+           '" rx="' + (tk.w * 0.55).toFixed(1) + '" ry="24" fill="url(#groundShadow)"/>';
+      h += '<g class="tank">';
+      h += '<rect x="' + tk.x + '" y="' + tk.y + '" width="' + tk.w + '" height="' + tk.h +
+           '" rx="30" fill="url(#tankFill)"/>';
+      h += '<g clip-path="url(#clip' + t + ')">';
+      h += '<rect x="' + tk.x + '" y="' + LIQ_TOP + '" width="' + tk.w + '" height="' + (liqBot - LIQ_TOP) +
+           '" fill="url(#' + gid + ')"/>';
+      h += '<rect x="' + tk.x + '" y="' + LIQ_TOP + '" width="' + tk.w + '" height="26" fill="url(#surfGlow)"/>';
+      h += '<rect x="' + tk.x + '" y="' + LIQ_TOP + '" width="' + tk.w + '" height="' + (liqBot - LIQ_TOP) +
+           '" fill="url(#liqDepth)"/>';
+      /* 正极区 Cu²⁺ 被消耗，蓝色逐渐变浅 */
+      if (t === 1 && B.deposit) {
+        h += '<rect class="liq-fade" x="' + tk.x + '" y="' + LIQ_TOP + '" width="' + tk.w +
+             '" height="' + (liqBot - LIQ_TOP) + '" fill="#a9c3cf" opacity="0"/>';
+      }
+      h += '<rect x="' + tk.x + '" y="' + tk.y + '" width="' + tk.w + '" height="' + tk.h + '" fill="url(#glassFace)" opacity=".55"/>';
+      h += '</g>';
+      h += '<g clip-path="url(#clip' + t + ')"><path class="wave" d="' + wavePath(tk.x - 112, tk.w + 224, LIQ_TOP, 2.6, 56) +
+           '" fill="none" stroke="rgba(185,240,255,0.55)" stroke-width="2"/></g>';
+      h += '<rect x="' + (tk.x + 2) + '" y="' + (tk.y + 2) + '" width="' + (tk.w - 4) + '" height="11" rx="5.5" fill="url(#glassRim)" opacity=".9"/>';
+      h += '<rect x="' + tk.x + '" y="' + (tk.y + 13) + '" width="11" height="' + (tk.h - 34) +
+           '" fill="url(#wallL)" clip-path="url(#clip' + t + ')"/>';
+      h += '<rect x="' + (tk.x + tk.w - 11) + '" y="' + (tk.y + 13) + '" width="11" height="' + (tk.h - 34) +
+           '" fill="url(#wallR)" clip-path="url(#clip' + t + ')"/>';
+      h += '<rect x="' + (tk.x + 20) + '" y="' + (tk.y + tk.h - 7) + '" width="' + (tk.w - 40) +
+           '" height="3" rx="1.5" fill="rgba(200,238,255,0.13)" clip-path="url(#clip' + t + ')"/>';
+      h += '<rect x="' + tk.x + '" y="' + tk.y + '" width="' + tk.w + '" height="' + tk.h +
+           '" rx="30" fill="none" stroke="rgba(158,224,255,0.62)" stroke-width="1.9"/>';
+      h += '<rect x="' + (tk.x + 2.6) + '" y="' + (tk.y + 2.6) + '" width="' + (tk.w - 5.2) + '" height="' + (tk.h - 5.2) +
+           '" rx="27.4" fill="none" stroke="rgba(6,20,36,0.40)" stroke-width="1.1"/>';
+      h += '</g>';
+    }
+
+    /* ---- 盐桥（双液）：Π 形倒 U 管，两腿直插液面以下 ---- */
+    if (dual) {
+      var SB_L = 360, SB_R = 640, SB_TOP = 190, SB_CR = 44, SB_END = 404;
+      var bd = "M " + SB_L + " " + SB_END +
+               " L " + SB_L + " " + (SB_TOP + SB_CR) +
+               " Q " + SB_L + " " + SB_TOP + " " + (SB_L + SB_CR) + " " + SB_TOP +
+               " L " + (SB_R - SB_CR) + " " + SB_TOP +
+               " Q " + SB_R + " " + SB_TOP + " " + SB_R + " " + (SB_TOP + SB_CR) +
+               " L " + SB_R + " " + SB_END;
+      h += '<path d="' + bd + '" fill="none" stroke="rgba(6,20,38,0.42)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round" opacity=".5" transform="translate(0,9)" filter="url(#softShadow)"/>';
+      h += '<path d="' + bd + '" fill="none" stroke="rgba(52,116,160,0.72)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>';
+      h += '<path d="' + bd + '" fill="none" stroke="rgba(112,186,224,0.34)" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>';
+      h += '<path d="' + bd + '" fill="none" stroke="rgba(196,232,250,0.17)" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>';
+      h += '<path d="' + bd + '" fill="none" stroke="rgba(226,246,255,0.13)" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"/>';
+      h += '<path d="' + bd + '" fill="none" stroke="rgba(238,250,255,0.42)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" transform="translate(-8,0)"/>';
+      h += '<path id="bridgeRail" d="' + bd + '" fill="none" stroke="none"/>';
+      h += '<rect x="424" y="222" width="152" height="34" rx="17" fill="rgba(5,14,26,0.74)" stroke="rgba(150,210,240,0.32)" stroke-width="1.2"/>';
+      h += '<text x="500" y="246" text-anchor="middle" font-size="18" fill="#c6e8ff" opacity=".95">盐桥 KCl</text>';
+    }
+
+    /* ---- 电极：负极逐渐被腐蚀（边缘啃蚀 + 麻点 + 碎屑脱落），
+           正极在 Cu²⁺ 得电子时表面析出疏松的铜粒 ---- */
+    var ex = [L.negX, L.posX], grads = ["negGrad", "posGrad"];
+    var BODY_W = 50;
+    var bites = erodeBites(BODY_W);
+    var pits = pitSpecs(BODY_W);
+    var grains = B.deposit ? depGrains(BODY_W) : [];
+    for (t = 0; t < 2; t++) {
+      var fx = ex[t] - BODY_W / 2;
+      var exT = E_TOP, exH = E_BOT - E_TOP;
+      var isNeg = (t === 0);
+      h += '<rect x="' + (fx + 7) + '" y="' + (exT + 16) + '" width="' + BODY_W + '" height="' + (exH - 10) +
+           '" rx="9" fill="rgba(2,12,26,0.52)" filter="url(#softShadow)"/>';
+
+      /* 负极腐蚀遮罩：边缘被一点点啃掉，轮廓变毛、面积变小 */
+      if (isNeg) {
+        h += '<mask id="erodeM" maskUnits="userSpaceOnUse" x="' + (fx - 52) + '" y="' + (exT - 22) +
+             '" width="' + (BODY_W + 104) + '" height="' + (exH + 48) + '">' +
+             '<rect x="' + fx + '" y="' + exT + '" width="' + BODY_W + '" height="' + exH + '" fill="#ffffff"/>';
+        for (var bi = 0; bi < bites.length; bi++) {
+          var bt = bites[bi];
+          var bcx = bt.side === 0 ? fx : (bt.side === 1 ? (fx + BODY_W) : (fx + bt.x));
+          var bcy = bt.side === 2 ? (E_BOT - 1) : bt.y;
+          h += '<circle class="bite" cx="' + bcx.toFixed(1) + '" cy="' + bcy.toFixed(1) + '" r="0" data-r="' +
+               bt.r.toFixed(1) + '" data-k="' + bt.k.toFixed(3) + '" fill="#000000"/>';
+        }
+        h += '</mask>';
+      }
+
+      h += '<g class="electrode"' + (isNeg ? ' mask="url(#erodeM)"' : '') + '>';
+      h += '<rect x="' + fx + '" y="' + exT + '" width="' + BODY_W + '" height="' + exH +
+           '" rx="9" fill="url(#' + grads[t] + ')"/>';
+      h += '<rect x="' + fx + '" y="' + exT + '" width="' + BODY_W + '" height="' + exH +
+           '" rx="9" fill="url(#metalVert)"/>';
+      h += '<path d="M ' + (fx + 1) + ' ' + (exT + 10) + ' L ' + (fx + 1) + ' ' + (exT + 2) +
+           ' Q ' + (fx + BODY_W / 2) + ' ' + (exT - 5) + ' ' + (fx + BODY_W - 1) + ' ' + (exT + 2) +
+           ' L ' + (fx + BODY_W - 1) + ' ' + (exT + 13) + ' Z" fill="rgba(255,255,255,0.12)"/>';
+      h += '<path d="M ' + (fx + 2.2) + ' ' + (exT + 13) + ' L ' + (fx + 2.2) + ' ' + (exH - 13) +
+           '" stroke="rgba(255,255,255,0.17)" stroke-width="1.4" stroke-linecap="round" fill="none"/>';
+      h += '<rect x="' + fx + '" y="' + exT + '" width="' + BODY_W + '" height="' + exH +
+           '" rx="9" fill="none" stroke="rgba(0,0,0,0.30)" stroke-width="1.1"/>';
+      h += '<rect x="' + fx + '" y="' + LIQ_TOP + '" width="' + BODY_W + '" height="' + (E_BOT - LIQ_TOP) +
+           '" rx="9" fill="url(#submerge)"/>';
+
+      /* 表面麻点：腐蚀坑从无到有、从少到多 */
+      if (isNeg) {
+        for (var pi = 0; pi < pits.length; pi++) {
+          var pt = pits[pi];
+          h += '<ellipse class="pit" cx="' + (fx + pt.x).toFixed(1) + '" cy="' + pt.y.toFixed(1) +
+               '" rx="' + pt.rx.toFixed(2) + '" ry="' + pt.ry.toFixed(2) +
+               '" fill="' + m.bot + '" data-k="' + pt.k.toFixed(3) + '" opacity="0"/>';
+        }
+      }
+      h += '</g>';
+
+      /* ---- 极板上的「负极 / 正极」字样：写在液面上方的干区，竖排 ---- */
+      var epCol = isNeg ? "#eef7ff" : "#ffe6c2";
+      h += '<text x="' + ex[t] + '" y="' + (exT + 33) + '" text-anchor="middle" font-size="21" font-weight="700" fill="' +
+           epCol + '" stroke="rgba(4,12,22,0.66)" stroke-width="3.2" paint-order="stroke">' + (isNeg ? "阳" : "阴") + '</text>';
+      h += '<text x="' + ex[t] + '" y="' + (exT + 58) + '" text-anchor="middle" font-size="21" font-weight="700" fill="' +
+           epCol + '" stroke="rgba(4,12,22,0.66)" stroke-width="3.2" paint-order="stroke">极</text>';
+
+      /* 正极析出的铜：按极板圆角裁切、边缘做柔化、颜色自液面向下由淡到浓，
+         看起来是长在铜板上的疏松铜，而不是贴了一层膜 */
+      if (!isNeg && grains.length) {
+        h += '<clipPath id="depClip"><rect x="' + fx + '" y="' + (LIQ_TOP + 2) + '" width="' + BODY_W +
+             '" height="' + (E_BOT - LIQ_TOP - 2) + '" rx="9"/></clipPath>';
+        h += '<clipPath id="depClip2"><rect x="' + (fx - 9) + '" y="' + (LIQ_TOP + 2) +
+             '" width="' + (BODY_W + 18) + '" height="' + (E_BOT - LIQ_TOP - 2) + '"/></clipPath>';
+        h += '<linearGradient id="depFill" x1=".12" y1="0" x2=".78" y2="1">' +
+             '<stop offset="0" stop-color="#bb6a22" stop-opacity="0"/>' +
+             '<stop offset=".22" stop-color="#a4511a" stop-opacity=".52"/>' +
+             '<stop offset=".55" stop-color="#85390f" stop-opacity=".80"/>' +
+             '<stop offset="1" stop-color="#572209" stop-opacity=".93"/></linearGradient>';
+        h += '<filter id="depBlur" x="-45%" y="-15%" width="190%" height="130%">' +
+             '<feGaussianBlur stdDeviation="1.8"/></filter>';
+        h += '<path class="crust" d="' + crustPath(fx, BODY_W) + '" fill="url(#depFill)" opacity="0"' +
+             ' clip-path="url(#depClip)" filter="url(#depBlur)"/>';
+        h += '<g clip-path="url(#depClip2)">';
+        for (var gi = 0; gi < grains.length; gi++) {
+          var gd = grains[gi];
+          h += '<g class="gr" data-u="' + gd.u.toFixed(3) + '" opacity="0">' +
+               '<path d="' + blobPath(fx + gd.x + 0.6, gd.y + 0.8, gd.r, gi + 3, 6) + '" fill="' + gd.c + '"/>' +
+               '<path d="' + blobPath(fx + gd.x - 0.5, gd.y - 0.6, gd.r * 0.6, gi + 11, 5) + '" fill="' + gd.h +
+               '" opacity=".85"/>' +
+               '</g>';
+        }
+        h += '</g>';
+      }
+    }
+
+    /* ---- 负极脱落的金属碎屑（慢慢飘散消失） ---- */
+    h += '<g id="flakes">';
+    for (var fi = 0; fi < 6; fi++) {
+      var fside = (fi % 2) ? 1 : 0;
+      h += '<circle class="flake" r="' + (1.5 + (fi % 3) * 0.8).toFixed(1) + '" fill="' + m.bot +
+           '" data-x="' + (fside ? (L.negX + BODY_W / 2) : (L.negX - BODY_W / 2)) +
+           '" data-y="' + (LIQ_TOP + 46 + fi * 32) + '" data-dir="' + (fside ? 1 : -1) +
+           '" data-ph="' + (fi / 6).toFixed(3) + '" opacity="0"/>';
+    }
+    h += '</g>';
+
+    /* ---- 导线 ---- */
+    var d = "M " + L.negX + " " + E_TOP + " L " + L.negX + " " + WIRE_Y + " L " + L.posX + " " + WIRE_Y + " L " + L.posX + " " + E_TOP;
+    h += '<path id="wire" d="' + d + '" fill="none" stroke="#ffc93c" stroke-width="4.6" stroke-linejoin="round" stroke-linecap="round" opacity=".55" filter="url(#softGlow)"/>';
+    h += '<path d="' + d + '" fill="none" stroke="#ffd75e" stroke-width="3.4" stroke-linejoin="round" stroke-linecap="round"/>';
+    h += '<path d="' + d + '" fill="none" stroke="#fff0b8" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round" opacity=".8"/>';
+
+    /* ---- 电子（导线上写 e⁻） ---- */
+    h += '<g id="electrons">';
+    for (var i = 0; i < 7; i++) {
+      h += '<g class="e-dot" opacity="0">' +
+           '<circle r="8.6" fill="rgba(6,18,32,0.94)" stroke="rgba(127,230,255,0.85)" stroke-width="1.3"/>' +
+           '<text y="3.1" text-anchor="middle" font-size="8.2" fill="#dff6ff">e⁻</text></g>';
+    }
+    h += '</g>';
+
+    /* ---- 电极表面的 e⁻：只贴在极板外沿，不进溶液 ---- */
+    var negFx = L.negX - BODY_W / 2, posFx = L.posX - BODY_W / 2;
+    var surfY = [LIQ_TOP + 116, LIQ_TOP + 172, LIQ_TOP + 226];
+    h += '<g id="eSurf">';
+    for (i = 0; i < 3; i++) {
+      /* 负极：在极板上生成后向上离开 */
+      h += '<g class="e-surf" data-dir="up" data-ph="' + (i / 3).toFixed(2) + '" opacity="0">' +
+           '<circle cx="' + (negFx - 7) + '" cy="' + surfY[i] + '" r="9.5" fill="rgba(6,18,32,0.92)" stroke="rgba(127,230,255,0.88)" stroke-width="1.3"/>' +
+           '<text x="' + (negFx - 7) + '" y="' + (surfY[i] + 3.4) + '" text-anchor="middle" font-size="9" fill="#dff6ff">e⁻</text>' +
+           '</g>';
+      /* 正极：从上方落到表面后被消耗 */
+      h += '<g class="e-surf" data-dir="down" data-ph="' + ((i + 0.5) / 3).toFixed(2) + '" opacity="0">' +
+           '<circle cx="' + (posFx + BODY_W + 7) + '" cy="' + surfY[i] + '" r="9.5" fill="rgba(6,18,32,0.92)" stroke="rgba(127,230,255,0.88)" stroke-width="1.3"/>' +
+           '<text x="' + (posFx + BODY_W + 7) + '" y="' + (surfY[i] + 3.4) + '" text-anchor="middle" font-size="9" fill="#dff6ff">e⁻</text>' +
+           '</g>';
+    }
+    h += '</g>';
+
+    /* ---- 直流电源（顶部正中，点击可断电） ---- */
+    var MY = WIRE_Y, PW = 170, PH = 56;
+    h += '<g id="psu" style="cursor:pointer" aria-label="直流电源">';
+    h += '<rect x="' + (MX - PW / 2) + '" y="' + (MY - PH / 2) + '" width="' + PW + '" height="' + PH +
+         '" rx="12" fill="rgba(8,18,30,0.97)" stroke="rgba(120,205,255,0.60)" stroke-width="2"/>';
+    h += '<rect x="' + (MX - PW / 2 + 4) + '" y="' + (MY - PH / 2 + 4) + '" width="' + (PW - 8) + '" height="' + (PH - 8) +
+         '" rx="9" fill="none" stroke="rgba(140,200,240,0.14)" stroke-width="1"/>';
+    /* 左端 ＋ 接阳极，右端 − 接阴极 */
+    h += '<text x="' + (MX - 62) + '" y="' + (MY + 9) + '" text-anchor="middle" font-size="27" font-weight="700" fill="#ffd479">＋</text>';
+    h += '<text x="' + (MX + 62) + '" y="' + (MY + 9) + '" text-anchor="middle" font-size="27" font-weight="700" fill="#cfe3ff">−</text>';
+    h += '<line x1="' + (MX - 8) + '" y1="' + (MY - 12) + '" x2="' + (MX - 8) + '" y2="' + (MY + 12) + '" stroke="#8fe0ff" stroke-width="3" stroke-linecap="round"/>';
+    h += '<line x1="' + (MX + 8) + '" y1="' + (MY - 6) + '" x2="' + (MX + 8) + '" y2="' + (MY + 6) + '" stroke="#8fe0ff" stroke-width="3" stroke-linecap="round"/>';
+    h += '<title>点击断开 / 闭合电路</title>';
+    h += '</g>';
+
+    /* ---- 离子（只在两极板之间迁移） ---- */
+    h += '<g id="ions">';
+    var specs = ionSpecs(B);
+    for (i = 0; i < specs.length; i++) {
+      var sp = specs[i];
+      var fill = (sp.kind === "cat") ? "url(#ionCat)" : "url(#ionAn)";
+      h += '<g class="ion" data-bx="' + sp.x.toFixed(1) + '" data-by="' + sp.y.toFixed(1) +
+           '" data-dir="' + sp.dir + '" data-span="' + sp.span + '" data-spd="' + sp.spd.toFixed(4) +
+           '" data-ph="' + sp.ph.toFixed(3) + '">';
+      h += '<circle cx="' + sp.x.toFixed(1) + '" cy="' + sp.y.toFixed(1) + '" r="17" fill="' + fill +
+           '" stroke="rgba(255,255,255,0.34)" stroke-width="1.1"/>';
+      h += '<text x="' + sp.x.toFixed(1) + '" y="' + (sp.y + 3.6).toFixed(1) +
+           '" text-anchor="middle" font-size="9.4" fill="#ffffff" opacity=".95">' + sp.label + '</text>';
+      h += '</g>';
+    }
+    if (dual) {
+      var bridgeList = [
+        { kind: "cat", label: "K⁺", dir: 1 },
+        { kind: "an",  label: "Cl⁻", dir: -1 }
+      ];
+      for (i = 0; i < 6; i++) {
+        var bk = bridgeList[i % 2];
+        h += '<g class="ion-b" data-dir="' + bk.dir + '" data-ph="' + (i / 6).toFixed(3) + '">';
+        h += '<circle r="11.5" fill="url(#' + (bk.kind === "cat" ? "ionCat" : "ionAn") +
+             ')" stroke="rgba(255,255,255,0.36)" stroke-width="1.1"/>';
+        h += '<text y="3.1" text-anchor="middle" font-size="7.8" fill="#ffffff" opacity=".96">' + bk.label + '</text>';
+        h += '</g>';
+      }
+    }
+    h += '</g>';
+
+    /* ---- 气泡（正极放气：从板面冒出，上升过程中越来越大，气泡上标气体） ---- */
+    if (!dual && B.gas) {
+      h += '<g id="bubbles">';
+      for (var bi2 = 0; bi2 < 10; bi2++) {
+        var bx = L.posX + (bi2 % 2 ? 1 : -1) * (18 + (bi2 % 3) * 6);
+        var by = LIQ_TOP + 46 + (bi2 % 5) * 44 + (bi2 % 2) * 10;
+        h += '<g class="bub" data-x="' + bx + '" data-y="' + by +
+             '" data-r="' + (7.0 + (bi2 % 3) * 1.9).toFixed(2) +
+             '" data-ph="' + (bi2 / 10).toFixed(3) + '" opacity="0">' +
+             '<circle r="10" fill="' + B.gasFill + '" stroke="' + B.gasStroke + '" stroke-width="1.1"/>' +
+             '<circle cx="-3.4" cy="-3.8" r="2.8" fill="rgba(255,255,255,0.62)"/>' +
+             (B.gasLabel ?
+               '<text class="bub-t" y="' + (B.gasLabel.length > 2 ? 2.4 : 3.0) + '" text-anchor="middle" font-size="' +
+               (B.gasLabel.length > 2 ? 5.8 : 7.4) + '" font-weight="700" fill="' + B.gasText +
+               '" opacity="0">' + B.gasLabel + '</text>' : '') +
+             '</g>';
+      }
+      h += '</g>';
+    }
+
+    /* ---- 标注层 ---- */
+    h += '<g id="annots">';
+    h += '<text x="500" y="42" text-anchor="middle" font-size="17" font-weight="700" fill="#8fe0c0" letter-spacing="1.5">阳极接电源正极　·　阴极接电源负极</text>';
+    h += '<text x="' + MX + '" y="152" text-anchor="middle" font-size="15" fill="#b6cfe8" letter-spacing="1">直流电源（点此断电）</text>';
+
+    var nw = tagWidth(m.name, 27), pw = tagWidth(c.name, 27);
+    var ntx = L.negX - E_W / 2 - 14 - nw;
+    var ptx = L.posX + E_W / 2 + 14;
+    h += '<g><rect x="' + ntx + '" y="290" width="' + nw + '" height="48" rx="13" fill="#0a1523" stroke="rgba(255,255,255,0.18)"/>' +
+         '<text x="' + (ntx + nw / 2) + '" y="324" text-anchor="middle" font-size="27" font-weight="700" fill="#f2f7ff">' + m.name + '</text></g>';
+    h += '<g><rect x="' + ptx + '" y="290" width="' + pw + '" height="48" rx="13" fill="#22120a" stroke="rgba(255,170,90,0.45)"/>' +
+         '<text x="' + (ptx + pw / 2) + '" y="324" text-anchor="middle" font-size="27" font-weight="700" fill="#ffd9b0">' + c.name + '</text></g>';
+
+    /* 底部两块反应牌 */
+    for (t = 0; t < 2; t++) {
+      var pw2 = L.pills[t].w, px2 = L.pills[t].x;
+      var accent = (t === 0) ? "rgba(80,215,255,0.9)" : "rgba(255,150,60,0.9)";
+      var tcol = (t === 0) ? "#dff5ff" : "#ffe4cc";
+      var txt = (t === 0 ? "阳极板：" : "阴极板：") + (t === 0 ? B.pillL : B.pillR);
+      h += '<g><rect x="' + px2 + '" y="580" width="' + pw2 + '" height="52" rx="16" fill="rgba(5,14,26,0.88)" stroke="' + accent + '" stroke-width="1.8"/>' +
+           '<text x="' + (px2 + pw2 / 2) + '" y="612" text-anchor="middle" font-size="17" fill="' + tcol + '">' + txt + '</text></g>';
+    }
+
+    /* 底部电解液说明 */
+    h += '<g><rect x="268" y="652" width="464" height="34" rx="17" fill="rgba(5,14,26,0.55)"/>' +
+         '<text x="500" y="674" text-anchor="middle" font-size="15" fill="#c8dcf2">' + B.cap + '</text></g>';
+    h += '</g>';
+
+    svgEl.innerHTML = h;
+
+    /* ---- 取句柄 ---- */
+    wirePath = el("wire");
+    bridgeRail = el("bridgeRail");
+    eDots = Array.prototype.slice.call(svgEl.querySelectorAll(".e-dot"));
+    eSurfEls = Array.prototype.slice.call(svgEl.querySelectorAll(".e-surf"));
+    biteEls = Array.prototype.slice.call(svgEl.querySelectorAll(".bite"));
+    pitEls = Array.prototype.slice.call(svgEl.querySelectorAll(".pit"));
+    flakeEls = Array.prototype.slice.call(svgEl.querySelectorAll(".flake"));
+    grEls = Array.prototype.slice.call(svgEl.querySelectorAll(".gr"));
+    crustEl = svgEl.querySelector(".crust");
+    liqFadeEl = svgEl.querySelector(".liq-fade");
+    ionEls = Array.prototype.slice.call(svgEl.querySelectorAll(".ion"));
+    bridgeIons = Array.prototype.slice.call(svgEl.querySelectorAll(".ion-b"));
+    bubbleEls = Array.prototype.slice.call(svgEl.querySelectorAll(".bub"));
+    meterG = el("psu");
+    annotsG = el("annots");
+    var ionsG = el("ions");
+
+    meterG.classList.toggle("off", circuitOpen);
+
+    meterG.addEventListener("click", function () {
+      circuitOpen = !circuitOpen;
+      meterG.classList.toggle("off", circuitOpen);
+      updateStatus();
+    });
+
+    updateStatus();
+    drawFrame(0);
+  }
+
+  /* 离子分布：全部落在两块极板之间
+     阳离子朝正极（右）漂，阴离子朝负极（左）漂，两端淡出 */
+  function ionSpecs(B) {
+    var list = [], idx = 0;
+    function push(x, y, kind, label, span) {
+      list.push({
+        x: x, y: y, kind: kind, label: label,
+        dir: kind === "cat" ? 1 : -1,
+        span: span,
+        spd: 0.32 + (idx % 3) * 0.04,
+        ph: (idx * 0.29) % 1
+      });
+      idx++;
+    }
+    if (B.group === "dual") {
+      /* 左杯：Zn 板右侧 → 盐桥左腿之间 */
+      push(266, 306, "an", B.anion, 50);
+      push(298, 366, "cat", B.neg.ion, 50);
+      push(262, 434, "an", B.anion, 50);
+      push(300, 488, "cat", B.neg.ion, 50);
+      /* 右杯：盐桥右腿 → Cu 板左侧之间 */
+      push(706, 306, "cat", B.cation, 50);
+      push(732, 366, "an", B.anion, 50);
+      push(702, 434, "cat", B.cation, 50);
+      push(736, 488, "an", B.anion, 50);
+    } else {
+      /* 单液：两块极板正中间那一块区域 */
+      push(440, 304, "an", B.anion, 110);
+      push(560, 304, "cat", B.cation, 110);
+      push(500, 358, "an", B.anion, 110);
+      push(446, 412, "cat", B.cation, 110);
+      push(554, 462, "an", B.anion, 110);
+      push(500, 492, "cat", B.cation, 110);
+    }
+    return list;
+  }
+
+  /* ================= 状态与文案 ================= */
+  function updateStatus() {
+    var chip = el("status-chip"), txt = el("status-text");
+    if (!chip || !txt) return;
+    if (circuitOpen) { chip.classList.add("off"); txt.textContent = "电路断开"; }
+    else if (!playing) { chip.classList.add("off"); txt.textContent = "已暂停"; }
+    else { chip.classList.remove("off"); txt.textContent = "正在电解"; }
+  }
+
+  function updateTexts() {
+    var B = BATS[state.cell];
+    var dual = B.group === "dual";
+
+    el("scene-title").textContent = B.title;
+
+    el("rxn").innerHTML =
+      '<div class="rxn-line"><span>阳极</span><span>' + B.anodeEq + '</span></div>' +
+      '<div class="rxn-line"><span>阴极</span><span>' + B.cathodeEq + '</span></div>' +
+      '<div class="rxn-line rxn-total"><span>总反应</span><span>' + B.total + '</span></div>' +
+      '<div class="rxn-line"><span>离子式</span><span>' + B.ionic + '</span></div>';
+
+    el("explain").innerHTML = B.explain;
+
+    el("mat-list").innerHTML =
+      '<div class="mat-row"><span>阳极</span><b>' + B.neg.label + '</b></div>' +
+      '<div class="mat-row"><span>阴极</span><b>' + B.pos.label + '</b></div>' +
+      '<div class="mat-row"><span>电解液</span><b>' + B.electrolyte + '</b></div>' +
+      '<div class="mat-row"><span>类型</span><b>' + "电解池（电能→化学能）" + '</b></div>';
+  }
+
+  /* ================= 动画 ================= */
+  var tAnim = 0, lastTs = 0;
+
+  function drawFrame(dt) {
+    if (playing && !circuitOpen) tAnim += dt;
+
+    if (wirePath && eDots.length) {
+      var total = wirePath.getTotalLength();
+      for (var i = 0; i < eDots.length; i++) {
+        var p = (tAnim * 0.15 + i / eDots.length) % 1;
+        var pt = wirePath.getPointAtLength(p * total);
+        eDots[i].setAttribute("transform", "translate(" + pt.x.toFixed(1) + "," + pt.y.toFixed(1) + ")");
+        var hide = circuitOpen || Math.abs(pt.x - devX[0]) < 92;
+        eDots[i].setAttribute("opacity", hide ? "0" : (playing ? "0.95" : "0.5"));
+      }
+    }
+
+    /* 电极表面的 e⁻：负极往上走掉、正极往下落到表面，都不进溶液 */
+    for (i = 0; i < eSurfEls.length; i++) {
+      var es = eSurfEls[i];
+      var esp = parseFloat(es.getAttribute("data-ph")) || 0;
+      var ep = (tAnim * 0.44 + esp) % 1;
+      var up = es.getAttribute("data-dir") === "up";
+      es.setAttribute("transform", "translate(0," + ((up ? -1 : 1) * ep * 26).toFixed(1) + ")");
+      es.setAttribute("opacity", circuitOpen ? "0" : (Math.sin(ep * Math.PI) * (playing ? 1 : 0.55)).toFixed(2));
+    }
+
+    /* 负极腐蚀：边缘啃蚀逐步加深 + 麻点浮现 + 碎屑脱落 */
+    var pe = 1 - Math.exp(-tAnim / 6.0);
+    for (i = 0; i < biteEls.length; i++) {
+      var be = biteEls[i];
+      var bk = parseFloat(be.getAttribute("data-k")) || 0;
+      var br = parseFloat(be.getAttribute("data-r")) || 0;
+      var bq = (pe - bk) / 0.32;
+      bq = bq <= 0 ? 0 : (bq >= 1 ? 1 : bq);
+      be.setAttribute("r", (br * bq).toFixed(2));
+    }
+    for (i = 0; i < pitEls.length; i++) {
+      var pi2 = pitEls[i];
+      var pk = parseFloat(pi2.getAttribute("data-k")) || 0;
+      var pq = (pe - pk * 0.9) / 0.22;
+      pq = pq <= 0 ? 0 : (pq >= 1 ? 1 : pq);
+      pi2.setAttribute("opacity", (pq * 0.55).toFixed(2));
+    }
+    for (i = 0; i < flakeEls.length; i++) {
+      var fe = flakeEls[i];
+      var fph = parseFloat(fe.getAttribute("data-ph")) || 0;
+      var fdir = parseFloat(fe.getAttribute("data-dir")) || 1;
+      var fp = (tAnim * 0.20 + fph) % 1;
+      var fdx = fdir * fp * 16;
+      var fdy = fp * 30 + Math.sin(fp * 3.1) * 3;
+      fe.setAttribute("transform", "translate(" + fdx.toFixed(1) + "," + fdy.toFixed(1) + ") scale(" + (1 - fp * 0.55).toFixed(2) + ")");
+      var fvis = Math.min(1, Math.min(fp, 1 - fp) / 0.18) * Math.min(1, pe * 2.2);
+      fe.setAttribute("opacity", (fvis * 0.75).toFixed(2));
+    }
+
+    /* 正极析出铜：颗粒自下而上铺满，边缘长出毛刺 */
+    var pd = 1 - Math.exp(-tAnim / 8.5);
+    for (i = 0; i < grEls.length; i++) {
+      var gg = grEls[i];
+      var gu = parseFloat(gg.getAttribute("data-u")) || 0;
+      var gq = (pd - gu) / 0.10;
+      gq = gq <= 0 ? 0 : (gq >= 1 ? 1 : gq);
+      gg.setAttribute("opacity", (gq * 0.96).toFixed(2));
+    }
+    if (crustEl) crustEl.setAttribute("opacity", (Math.min(1, pd * 1.05) * 0.92).toFixed(2));
+    if (liqFadeEl) liqFadeEl.setAttribute("opacity", (pd * 0.22).toFixed(3));
+
+    /* 溶液里的离子：在极板之间方向性迁移 */
+    for (i = 0; i < ionEls.length; i++) {
+      var g = ionEls[i];
+      var dir = parseFloat(g.getAttribute("data-dir")) || 1;
+      var span = parseFloat(g.getAttribute("data-span")) || 60;
+      var spd = parseFloat(g.getAttribute("data-spd")) || 0.3;
+      var ph = parseFloat(g.getAttribute("data-ph")) || 0;
+      var pp = (tAnim * spd + ph) % 1;
+      var dx = dir * (pp - 0.5) * span;
+      var dy = Math.sin(tAnim * 0.85 + ph * 6.283) * 3;
+      g.setAttribute("transform", "translate(" + dx.toFixed(2) + "," + dy.toFixed(2) + ")");
+      var fade = Math.min(1, Math.min(pp, 1 - pp) / 0.10);
+      g.setAttribute("opacity", Math.max(0, fade).toFixed(3));
+    }
+
+    /* 盐桥里的 K⁺ 向右、Cl⁻ 向左 */
+    if (bridgeRail && bridgeIons.length) {
+      var bl = bridgeRail.getTotalLength();
+      for (i = 0; i < bridgeIons.length; i++) {
+        var bg = bridgeIons[i];
+        var bdir = parseFloat(bg.getAttribute("data-dir")) || 1;
+        var bph = parseFloat(bg.getAttribute("data-ph")) || 0;
+        var bp = (tAnim * 0.11 + bph) % 1;
+        var lp = bdir > 0 ? bp : 1 - bp;
+        var bpt = bridgeRail.getPointAtLength(lp * bl);
+        bg.setAttribute("transform", "translate(" + bpt.x.toFixed(1) + "," + bpt.y.toFixed(1) + ")");
+      }
+    }
+
+    /* 气泡：贴着极板往上冒，越升越大，到液面消失；气泡上写气体分子式 */
+    for (i = 0; i < bubbleEls.length; i++) {
+      var b = bubbleEls[i];
+      var bp2 = (parseFloat(b.getAttribute("data-ph")) || 0);
+      var k = (tAnim * 0.26 + bp2) % 1;
+      var bR = parseFloat(b.getAttribute("data-r")) || 6;
+      var bX = parseFloat(b.getAttribute("data-x")) || 0;
+      var bY = parseFloat(b.getAttribute("data-y")) || 0;
+      var rNow = bR * (0.40 + 1.35 * k);
+      var wob = Math.sin(tAnim * 1.7 + bp2 * 9.3) * 3.4;
+      var dist = Math.max(30, bY - LIQ_TOP - 4);      /* 升到液面正好消失 */
+      b.setAttribute("transform", "translate(" + (bX + wob).toFixed(1) + "," + (bY - k * dist).toFixed(1) +
+                     ") scale(" + (rNow / 10).toFixed(3) + ")");
+      var bOpa = circuitOpen ? 0 : Math.min(1, k * 7 + 0.12) * Math.min(1, (1 - k) * 5);
+      b.setAttribute("opacity", (bOpa * 0.95).toFixed(2));
+      if (!b._t) b._t = b.querySelector(".bub-t");
+      if (b._t) b._t.setAttribute("opacity", (k > 0.28 ? Math.min(1, (k - 0.28) * 5) * bOpa : 0).toFixed(2));
+    }
+  }
+
+  function loop(ts) {
+    requestAnimationFrame(loop);
+    if (!lastTs) lastTs = ts;
+    var dt = Math.min(64, ts - lastTs) / 1000;
+    lastTs = ts;
+    drawFrame(dt);
+  }
+
+  /* ================= 交互 ================= */
+  function rebuild() {
+    tAnim = 0;                 /* 换电池重新开始：电极从干净状态开始变化 */
+    buildSVG();
+    updateTexts();
+  }
+
+  function bindUI() {
+    el("mode-switch").addEventListener("click", function (e) {
+      var btn = e.target.closest ? e.target.closest(".mode-btn") : null;
+      if (!btn) return;
+      var cell = btn.getAttribute("data-cell");
+      if (!cell || cell === state.cell) return;
+      state.cell = cell;
+      Array.prototype.forEach.call(this.querySelectorAll(".mode-btn"), function (b) {
+        b.classList.toggle("active", b === btn);
+      });
+      rebuild();
+    });
+
+    el("btn-play").addEventListener("click", function () {
+      playing = !playing;
+      this.textContent = playing ? "暂停" : "继续";
+      this.classList.toggle("on", !playing);
+      updateStatus();
+    });
+  }
+
+  /* ================= 启动 ================= */
+  svgEl = el("scene");
+  bindUI();
+  rebuild();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,60 @@
+ITstudy 硬件仿真构建信息
+=========================
+构建日期: 2026-11-02
+集成位置: 教学资源 → 硬件仿真 (/hardware-sim)
+
+上游项目
+--------
+1. 图形编程仿真
+   源目录: E:\workbuddy\掌控板图形化编程
+   项目: Mmake Block Studio 1.0.0 (MIT)
+   Blockly: vendor/blockly（Blockly 10 压缩构建）
+   构建: node tools/build-publish.js
+   注意: 发布脚本会清空 DEFAULT_CREDS、替换教材示例；其密钥自检对空字符串
+         相邻会误报，DEFAULT_CREDS 内所有单引号字符串长度为 0 即安全。
+
+2. ESP32-S3 仿真
+   源目录: E:\workbuddy\ESP32-S3\esp-labs-web-main
+   固件源: E:\workbuddy\ESP32-S3\esp-labs-main（仅构建期读取）
+   项目版本: 0.1.0 (MIT)
+   技术栈: React 19 + TypeScript 6 + Vite 8（base: "./"，hash router）
+   工具链: Node 24.20.0 / pnpm 11.10.0（corepack）
+   构建命令:
+     pnpm install --frozen-lockfile
+     $env:FIRMWARE_DIR='../esp-labs-main'
+     $env:REFERENCE_FILE='docs-llm/esp32-s3/ESP32-S3_REFERENCE.md'
+     pnpm build
+   产物: 34 个固件环境 JSON、1286 个参考手册分节、259 张参考图
+
+ESP32 集成补丁
+--------------
+- src/i18n/locale-store.ts: 默认语言 "auto" → "zh"
+- index.html: lang="zh-CN"、标题「ESP32-S3 仿真」、中文 meta description
+- src/lib/storage.ts: createPersistentStore 按 uid 加 "u_<uid>__" 前缀
+- public/fonts/: Archivo / IBM Plex Mono Latin 子集自托管（OFL 1.1），
+  移除 Google Fonts 外部请求
+- 构建后删除 *.map 与 sourceMappingURL 注释
+
+掌控板集成补丁
+--------------
+- js/store.js: localStorage 键加 "u_<uid>__" 前缀；IndexedDB 库名
+  zkb_store_<uid>；无 uid 时保持原键
+- index.html: 资源版本戳 ?v=20261030b → ?v=20261102
+
+完整性与验证
+------------
+- 文件级 SHA256 清单: 同目录 MANIFEST.sha256
+  校验: venv/Scripts/python.exe tools/verify_hardware_sim_artifacts.py
+- 自动化: pytest tests/test_hardware_sim_1102.py；浏览器 E2E
+  tools/e2e_hardware_sim_browser.py
+- 安装包: pack/ITstudy-v5.0.0-Setup.exe（体积/SHA256 以
+  docs/硬件仿真整合-2026-11-02.md 的最终记录为准）
+  NSIS /V4: venv=7, site-packages=0
+
+许可证
+------
+- Mmake: MIT（mmake/LICENSE）
+- Blockly: Apache-2.0（vendor 脚本头部；见 THIRD_PARTY_NOTICES.txt）
+- esp-labs-web / React / three.js 等: MIT（esp32-s3/LICENSE）
+- Archivo / IBM Plex Mono: SIL OFL 1.1（esp32-s3/fonts/OFL.txt）
+- Espressif 参考手册文字/图片: © Espressif Systems，仅教学参考

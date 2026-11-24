@@ -1,0 +1,1508 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>乙炔立体反应与电子推演系统</title>
+    <style>
+        :root {
+            --bg-color: #2c3e50; --card-bg: #ffffff; --text-main: #2c3e50;
+            --primary: #16a085; --success: #2ecc71; --danger: #e74c3c;
+            --warning: #f39c12; --info: #8e44ad; --bromine: #a04000; --poly: #c0392b;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Helvetica Neue', Arial, 'Microsoft YaHei', sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-main); display: flex; justify-content: center; align-items: center; height: 100vh; width: 100vw; overflow: hidden; }
+
+        .container { width: 100vw; height: 100vh; background: var(--card-bg); display: flex; flex-direction: column; }
+        
+        header { flex: 0 0 auto; background: linear-gradient(135deg, #1a252f, var(--primary)); color: white; padding: 12px 20px; text-align: center; border-bottom: 3px solid #1abc9c; z-index: 20; }
+        header h1 { font-size: 20px; margin-bottom: 4px; letter-spacing: 1px; }
+        header p { font-size: 13px; opacity: 0.85; }
+
+        .main-content { flex: 1; min-height: 0; display: flex; flex-direction: row; }
+
+        .canvas-container { flex: 1; position: relative; background: #eef2f5; display: flex; justify-content: center; align-items: center; overflow: hidden; cursor: grab; }
+        .canvas-container:active { cursor: grabbing; }
+
+        .hint-overlay { position: absolute; top: 15px; right: 15px; background: rgba(255,255,255,0.85); padding: 6px 12px; border-radius: 20px; font-size: 12px; color: #333; pointer-events: none; box-shadow: 0 2px 8px rgba(0,0,0,0.1); backdrop-filter: blur(4px); z-index: 10; font-weight: bold; }
+
+        /* 进度条改为可拖拽样式 */
+        .canvas-container #progressContainer {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            display: none; align-items: center; gap: 15px;
+            background: rgba(255, 255, 255, 0.95); padding: 12px 25px; border-radius: 30px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.5);
+            width: 450px; max-width: 90%; z-index: 11;
+            cursor: move;
+            user-select: none;
+        }
+        .canvas-container #progressContainer.active { display: flex; }
+        #playPauseBtn { cursor: pointer; font-size: 24px; transition: transform 0.1s; color: var(--primary); }
+        #playPauseBtn:active { transform: scale(0.9); }
+        #reactionSlider { flex: 1; cursor: pointer; height: 6px; -webkit-appearance: none; background: #e2e8f0; border-radius: 3px; outline: none; }
+        #reactionSlider::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; background: var(--primary); cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
+        #progressText { font-size: 14px; font-weight: bold; width: 45px; text-align: right; color: #2c3e50; }
+
+        /* 统一侧边栏基础样式 */
+        .sidebar { background: #fdfdfd; display: flex; flex-direction: column; z-index: 10; box-shadow: 0 0 10px rgba(0,0,0,0.05); }
+        
+        /* 右侧面板 */
+        .sidebar-right { flex: 0 0 340px; border-left: 1px solid #dcdde1; }
+        
+        /* 左侧面板 */
+        .sidebar-left { flex: 0 0 170px; border-right: 1px solid #dcdde1; background: #f8f9fa; }
+
+        .sidebar-section { padding: 15px; border-bottom: 1px solid #eee; flex: 0 0 auto; }
+        .sidebar-section.fill { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+        
+        .panel-title { font-size: 15px; font-weight: bold; margin-bottom: 10px; color: #34495e; display: flex; align-items: center; gap: 6px; }
+        .panel-title::before { content: ''; display: block; width: 4px; height: 14px; background: var(--primary); border-radius: 2px; }
+
+        .category-title { font-size: 12px; color: #7f8c8d; margin: 12px 0 6px 0; border-bottom: 1px dashed #dcdde1; padding-bottom: 3px; font-weight: bold; }
+        .category-title:first-of-type { margin-top: 0; }
+
+        .btn-group { display: flex; flex-direction: column; gap: 8px; }
+        
+        button { padding: 9px 10px; font-size: 13px; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); width: 100%; text-align: center; }
+        button:active { transform: translateY(1px); box-shadow: none; }
+        
+        .btn-mode { background-color: #e2e8f0; color: #4a5568; }
+        .btn-mode.active { background-color: #34495e; color: white; }
+
+        .btn-reaction { background-color: white; color: #2d3748; border: 1px solid #cbd5e0; }
+        .btn-reaction.active { color: white; border-color: transparent; }
+        #btnBromination.active { background-color: var(--bromine); }
+        #btnHydrogenation.active { background-color: var(--primary); }
+        #btnHBrAddition.active { background-color: var(--info); }
+        #btnCombustion.active { background-color: var(--danger); }
+        #btnPolymerization.active { background-color: var(--poly); }
+        .btn-reset { background-color: #7f8c8d; color: white; margin-top: auto; }
+
+        .formula-display { font-size: 18px; font-weight: bold; text-align: left; align-items: flex-start; padding: 15px 20px; background: #edf2f7; border-radius: 8px; color: var(--primary); min-height: 96px; display: flex; flex-direction: column; justify-content: center; border: 1px solid #e2e8f0; }
+        
+        .formula-main { font-family: 'Times New Roman', Times, serif; font-size: 19px; letter-spacing: 0.5px; white-space: nowrap; overflow-x: auto; width: 100%; padding-bottom: 4px; }
+        .formula-main::-webkit-scrollbar { height: 4px; }
+        .formula-main::-webkit-scrollbar-thumb { background: #cbd5e0; border-radius: 2px; }
+        .formula-main.eq-step { font-size: 16px; line-height: 1.6; transition: opacity 0.3s, transform 0.3s; }
+        .formula-main.eq-step.dim { opacity: 0.35; transform: translateX(-6px); }
+        .formula-main.eq-step.active { opacity: 1; transform: translateX(0); }
+        .eq-tag { display: inline-block; font-size: 11px; background: var(--primary); color: #fff; border-radius: 10px; padding: 1px 8px; margin-right: 7px; vertical-align: 2px; }
+
+        /* 右侧信息面板避免滚动条优化 */
+        .info-box { background-color: #f8f9fa; border-left: 4px solid var(--primary); padding: 12px; border-radius: 0 6px 6px 0; font-size: 13px; line-height: 1.5; color: #333; flex: 1; }
+        
+        /* 图例改回2列，节省垂直空间 */
+        .legend { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 12px; background: #ffffff; padding: 10px; border-radius: 6px; border: 1px solid #eee; }
+        .legend-item { display: flex; align-items: center; gap: 6px; }
+        .legend-color { width: 14px; height: 14px; border-radius: 50%; box-shadow: inset -2px -2px 4px rgba(0,0,0,0.3); border: 1px solid rgba(0,0,0,0.1); }
+
+        .badge { padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; color: white; margin-bottom: 5px; display: inline-block; }
+        .bg-normal { background: var(--primary); } .bg-br { background: var(--bromine); }
+        .bg-warn { background: var(--warning); } .bg-succ { background: var(--success); } 
+        .bg-danger { background: var(--danger); } .bg-poly { background: var(--poly); }
+
+        @media screen and (max-width: 900px) {
+            .main-content { flex-direction: column; }
+            .sidebar-left, .sidebar-right { flex: none; width: 100%; height: auto; max-height: 35vh; }
+            .sidebar-left { border-right: none; border-bottom: 1px solid #e0e0e0; display: flex; flex-direction: row; flex-wrap: wrap; }
+            .sidebar-section { flex: 1; min-width: 150px; border-bottom: none; border-right: 1px solid #eee; }
+        }
+        @media screen and (max-width: 700px) {
+            header h1 { font-size: 16px; }
+            .sidebar-left, .sidebar-right { max-height: 30vh; }
+            .sidebar-section { min-width: 130px; padding: 10px; }
+            .formula-main { font-size: 15px; }
+            .formula-display { min-height: 86px; }
+            .hint-overlay { font-size: 10px; padding: 4px 9px; }
+            #progressContainer { width: 94%; padding: 10px 14px; gap: 10px; }
+            .panel-title { font-size: 13px; }
+            button { font-size: 12px; padding: 8px 6px; }
+        }
+        .tier-box { margin-top:8px; display:flex; flex-wrap:wrap; gap:6px; }
+        .tier-chip { font-size:11px; padding:2px 8px; border-radius:10px; }
+        .tier-main { background:#eaf2f8; color:#2471a3; }
+        .tier-adv { background:#fdebd0; color:#a04000; }
+        .tier-scheme { background:#eafaf1; color:#1e8449; }
+        .adv-details { font-size:12px; margin-top:8px; }
+        .adv-details summary { cursor:pointer; color:#2471a3; font-weight:bold; background:#eaf2f8; border:1px solid #b9d4ec; border-radius:6px; padding:6px 10px; margin-bottom:4px; text-align:center; list-style:none; }
+        .adv-details summary::-webkit-details-marker { display:none; }
+        .adv-panel { font-size:12px; line-height:1.8; color:#34495e; background:#f8f9fa; border:1px solid #e2e8f0; border-radius:6px; padding:10px 12px; }
+    </style>
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="stylesheet" href="ui-glass.css">
+    <link rel="stylesheet" href="organic-skin.css">
+    <script src="./three.min.js"></script>
+    <script src="./OrbitControls-umd.js"></script>
+
+<style id="chem-lab-embed-style">
+  /* ITstudy 化学仿真统一壳：隐藏原站顶栏/品牌/版权水印。
+     不强制页面高度与 overflow —— 各页面自有布局（周期表需要滚动，
+     3D 页需要全屏），统一覆盖会把周期表底部裁掉。 */
+  #topbar, #copyright, .wm-copyright, #btn-home,
+  .topbar-actions, .back-home-btn,
+  .brand, .brand-title, #brand-logo { display: none !important; }
+  canvas { max-width: 100%; }
+  /* 课堂 iframe 高度较小时：周期表隐藏趋势图、压缩行高，保证 118 元素可见 */
+  @media (max-height: 720px) {
+    #chart-panel { display: none !important; }
+    .ptable.size-s { grid-auto-rows: 32px !important; }
+    #info-sidebar { width: 220px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container light-bg" id="app-container">
+        <div id="topbar" class="glass">
+        <div class="brand">
+            <img id="brand-logo" src="favicon.png" alt="可视化化学">
+            <div class="brand-text">
+                <div class="brand-title">可视化化学<span class="brand-divider">·</span>可视化学</div>
+                <div class="brand-sub">让微观结构，触手可及！</div>
+            </div>
+        </div>
+        <div class="topbar-actions">
+            <a class="top-btn" id="btn-home" href="index.html" target="_top">主页</a>
+            <button class="top-btn" id="btn-reset-view"><svg class="tb-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>重置视角</button>
+        </div>
+    </div>
+
+    <div class="main-content" id="main-row">
+        <!-- 左侧控制面板 -->
+        <div class="sidebar sidebar-left">
+<div class="sidebar-section">
+                <div class="panel-title">原子图例</div>
+                <div class="legend">
+                    <div class="legend-item"><div class="legend-color" style="background-color: #34495e;"></div><span>碳 (C)</span></div>
+                    <div class="legend-item"><div class="legend-color" style="background-color: #ffffff;"></div><span>氢 (H)</span></div>
+                    <div class="legend-item"><div class="legend-color" style="background-color: #a04000;"></div><span>溴 (Br)</span></div>
+                    <div class="legend-item"><div class="legend-color" style="background-color: #e74c3c;"></div><span>氧 (O)</span></div>
+                </div>
+            </div>
+            <div class="sidebar-section">
+                <div class="panel-title">视图模式</div>
+                <div class="btn-group">
+                    <button id="btnBallStick" class="btn-mode active">三维立体模式</button>
+                    <button id="btnStructural" class="btn-mode">结构式模式</button>
+                </div>
+            </div>
+
+            <div class="sidebar-section fill" style="padding-bottom: 5px;">
+                <div class="panel-title">反应类型</div>
+                
+                <div class="category-title">加成反应</div>
+                <div class="btn-group">
+                    <button id="btnBromination" class="btn-reaction">加溴 (+Br₂)</button>
+                    <button id="btnHydrogenation" class="btn-reaction">加氢 (+H₂)</button>
+                    <button id="btnHBrAddition" class="btn-reaction">加溴化氢 (+HBr)</button>
+                </div>
+
+                <div class="category-title">氧化反应</div>
+                <div class="btn-group">
+                    <button id="btnCombustion" class="btn-reaction">燃烧 (+O₂)</button>
+                </div>
+
+                <div class="category-title">加聚反应</div>
+                <div class="btn-group">
+                    <button id="btnPolymerization" class="btn-reaction">加聚(聚乙炔)</button>
+                </div>
+            </div>
+
+            <div class="sidebar-section" style="padding-top: 10px;">
+                <button id="btnReset" class="btn-reset">恢复初始状态</button>
+            </div>
+        </div>
+
+        <!-- 中间画布区域 -->
+        <div class="canvas-container" id="canvas-container">
+            <div class="hint-overlay">👆 单指拖拽旋转 | 双指缩放</div>
+            <div id="progressContainer">
+                <span id="playPauseBtn">⏸️</span>
+                <input type="range" id="reactionSlider" min="0" max="100" step="0.1" value="0">
+                <span id="progressText">0%</span>
+            </div>
+        </div>
+
+        <!-- 右侧信息面板 -->
+        <div class="sidebar sidebar-right">
+            <div class="sidebar-section">
+                <div class="panel-title">反应方程式（加成两步）</div>
+                <div id="formulaDisplay" class="formula-display">
+                    <div class="formula-main eq-step active" id="formulaEq1"><span class="eq-tag">第一步</span>HC≡CH + Br₂ → CHBr=CHBr</div>
+                    <div class="formula-main eq-step dim" id="formulaEq2"></div>
+                </div>
+            </div>
+
+            <div class="sidebar-section fill">
+                <div class="panel-title">机理与电子转移解析</div>
+                <div id="infoBox" class="info-box">加载中...</div>
+                <div id="tierBox" class="tier-box"></div>
+                <details class="adv-details">
+                    <summary>完整机理（进阶）▸ 点击展开</summary>
+                    <div id="advPanel" class="adv-panel">选择反应后显示</div>
+                </details>
+            </div>
+
+            
+        </div>
+    </div>
+</div>
+
+<script>
+    const RAD_BS = { C: 0.45, H: 0.25, Br: 0.55, O: 0.4 };
+    const COLORS = { C: 0x34495e, H: 0xffffff, Br: 0xa04000, O: 0xe74c3c };
+    const TEXT_COLORS = { C: '#2c3e50', H: '#555555', Br: '#8e44ad', O: '#c0392b' };
+
+    const TEXTS = {
+        init: "<b>乙炔分子 (HC≡CH)</b><br><br>直线形 sp 杂化，碳碳三键由 1 个 σ 键和 2 个 π 键组成。",
+        br_s1_1: "<span class='badge bg-br'>第一步 ①：Br₂ 靠近碳碳三键</span><br>Br₂ 从上方靠近乙炔，Br–Br 键被活化，准备加成（异裂细节见进阶面板）。",
+        br_s1_2: "<span class='badge bg-warn'>第一步 ②：Br–Br 断键，两侧碳先后与溴成键</span><br>一个 Br 先与左侧碳成键（三键→双键），另一个 Br 再与右侧碳成键，生成<b>平面型</b> CHBr=CHBr。",
+        br_s1_3: "<span class='badge bg-succ'>第一步 ③：生成 1,2-二溴乙烯</span><br>CHBr=CHBr（平面型），三键变为双键。",
+        br_s2_1: "<span class='badge bg-br'>第二步 ①：第二个 Br₂ 靠近</span><br>第二个 Br₂ 从上方靠近，准备继续加成。",
+        br_s2_2: "<span class='badge bg-warn'>第二步 ②：Br–Br 断键，两侧碳再各与溴成键</span><br>双键变为单键，两个碳均变为 <b>sp³</b>。",
+        br_s2_3: "<span class='badge bg-succ'>第二步 ③：生成 1,1,2,2-四溴乙烷</span><br>CHBr₂–CHBr₂，两个碳均为 sp³（溴原子体积大，C–Br 键略长）。",
+        h2_s1_1: "<span class='badge bg-normal'>第一步 ①：H₂ 靠近碳碳三键（催化加氢）</span><br>Ni 催化下，H–H 键被活化，两个 H 从同一侧（顺式）靠近乙炔。",
+        h2_s1_2: "<span class='badge bg-warn'>第一步 ②：H–H 断键，两个 H 顺式加成</span><br>两个 H 从同一侧分别与两个碳成键，三键变双键，生成<b>平面型</b> CH₂=CH₂。",
+        h2_s1_3: "<span class='badge bg-succ'>第一步 ③：生成乙烯</span><br>CH₂=CH₂（平面型），三键变为双键。",
+        h2_s2_1: "<span class='badge bg-normal'>第二步 ①：第二个 H₂ 顺式加成</span><br>第二个 H₂ 靠近，两个 H 从同一侧准备加到双键上。",
+        h2_s2_2: "<span class='badge bg-warn'>第二步 ②：H–H 断键，两个 H 顺式加成</span><br>双键变单键，两个碳均变为 sp³。",
+        h2_s2_3: "<span class='badge bg-succ'>第二步 ③：生成乙烷</span><br>CH₃–CH₃，两个碳均为 sp³。",
+        hbr_s1_1: "<span class='badge bg-normal'>第一步 ①：HBr 靠近碳碳三键</span><br>HBr 从上方靠近乙炔，H–Br 键被活化，准备加成（异裂细节见进阶面板）。",
+        hbr_s1_2: "<span class='badge bg-warn'>第一步 ②：H–Br 断键，H 先与左侧碳成键</span><br>三键变双键，Br 随后与右侧碳成键，生成<b>平面型</b> CH₂=CHBr。",
+        hbr_s1_3: "<span class='badge bg-succ'>第一步 ③：生成溴乙烯</span><br>CH₂=CHBr（平面型）。",
+        hbr_s2_1: "<span class='badge bg-normal'>第二步 ①：第二个 HBr 靠近</span><br>第二个 HBr 从上方靠近，准备继续加成。",
+        hbr_s2_2: "<span class='badge bg-warn'>第二步 ②：H–Br 断键，H 与左侧碳成键</span><br>双键变单键，Br 再与右侧碳成键，两个碳变为 sp³。",
+        hbr_s2_3: "<span class='badge bg-succ'>第二步 ③：生成 1,1-二溴乙烷</span><br>CH₃–CHBr₂，两个碳均为 sp³。",
+        ox_1: "<span class='badge bg-danger'>阶段1：旧键断裂（示意）</span><br><b>本段为原子重排示意，非完整机理</b>：燃烧实为自由基链反应，此处只展示原子重排与电子转移的净结果。",
+        ox_2: "<span class='badge bg-warn'>阶段2：空间自由重排</span><br>游离原子跨越空间，自由寻找结合能最低的新位置。",
+        ox_3: "<span class='badge bg-succ'>阶段3：生成产物</span><br>原子到达指定位置后生成新键并放出大量热，生成 CO₂ 与 H₂O。",
+        
+        poly_1: "<span class='badge bg-normal'>阶段1：π键断开，小短键上、下翻转</span><br>催化下三重键中的 <b>一个π键断开</b>，每个碳伸出带<b>单电子(·)</b>的小短键：<b>左端向上、右端向下翻转</b>，氢原子随碳同步转动，形成 <b>120° 平面</b>构型；另一个π键保留。",
+        poly_2: "<span class='badge bg-poly'>阶段2：单体旋转靠近，小短键接触后直接变为 C-C 键</span><br>单体整体<b>旋转靠近</b>，小短键始终保持 <b>120°</b> 和全长，相对的两根小短键<b>尖端接触</b>后<b>直接变为碳碳单键</b>；氢原子随碳旋转、保持约 0.9 键长朝外侧，碳链呈 <b>平面锯齿</b>，每个单体保留一个 C=C 双键。",
+        poly_3: "<span class='badge bg-succ'>阶段3：链节生成结束</span><br>三维空间下呈现聚乙炔链片段：<b>-[-CH=CH-]-n</b>，碳链平面锯齿、双键保留。",
+        poly_4: "<span class='badge bg-succ'>阶段4：结构式定形</span><br>结构式模式中，背景分子隐去，链节拉平为平面结构，双键保留并放入中括号。"
+    };
+
+    const slider = document.getElementById('reactionSlider');
+    const playPauseBtn = document.getElementById('playPauseBtn');
+    const progressText = document.getElementById('progressText');
+    const eqText1 = document.getElementById('formulaEq1');
+    const eqText2 = document.getElementById('formulaEq2');
+    function setTier(html) { const el = document.getElementById('tierBox'); if (el) el.innerHTML = html; }
+    function setAdv(type) {
+        const el = document.getElementById('advPanel'); if (!el) return;
+        const items = {
+            br: "<b>完整机理（亲电加成）</b><br>① 乙炔的 π 电子极化 Br₂，生成溴鎓离子（环状正离子中间体）或 Br⁺ 途径；② Br⁻ 从另一侧进攻开环，得到反式加成产物。两次加成分别得到 CHBr=CHBr 和 CHBr₂–CHBr₂。主动画已简化为先后成键。",
+            h2: "<b>完整机理说明</b><br>催化加氢的真实过程是 H₂ 在金属（Ni/Pd/Pt）表面解离，两个 H 从同一侧（顺式）分别加到两个碳上。主动画即按此表述；异裂成 H⁺/H⁻ 的说法不准确，已不使用。",
+            hbr: "<b>完整机理（亲电加成，马氏规则）</b><br>① HBr 的 H⁺ 先加到碳上（π 电子极化 H–Br），生成碳正离子；② Br⁻ 加到另一碳上。乙炔两端对称，加成无方向性：第一步得 CH₂=CHBr，第二步得 CH₃–CHBr₂。主动画已简化为先后成键。",
+            ox: "<b>示意说明</b><br>燃烧实际是自由基链反应（链引发、链增长、链终止），涉及 C–H、O=O 断键和多种自由基中间体。本动画只展示原子重排与电子转移（氧化还原）的净结果。",
+            poly: "<b>完整机理说明</b><br>乙炔在催化剂（如 Ziegler–Natta 或 CuCl/NH₄Cl）作用下，三键中的一个 π 键打开，单体依次首尾相连形成共轭双键长链（聚乙炔）。主动画以“单电子短键头尾相接”作简化示意。"
+        };
+        el.innerHTML = items[type] || '选择反应后显示完整机理';
+    }
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xeef2f5); 
+    const container = document.getElementById('canvas-container');
+    const camera = new THREE.PerspectiveCamera(40, container.clientWidth / container.clientHeight, 0.1, 100);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true; controls.dampingFactor = 0.05; controls.enablePan = false;
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.65); scene.add(ambientLight);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(5, 10, 7); dirLight.castShadow = true; scene.add(dirLight);
+
+    let currentReaction = 'none'; let isPlaying = false; let viewMode = 'ballstick'; 
+    let atoms = []; let bonds = []; let halfSticks = [];
+    let formulaLabels = []; let labelFadeAt = Infinity; let labelAutoStart = 0; let productLabels = [];
+
+    class Anchor3D {
+        constructor(id) { this.id = id; this.group = new THREE.Group(); scene.add(this.group); }
+        setPosition(x, y, z) { this.group.position.set(x, y, z); }
+    }
+    let anchors = {}; 
+
+    function createAnnotationMaterial(canvas) {
+        return new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true, opacity: 0, depthTest: false, depthWrite: false });
+    }
+    function makeFormulaLabel(text, x, y, z) {
+        let c = document.createElement('canvas'); c.width = 640; c.height = 96;
+        let ctx = c.getContext('2d');
+        ctx.font = 'bold 56px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#2c3e50'; ctx.fillText(text, 320, 50);
+        let s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, opacity: 1, depthTest: false, depthWrite: false }));
+        s.scale.set(2.6, 0.5, 1); s.renderOrder = 12;
+        s.position.set(x, y, z);
+        scene.add(s); formulaLabels.push(s); return s;
+    }
+    function makeProductLabel(text, x, y, z) {
+        let c = document.createElement('canvas'); c.width = 640; c.height = 96;
+        let ctx = c.getContext('2d');
+        ctx.font = 'bold 56px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#2c3e50'; ctx.fillText(text, 320, 50);
+        let s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, opacity: 1, depthTest: false, depthWrite: false }));
+        s.scale.set(2.6, 0.5, 1); s.renderOrder = 12;
+        s.position.set(x, y, z);
+        scene.add(s); productLabels.push(s); return s;
+    }
+    function clearProductLabels() {
+        productLabels.forEach(s => { scene.remove(s); s.material.map.dispose(); s.material.dispose(); });
+        productLabels = [];
+    }
+    function showReactantLabels(type) {
+        let items = [];
+        if (type === 'br') items = [['乙炔 C₂H₂', 0, -1.5, 0], ['Br₂', 2.4, 3.0, 0]];
+        else if (type === 'h2') items = [['乙炔 C₂H₂', 0, -1.5, 0], ['H₂', 2.4, 2.5, 0]];
+        else if (type === 'hbr') items = [['乙炔 C₂H₂', 0, -1.5, 0], ['HBr', 2.4, 3.0, 0]];
+        else if (type === 'ox') items = [['乙炔 C₂H₂', 0, -1.5, 0], ['O₂', 4.0, 3.0, 0]];
+        else if (type === 'poly') items = [['乙炔 C₂H₂', 0, -1.7, 0]];
+        items.forEach(it => makeFormulaLabel(it[0], it[1], it[2], it[3]));
+    }
+    function showProductLabels(type) {
+        let items = [];
+        if (type === 'br') items = [['C₂H₂Br₄', 0, -1.5, 0]];
+        else if (type === 'h2') items = [['C₂H₆', 0, -1.5, 0]];
+        else if (type === 'hbr') items = [['C₂H₄Br₂', 0, -1.5, 0]];
+        else if (type === 'ox') items = [['CO₂', 0, -2.2, 0], ['H₂O', 0, 1.2, 0]];
+        else if (type === 'poly') items = [['聚乙炔 (C₂H₂)ₙ', 0, -1.7, 0]];
+        items.forEach(it => makeProductLabel(it[0], it[1], it[2], it[3]));
+    }
+
+    let globalAnns = { br1Plus: null, br2Lp: null, br1bPlus: null, br2bLp: null, c2Plus: null };
+    let polyAnns = { bracketL: null, bracketR: null, polyN: null, dotL: null, dotR: null };
+
+    function initAnnotations() {
+        let c2 = document.createElement('canvas'); c2.width = 64; c2.height = 64; let ctx2 = c2.getContext('2d');
+        ctx2.fillStyle = '#000000'; ctx2.font = 'bold 45px Arial'; ctx2.textAlign = 'center'; ctx2.textBaseline = 'middle'; ctx2.fillText('+', 32, 35);
+        let plusMat = createAnnotationMaterial(c2);
+        globalAnns.br1Plus = new THREE.Sprite(plusMat.clone()); globalAnns.br1Plus.scale.set(0.5, 0.5, 1); globalAnns.br1Plus.renderOrder = 10; scene.add(globalAnns.br1Plus);
+        globalAnns.br1bPlus = new THREE.Sprite(plusMat.clone()); globalAnns.br1bPlus.scale.set(0.5, 0.5, 1); globalAnns.br1bPlus.renderOrder = 10; scene.add(globalAnns.br1bPlus);
+        globalAnns.c2Plus = new THREE.Sprite(plusMat.clone()); globalAnns.c2Plus.scale.set(0.5, 0.5, 1); globalAnns.c2Plus.renderOrder = 10; scene.add(globalAnns.c2Plus);
+
+        let c3 = document.createElement('canvas'); c3.width = 64; c3.height = 64; let ctx3 = c3.getContext('2d');
+        ctx3.fillStyle = '#000000'; ctx3.beginPath(); ctx3.arc(22, 32, 6, 0, Math.PI*2); ctx3.fill(); ctx3.beginPath(); ctx3.arc(42, 32, 6, 0, Math.PI*2); ctx3.fill();
+        let lpMat = createAnnotationMaterial(c3);
+        globalAnns.br2Lp = new THREE.Sprite(lpMat.clone()); globalAnns.br2Lp.scale.set(0.5, 0.5, 1); globalAnns.br2Lp.renderOrder = 10; scene.add(globalAnns.br2Lp);
+        globalAnns.br2bLp = new THREE.Sprite(lpMat.clone()); globalAnns.br2bLp.scale.set(0.5, 0.5, 1); globalAnns.br2bLp.renderOrder = 10; scene.add(globalAnns.br2bLp);
+
+        let cRad = document.createElement('canvas'); cRad.width = 32; cRad.height = 32; let ctxRad = cRad.getContext('2d');
+        ctxRad.fillStyle = '#000000'; ctxRad.beginPath(); ctxRad.arc(16, 16, 6, 0, Math.PI*2); ctxRad.fill();
+        let radMat = createAnnotationMaterial(cRad);
+        globalAnns.radicals = [];
+        for(let i=0; i<6; i++) { let r = new THREE.Sprite(radMat.clone()); r.scale.set(0.25, 0.25, 1); r.renderOrder=10; scene.add(r); globalAnns.radicals.push(r); }
+
+        let cbL = document.createElement('canvas'); cbL.width = 64; cbL.height = 200; let cxL = cbL.getContext('2d');
+        cxL.strokeStyle = '#2c3e50'; cxL.lineWidth = 6; cxL.beginPath(); cxL.moveTo(40, 30); cxL.lineTo(15, 30); cxL.lineTo(15, 170); cxL.lineTo(40, 170); cxL.stroke();
+        polyAnns.bracketL = new THREE.Sprite(createAnnotationMaterial(cbL)); polyAnns.bracketL.scale.set(0.4, 1.4, 1); polyAnns.bracketL.renderOrder = 8; scene.add(polyAnns.bracketL);
+
+        let cbR = document.createElement('canvas'); cbR.width = 64; cbR.height = 200; let cxR = cbR.getContext('2d');
+        cxR.strokeStyle = '#2c3e50'; cxR.lineWidth = 6; cxR.beginPath(); cxR.moveTo(24, 30); cxR.lineTo(49, 30); cxR.lineTo(49, 170); cxR.lineTo(24, 170); cxR.stroke();
+        polyAnns.bracketR = new THREE.Sprite(createAnnotationMaterial(cbR)); polyAnns.bracketR.scale.set(0.4, 1.4, 1); polyAnns.bracketR.renderOrder = 8; scene.add(polyAnns.bracketR);
+
+        let cn = document.createElement('canvas'); cn.width = 64; cn.height = 64; let cxn = cn.getContext('2d');
+        cxn.fillStyle = '#2c3e50'; cxn.font = 'italic bold 55px "Times New Roman"'; cxn.textAlign = 'center'; cxn.textBaseline = 'middle'; cxn.fillText('n', 32, 35);
+        polyAnns.polyN = new THREE.Sprite(createAnnotationMaterial(cn)); polyAnns.polyN.scale.set(0.35, 0.35, 1); polyAnns.polyN.renderOrder = 8; scene.add(polyAnns.polyN);
+
+        let cDot = document.createElement('canvas'); cDot.width = 128; cDot.height = 64; let ctxDot = cDot.getContext('2d');
+        ctxDot.fillStyle = '#7f8c8d'; ctxDot.font = 'bold 50px Arial'; ctxDot.textAlign = 'center'; ctxDot.textBaseline = 'middle'; ctxDot.fillText('...', 64, 32);
+        polyAnns.dotL = new THREE.Sprite(createAnnotationMaterial(cDot)); polyAnns.dotL.scale.set(1.5, 0.75, 1); scene.add(polyAnns.dotL);
+        polyAnns.dotR = new THREE.Sprite(createAnnotationMaterial(cDot)); polyAnns.dotR.scale.set(1.5, 0.75, 1); scene.add(polyAnns.dotR);
+    }
+    initAnnotations();
+
+    const materials = {};
+    for (let key in COLORS) materials[key] = new THREE.MeshStandardMaterial({ color: COLORS[key], roughness: 0.3, metalness: 0.1 });
+    const sphereGeo = new THREE.SphereGeometry(1, 32, 32);
+    const bondMat3D = new THREE.MeshStandardMaterial({ color: 0xbdc3c7, roughness: 0.4 });
+    const bondMat2D = new THREE.MeshBasicMaterial({ color: 0x2c3e50, depthTest: false, depthWrite: false }); 
+
+    const spriteCache = {};
+    function getAtomSprite(type) {
+        if (!spriteCache[type]) {
+            let canvas = document.createElement('canvas'); canvas.width = 128; canvas.height = 128;
+            let ctx = canvas.getContext('2d');
+            ctx.fillStyle = TEXT_COLORS[type] || '#333333';
+            ctx.font = 'bold 72px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(type, 64, 66); 
+            spriteCache[type] = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true, depthTest: false, depthWrite: false });
+        }
+        let sprite = new THREE.Sprite(spriteCache[type].clone()); sprite.scale.set(1.15, 1.15, 1); sprite.renderOrder = 5; return sprite;
+    }
+
+    class Atom3D {
+        constructor(id, type, x, y, z) {
+            this.id = id; this.type = type;
+            this.group = new THREE.Group(); this.group.position.set(x, y, z);
+            this.mesh = new THREE.Mesh(sphereGeo, materials[type].clone());
+            this.mesh.castShadow = true; this.mesh.receiveShadow = true; this.mesh.scale.setScalar(RAD_BS[type]);
+            this.sprite = getAtomSprite(type);
+            this.group.add(this.mesh); this.group.add(this.sprite);
+            this.currentOpacity = 1.0;
+            scene.add(this.group); atoms.push(this);
+            this.applyViewMode();
+        }
+        setPosition(x, y, z) { this.group.position.set(x, y, z); }
+        setOpacity(val) {
+            this.currentOpacity = val;
+            this.mesh.material.transparent = true; this.mesh.material.opacity = val;
+            this.sprite.material.opacity = val;
+            this.applyViewMode();
+        }
+        applyViewMode() {
+            let isVis = this.currentOpacity > 0.02;
+            if (viewMode === 'structural') { this.mesh.visible = false; this.sprite.visible = isVis; }
+            else { this.mesh.visible = isVis; this.sprite.visible = false; }
+        }
+    }
+
+    class Bond3D {
+        constructor(id, a1, a2, type = 'single') {
+            this.id = id; this.atom1 = a1; this.atom2 = a2; this.type = type;
+            this.group = new THREE.Group(); 
+            this.mat3D = bondMat3D.clone(); this.mat2D = bondMat2D.clone();
+            this.isBroken = false; this.bondOrder = type === 'double' ? 2 : (type === 'triple' ? 3 : 1);
+            this.currentOpacity = 1.0;
+
+            let geo = new THREE.CylinderGeometry(0.06, 0.06, 1, 16);
+            this.meshes = [];
+            if (type === 'single') { let m = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1, 16), this.mat3D); this.meshes.push(m); this.group.add(m); }
+            else if (type === 'double') { let m1 = new THREE.Mesh(geo, this.mat3D); let m2 = new THREE.Mesh(geo, this.mat3D); this.meshes.push(m1, m2); this.group.add(m1, m2); }
+            else if (type === 'triple') { let m1 = new THREE.Mesh(geo, this.mat3D); let m2 = new THREE.Mesh(geo, this.mat3D); let m3 = new THREE.Mesh(geo, this.mat3D); this.meshes.push(m1, m2, m3); this.group.add(m1, m2, m3); }
+            this.meshes.forEach(m => { m.castShadow = true; m.receiveShadow = true; m.renderOrder = 1; });
+            scene.add(this.group); bonds.push(this);
+            this.applyViewMode();
+        }
+        
+        updatePosition() {
+            if (this.isBroken || this.bondOrder === 0) { this.meshes.forEach(m => m.visible = false); return; }
+            let p1 = this.atom1.group.position; let p2 = this.atom2.group.position;
+            let dist = p1.distanceTo(p2);
+            let offset = viewMode === 'structural' ? 0.35 : 0; 
+            let visualDist = Math.max(0.01, dist - offset * 2);
+
+            if (currentReaction === 'ox' && dist > 2.5) { this.meshes.forEach(m => m.visible = false); return; }
+            if (this.currentOpacity <= 0.02) { this.meshes.forEach(m => m.visible = false); return; }
+
+            this.group.position.copy(new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5));
+            this.group.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), new THREE.Vector3().subVectors(p2, p1).normalize());
+            
+            let rScale = viewMode === 'structural' ? 0.6 : 1.0; let space = viewMode === 'structural' ? 0.08 : 0.18;
+            if (this.type === 'single') {
+                this.meshes[0].visible = true; this.meshes[0].scale.set(rScale, visualDist, rScale);
+            } else if (this.type === 'double') {
+                if(this.bondOrder === 2) {
+                    this.meshes[0].visible = true; this.meshes[1].visible = true;
+                    this.meshes.forEach(m => m.scale.set(rScale, visualDist, rScale));
+                    this.meshes[0].position.set(space, 0, 0); this.meshes[1].position.set(-space, 0, 0);
+                } else {
+                    this.meshes[0].visible = true; this.meshes[1].visible = false;
+                    this.meshes[0].scale.set(rScale, visualDist, rScale); this.meshes[0].position.set(0, 0, 0);
+                }
+            } else if (this.type === 'triple') {
+                if(this.bondOrder === 3) {
+                    this.meshes[0].visible = true; this.meshes[1].visible = true; this.meshes[2].visible = true;
+                    this.meshes.forEach(m => m.scale.set(rScale, visualDist, rScale));
+                    this.meshes[0].position.set(0, 0, 0); this.meshes[1].position.set(space, 0, 0); this.meshes[2].position.set(-space, 0, 0);
+                } else if (this.bondOrder === 2) {
+                    this.meshes[0].visible = true; this.meshes[1].visible = true; this.meshes[2].visible = false;
+                    this.meshes[0].scale.set(rScale, visualDist, rScale); this.meshes[1].scale.set(rScale, visualDist, rScale);
+                    this.meshes[0].position.set(space, 0, 0); this.meshes[1].position.set(-space, 0, 0);
+                } else {
+                    this.meshes[0].visible = true; this.meshes[1].visible = false; this.meshes[2].visible = false;
+                    this.meshes[0].scale.set(rScale, visualDist, rScale); this.meshes[0].position.set(0, 0, 0);
+                }
+            }
+        }
+        setColorState(state) {
+            let col = (state === 'normal') ? 0xbdc3c7 : (state === 'break') ? 0xf39c12 : (state === 'make') ? 0x2ecc71 : 0xa04000;
+            this.mat3D.color.setHex(col); this.mat2D.color.setHex((state === 'normal') ? 0x2c3e50 : col);
+        }
+        setOpacity(val) {
+            this.currentOpacity = val;
+            this.mat3D.transparent = true; this.mat3D.opacity = val;
+            this.mat2D.transparent = true; this.mat2D.opacity = val;
+            this.applyViewMode();
+        }
+        applyViewMode() {
+            let isVis = this.currentOpacity > 0.02;
+            let targetMat = viewMode === 'structural' ? this.mat2D : this.mat3D;
+            this.meshes.forEach(m => { m.material = targetMat; m.visible = isVis; });
+            this.updatePosition();
+        }
+    }
+
+    class HalfStick {
+        constructor(id, anchorAtom) {
+            this.id = id; this.anchor = anchorAtom;
+            this.group = new THREE.Group();
+            this.mat = bondMat2D.clone();
+            this.mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 1, 12), this.mat);
+            this.mesh.visible = false;
+            this.mesh.renderOrder = 2;
+            this.group.add(this.mesh); scene.add(this.group);
+            this.enabled = false;
+            halfSticks.push(this);
+        }
+        setVisible(v) { this.enabled = v; this.mesh.visible = v && viewMode === 'structural'; }
+        set(freePos) {
+            const ax = this.anchor.group.position.x, ay = this.anchor.group.position.y;
+            const dx = freePos[0] - ax, dy = freePos[1] - ay;
+            const d = Math.sqrt(dx * dx + dy * dy);
+            if (d < 0.002 || !this.enabled || viewMode !== 'structural') { this.mesh.visible = false; return; }
+            this.group.position.set(ax + dx / 2, ay + dy / 2, 0);
+            this.group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(dx, dy, 0).normalize());
+            this.mesh.scale.set(1, d, 1);
+            this.mesh.visible = true;
+        }
+        applyViewMode() { this.mesh.visible = this.enabled && viewMode === 'structural'; }
+    }
+
+    function getA(id) { return atoms.find(a => a.id === id); }
+    function getB(id) { return bonds.find(b => b.id === id); }
+    function getHalf(id) { return halfSticks.find(s => s.id === id); }
+    function getAnchor(id) { return anchors[id]; }
+    
+    function smoothStep(t) { return t * t * (3 - 2 * t); }
+    function mixPos(p1, p2, val, inMin, inMax) {
+        let a = (val <= inMin) ? 0 : (val >= inMax) ? 1 : smoothStep((val - inMin)/(inMax - inMin));
+        return [ p1[0] + a*(p2[0]-p1[0]), p1[1] + a*(p2[1]-p1[1]), p1[2] + a*(p2[2]-p1[2]) ];
+    }
+    // 2D 方向旋转（较短路径），长度由调用方单独控制
+    function rotToward2D(a0, a1, f) {
+        const d0 = Math.hypot(a0[0], a0[1]), d1 = Math.hypot(a1[0], a1[1]);
+        if (d0 < 1e-6 || d1 < 1e-6 || f <= 0) return [a0[0] / (d0 || 1), a0[1] / (d0 || 1)];
+        let ang0 = Math.atan2(a0[1], a0[0]);
+        let ang1 = Math.atan2(a1[1], a1[0]);
+        let diff = ang1 - ang0;
+        while (diff > Math.PI) diff -= 2 * Math.PI;
+        while (diff < -Math.PI) diff += 2 * Math.PI;
+        const a = ang0 + diff * Math.min(1, Math.max(0, f));
+        return [Math.cos(a), Math.sin(a)];
+    }
+    // 绕 C-C 轴（x 轴）旋转，负角使平面分子“面朝上”
+    function rotXPos(p, deg) {
+        let r = deg * Math.PI / 180, c = Math.cos(r), s = Math.sin(r);
+        return [p[0], p[1] * c - p[2] * s, p[1] * s + p[2] * c];
+    }
+    // 在 [t0,t1] 内显示，两端各用 fadeIn/fadeOut 个单位淡入淡出
+    function windowOp(t, t0, t1, fadeIn = 2, fadeOut = 2) {
+        if (t < t0 || t > t1) return 0;
+        return Math.max(0, Math.min(1, (t - t0) / fadeIn, (t1 - t) / fadeOut));
+    }
+    function setEquations(eq1, eq2, accent) {
+        eqText1.innerHTML = eq1; eqText2.innerHTML = eq2;
+        eqText1.style.color = accent; eqText2.style.color = accent;
+        eqText1.classList.add('active'); eqText2.classList.remove('active');
+        eqText1.classList.remove('dim'); eqText2.classList.add('dim');
+    }
+    function setEqActive(step) {
+        eqText1.classList.toggle('active', step === 1);
+        eqText2.classList.toggle('active', step === 2);
+        eqText1.classList.toggle('dim', step !== 1);
+        eqText2.classList.toggle('dim', step !== 2);
+    }
+    function applyGlobalViewMode() { atoms.forEach(a => a.applyViewMode()); bonds.forEach(b => b.applyViewMode()); halfSticks.forEach(s => s.applyViewMode()); }
+
+    function clearScene() {
+        atoms.forEach(a => scene.remove(a.group));
+        bonds.forEach(b => { scene.remove(b.group); b.mat3D.dispose(); b.mat2D.dispose(); });
+        halfSticks.forEach(s => { scene.remove(s.group); s.mat.dispose(); });
+        atoms = []; bonds = []; halfSticks = [];
+        Object.values(anchors).forEach(anc => scene.remove(anc.group)); anchors = {}; 
+
+        Object.values(globalAnns).forEach(s => { 
+            if(Array.isArray(s)) { s.forEach(x => x.material.opacity = 0); }
+            else if(s) s.material.opacity = 0; 
+        });
+        Object.values(polyAnns).forEach(s => { if(s) s.material.opacity = 0; });
+        formulaLabels.forEach(s => { scene.remove(s); s.material.map.dispose(); s.material.dispose(); });
+        formulaLabels = [];
+        productLabels.forEach(s => { scene.remove(s); s.material.map.dispose(); s.material.dispose(); });
+        productLabels = [];
+    }
+    function setCamera(dist=7.5) { camera.position.set(0, 1.0, dist); controls.target.set(0, 0, 0); controls.update(); }
+
+    // 乙炔初始结构：直线形，HC≡CH
+    const YNE_POS = {
+        C1: [-0.6, 0, 0], C2: [0.6, 0, 0],
+        H1: [-1.5, 0, 0], H2: [1.5, 0, 0]      // H1 在 C1 左侧、H2 在 C2 右侧
+    };
+    // 结构式模式：乙炔横平竖直，碳在十字中心，端氢水平外伸
+    const YNE_2D = {
+        C1: [-1, 0, 0], C2: [1, 0, 0],
+        H1: [-2.5, 0, 0], H2: [2.5, 0, 0]
+    };
+    function ynePos(id) { return (viewMode === 'structural' ? YNE_2D : YNE_POS)[id]; }
+
+    // 两步加成共用几何：第一步平面型，第二步扭曲四面体（溴占空间大）
+    const PLANAR_UP_L  = [-1.05, 0.78, 0];
+    const PLANAR_UP_R  = [1.05, 0.78, 0];
+    const PLANAR_DN_L  = [-1.05, -0.78, 0];
+    const PLANAR_DN_R  = [1.05, -0.78, 0];
+    // 溴的 C–Br 键比 C–H 长：平面阶段 1.25、四面体阶段 1.35（H 加成仍用 PLANAR_UP/TET_H）
+    const PLANAR_BR_UP_L = [-1.225, 1.083, 0];
+    const PLANAR_BR_UP_R = [1.225, 1.083, 0];
+    const ROT_BR_UP_L = [-1.225, 0, -1.083];
+    const ROT_BR_UP_R = [1.225, 0, -1.083];
+    // 第一步产物绕 C-C 轴旋转 90°（面朝上）后的平面位置：原“上”侧转至后方(z−)，原“下”侧转至前方(z+)
+    const ROT_UP_L  = [-1.05, 0, -0.78];
+    const ROT_UP_R  = [1.05, 0, -0.78];
+    const ROT_DN_L  = [-1.05, 0, 0.78];
+    const ROT_DN_R  = [1.05, 0, 0.78];
+    // 第二步最终四面体：第一步基团在后方(z−)，第二步基团在前方(z+)，均位于上方(y>0)
+    const TET_BR_L  = [-1.054, 0.564, -1.140];
+    const TET_BR_L2 = [-1.054, 0.564, 1.140];
+    const TET_BR_R  = [1.054, 0.564, -1.140];
+    const TET_BR_R2 = [1.054, 0.564, 1.140];
+    // 试剂分子进入：三维 Br–Br 1.6，结构式模式紧凑；从画面上方移动到乙炔上方再反应
+    const R3D = {
+        br:  { A0: [-0.8, 3.5, 0], B0: [0.8, 3.5, 0], A1: [-0.8, 1.8, 0], B1: [0.8, 1.8, 0] },
+        h2:  { A0: [-0.6, 3.4, 0], B0: [0.6, 3.4, 0], A1: [-0.6, 1.5, 0], B1: [0.6, 1.5, 0] },
+        hbr: { A0: [-0.5, 3.5, 0], B0: [0.5, 3.5, 0], A1: [-0.5, 1.9, 0], B1: [0.5, 1.9, 0] }
+    };
+    const R2D = {
+        br:  { A0: [-0.45, 3.5, 0], B0: [0.45, 3.5, 0], A1: [-0.45, 1.95, 0], B1: [0.45, 1.95, 0] },
+        h2:  { A0: [-0.45, 3.4, 0], B0: [0.45, 3.4, 0], A1: [-0.45, 1.65, 0], B1: [0.45, 1.65, 0] },
+        hbr: { A0: [-0.4, 3.5, 0], B0: [0.4, 3.5, 0], A1: [-0.4, 2.05, 0], B1: [0.4, 2.05, 0] }
+    };
+    const TET_H_L  = [-0.92, -0.90, 0];
+    const TET_H_R  = [0.92, -0.90, 0];
+    const TET_H_L1 = [-0.92, 0.45, -0.78];
+    const TET_H_L2 = [-0.92, 0.45, 0.78];
+    const TET_H_R1 = [0.92, 0.45, -0.78];
+    const TET_H_R2 = [0.92, 0.45, 0.78];
+    // 结构式模式最终正交布局：碳链水平，C-H/C-Br 键竖直（互相垂直）
+    const O2D_BR1A = [-0.6, 0.9, 0];
+    const O2D_BR1B = [-1.2, 0, 0];
+    const O2D_BR2A = [0.6, 0.9, 0];
+    const O2D_BR2B = [1.2, 0, 0];
+    const O2D_H_L = [-0.6, -0.9, 0];
+    const O2D_H_R = [0.6, -0.9, 0];
+    const O2D_H_L_OUT = [-1.2, 0, 0];
+    const O2D_H_R_OUT = [1.2, 0, 0];
+    const O2D_H_L1 = [-0.6, 0.9, 0];
+    const O2D_H_L2 = [-0.6, -0.9, 0];
+    const O2D_H_R1 = [0.6, 0.9, 0];
+    const O2D_H_R2 = [0.6, -0.9, 0];
+
+    function buildBaseAcetylene() {
+        new Atom3D('C1', 'C', ...ynePos('C1')); new Atom3D('C2', 'C', ...ynePos('C2'));
+        new Atom3D('H1', 'H', ...ynePos('H1'));
+        new Atom3D('H2', 'H', ...ynePos('H2'));  // H2 在 C2 右侧
+        new Bond3D('C1≡C2', getA('C1'), getA('C2'), 'triple');
+        new Bond3D('C1-H1', getA('C1'), getA('H1')); 
+        new Bond3D('C2-H2', getA('C2'), getA('H2'));
+    }
+
+    function initNormal() {
+        clearScene(); buildBaseAcetylene(); setCamera();
+        eqText1.innerHTML = `<span class="eq-tag">第一步</span>HC≡CH + Br₂ → CHBr=CHBr`;
+        eqText2.innerHTML = `<span class="eq-tag">第二步</span>CHBr=CHBr + Br₂ → CHBr₂-CHBr₂`;
+        eqText1.style.color = 'var(--bromine)'; eqText2.style.color = 'var(--bromine)';
+        eqText1.classList.add('active'); eqText1.classList.remove('dim');
+        eqText2.classList.remove('active'); eqText2.classList.remove('dim');
+        document.getElementById('infoBox').innerHTML = TEXTS.init;
+        labelFadeAt = Infinity; labelAutoStart = 0;
+    }
+
+    function prepareBromination() {
+        clearScene(); buildBaseAcetylene();
+        // 第一步 Br₂
+        let br1a = new Atom3D('Br1a', 'Br', -0.6, 3.0, 0);
+        let br2a = new Atom3D('Br2a', 'Br', 0.6, 3.0, 0);
+        new Bond3D('Br1a-Br2a', br1a, br2a);
+        new Bond3D('C1-Br1a', getA('C1'), br1a); getB('C1-Br1a').isBroken = true;
+        new Bond3D('C2-Br2a', getA('C2'), br2a); getB('C2-Br2a').isBroken = true;
+        // 第二步 Br₂（先隐藏，第二步再淡入）
+        let br1b = new Atom3D('Br1b', 'Br', -0.6, 3.0, 0); br1b.setOpacity(0);
+        let br2b = new Atom3D('Br2b', 'Br', 0.6, 3.0, 0); br2b.setOpacity(0);
+        let bBr2 = new Bond3D('Br1b-Br2b', br1b, br2b); bBr2.isBroken = true; bBr2.setOpacity(0);
+        let bC1Br1b = new Bond3D('C1-Br1b', getA('C1'), br1b); bC1Br1b.isBroken = true; bC1Br1b.setOpacity(0);
+        let bC2Br2b = new Bond3D('C2-Br2b', getA('C2'), br2b); bC2Br2b.isBroken = true; bC2Br2b.setOpacity(0);
+        new HalfStick('hsC1', getA('C1')); new HalfStick('hsC2', getA('C2'));
+        new HalfStick('hsBr1a', br1a); new HalfStick('hsBr2a', br2a);
+        new HalfStick('hsBr1b', br1b); new HalfStick('hsBr2b', br2b);
+        setCamera(8.5);
+        setEquations(`<span class="eq-tag">第一步</span>HC≡CH + Br₂ → CHBr=CHBr`, `<span class="eq-tag">第二步</span>CHBr=CHBr + Br₂ → CHBr₂-CHBr₂`, 'var(--bromine)');
+    }
+
+    function prepareHydrogenation() {
+        clearScene(); buildBaseAcetylene();
+        let ha1 = new Atom3D('Ha1', 'H', -0.6, 2.5, 0); let ha2 = new Atom3D('Ha2', 'H', 0.6, 2.5, 0);
+        new Bond3D('Ha1-Ha2', ha1, ha2);
+        new Bond3D('C1-Ha1', getA('C1'), ha1); getB('C1-Ha1').isBroken = true;
+        new Bond3D('C2-Ha2', getA('C2'), ha2); getB('C2-Ha2').isBroken = true;
+        // 第二步 H₂（先隐藏）
+        let ha1b = new Atom3D('Ha1b', 'H', -0.6, 2.5, 0); ha1b.setOpacity(0);
+        let ha2b = new Atom3D('Ha2b', 'H', 0.6, 2.5, 0); ha2b.setOpacity(0);
+        let bHH2 = new Bond3D('Ha1b-Ha2b', ha1b, ha2b); bHH2.isBroken = true; bHH2.setOpacity(0);
+        let bC1Ha1b = new Bond3D('C1-Ha1b', getA('C1'), ha1b); bC1Ha1b.isBroken = true; bC1Ha1b.setOpacity(0);
+        let bC2Ha2b = new Bond3D('C2-Ha2b', getA('C2'), ha2b); bC2Ha2b.isBroken = true; bC2Ha2b.setOpacity(0);
+        new HalfStick('hsC1', getA('C1')); new HalfStick('hsC2', getA('C2'));
+        new HalfStick('hsHa1', ha1); new HalfStick('hsHa2', ha2);
+        new HalfStick('hsHa1b', ha1b); new HalfStick('hsHa2b', ha2b);
+        setCamera();
+        setEquations(`<span class="eq-tag">第一步</span>HC≡CH + H₂ → CH₂=CH₂`, `<span class="eq-tag">第二步</span>CH₂=CH₂ + H₂ → CH₃-CH₃`, 'var(--primary)');
+    }
+
+    function prepareHBrAddition() {
+        clearScene(); buildBaseAcetylene();
+        let hbr_h = new Atom3D('HBr_H', 'H', -0.5, 3.0, 0); let hbr_br = new Atom3D('HBr_Br', 'Br', 0.5, 3.0, 0);
+        new Bond3D('HBr_H-HBr_Br', hbr_h, hbr_br);
+        new Bond3D('C1-HBr_H', getA('C1'), hbr_h); getB('C1-HBr_H').isBroken = true;
+        new Bond3D('C2-HBr_Br', getA('C2'), hbr_br); getB('C2-HBr_Br').isBroken = true;
+        // 第二步 HBr（先隐藏）
+        let hbr_h2 = new Atom3D('HBr_H2', 'H', -0.5, 3.0, 0); hbr_h2.setOpacity(0);
+        let hbr_br2 = new Atom3D('HBr_Br2', 'Br', 0.5, 3.0, 0); hbr_br2.setOpacity(0);
+        let bHB2 = new Bond3D('HBr_H2-HBr_Br2', hbr_h2, hbr_br2); bHB2.isBroken = true; bHB2.setOpacity(0);
+        let bC1H2 = new Bond3D('C1-HBr_H2', getA('C1'), hbr_h2); bC1H2.isBroken = true; bC1H2.setOpacity(0);
+        let bC2Br2 = new Bond3D('C2-HBr_Br2', getA('C2'), hbr_br2); bC2Br2.isBroken = true; bC2Br2.setOpacity(0);
+        new HalfStick('hsC1', getA('C1')); new HalfStick('hsC2', getA('C2'));
+        new HalfStick('hsHb1', hbr_h); new HalfStick('hsHb2', hbr_br);
+        new HalfStick('hsHb1b', hbr_h2); new HalfStick('hsHb2b', hbr_br2);
+        setCamera(8.5);
+        setEquations(`<span class="eq-tag">第一步</span>HC≡CH + HBr → CH₂=CHBr`, `<span class="eq-tag">第二步</span>CH₂=CHBr + HBr → CH₃-CHBr₂`, 'var(--info)');
+    }
+
+    // 乙炔燃烧：2 个 O₂ 分子 + 1 个氧原子（即 2.5 O₂）
+    const OX_POS = { O1: [-2.85, 2, 0], O2: [-1.95, 2, 0], O3: [1.95, 2, 0], O4: [2.85, 2, 0], O5: [0, 3, 0] };
+    const OX_FIN = {
+        C1: [-2.5, -1, 0], O1: [-3.7, -1, 0], O2: [-1.3, -1, 0], C2: [2.5, -1, 0], O3: [1.3, -1, 0], O4: [3.7, -1, 0],
+        O5: [0, 2, 0], H1: [-0.7, 2.6, 0.4], H2: [0.7, 2.6, -0.4]
+    };
+    function prepareCombustion() {
+        clearScene(); buildBaseAcetylene();
+        for(let i=1; i<=3; i+=2) { let o1 = new Atom3D(`O${i}`, 'O', ...OX_POS[`O${i}`]); let o2 = new Atom3D(`O${i+1}`, 'O', ...OX_POS[`O${i+1}`]); new Bond3D(`O${i}=O${i+1}`, o1, o2, 'double'); }
+        new Atom3D('O5', 'O', ...OX_POS.O5);
+        let nb = ['C1=O1', 'C1=O2', 'C2=O3', 'C2=O4', 'O5-H1', 'O5-H2'];
+        nb.forEach(id => { let [a1, a2] = id.split(/=|-/); let b = new Bond3D(id, getA(a1), getA(a2), id.includes('=')?'double':'single'); b.isBroken = true; });
+        setCamera(11);
+        eqText1.innerHTML = `<span class="eq-tag">燃烧</span>C₂H₂ + 2.5O₂ → 2CO₂ + H₂O`; eqText2.innerHTML = '';
+        eqText1.style.color = 'var(--danger)'; eqText2.style.color = 'var(--danger)';
+        eqText1.classList.add('active'); eqText1.classList.remove('dim');
+        eqText2.classList.remove('active'); eqText2.classList.add('dim');
+    }
+
+    function preparePolymerization() {
+        clearScene();
+        let dx = 4.0; 
+        for(let i=0; i<3; i++) {
+            let cx = (i-1)*dx;
+            new Atom3D(`C${i*2+1}`, 'C', cx - 0.6, 0, 0); new Atom3D(`C${i*2+2}`, 'C', cx + 0.6, 0, 0);
+            new Atom3D(`H${i*2+1}`, 'H', cx - 1.5, 0, 0); new Atom3D(`H${i*2+2}`, 'H', cx + 1.5, 0, 0);
+            new Bond3D(`C${i*2+1}≡C${i*2+2}`, getA(`C${i*2+1}`), getA(`C${i*2+2}`), 'triple');
+            new Bond3D(`C${i*2+1}-H${i*2+1}`, getA(`C${i*2+1}`), getA(`H${i*2+1}`)); 
+            new Bond3D(`C${i*2+2}-H${i*2+2}`, getA(`C${i*2+2}`), getA(`H${i*2+2}`));
+            
+            anchors[`V${i*2+1}`] = new Anchor3D(`V${i*2+1}`); anchors[`V${i*2+1}`].setPosition(cx, 0.18, 0);
+            anchors[`V${i*2+2}`] = new Anchor3D(`V${i*2+2}`); anchors[`V${i*2+2}`].setPosition(cx, 0.18, 0);
+            new Bond3D(`C${i*2+1}-V${i*2+1}`, getA(`C${i*2+1}`), anchors[`V${i*2+1}`]); getB(`C${i*2+1}-V${i*2+1}`).isBroken = true;
+            new Bond3D(`C${i*2+2}-V${i*2+2}`, getA(`C${i*2+2}`), anchors[`V${i*2+2}`]); getB(`C${i*2+2}-V${i*2+2}`).isBroken = true;
+        }
+
+        new Bond3D('C2-C3', getA('C2'), getA('C3')); getB('C2-C3').isBroken = true;
+        new Bond3D('C4-C5', getA('C4'), getA('C5')); getB('C4-C5').isBroken = true;
+
+        anchors['ExtL'] = new Anchor3D('ExtL'); anchors['ExtR'] = new Anchor3D('ExtR');
+        new Bond3D('ExtL-C1', anchors['ExtL'], getA('C1')); getB('ExtL-C1').isBroken = true;
+        new Bond3D('C6-ExtR', getA('C6'), anchors['ExtR']); getB('C6-ExtR').isBroken = true;
+
+        anchors['BrcL'] = new Anchor3D('BrcL'); anchors['BrcR'] = new Anchor3D('BrcR');
+        new Bond3D('BrcL-C3', anchors['BrcL'], getA('C3')); getB('BrcL-C3').isBroken = true;
+        new Bond3D('C4-BrcR', getA('C4'), anchors['BrcR']); getB('C4-BrcR').isBroken = true;
+
+        setCamera(12.5);
+        eqText1.innerHTML = `<span class="eq-tag">加聚</span>n HC≡CH → -[-CH=CH-]-n (聚乙炔)`; eqText2.innerHTML = '';
+        eqText1.style.color = 'var(--poly)'; eqText2.style.color = 'var(--poly)';
+        eqText1.classList.add('active'); eqText1.classList.remove('dim');
+        eqText2.classList.remove('active'); eqText2.classList.add('dim');
+    }
+
+    // ===== 结构式模式（2D）：乙炔两步加成，仿乙烯“先断键→半键打开→试剂断键→严丝合缝连接” =====
+    const Y2D_ADD = {
+        C1: [-1, 0, 0], C2: [1, 0, 0],
+        H1: [-2.5, 0, 0], H2: [2.5, 0, 0]
+    };
+    const REAG2D = {
+        br:  { half: 0.9, s1A: [-0.9, 3.5, 0], s1B: [0.9, 3.5, 0], m1A: [-0.9, 2.8, 0], m1B: [0.9, 2.8, 0], f1A: [-1, 1.9, 0], f1B: [1, 1.9, 0], s2A: [-0.9, -3.5, 0], s2B: [0.9, -3.5, 0], m2A: [-0.9, -2.8, 0], m2B: [0.9, -2.8, 0], f2A: [-1, -1.9, 0], f2B: [1, -1.9, 0] },
+        h2:  { half: 0.5, s1A: [-0.5, 3.2, 0], s1B: [0.5, 3.2, 0], m1A: [-0.5, 2.5, 0], m1B: [0.5, 2.5, 0], f1A: [-1, 1.5, 0], f1B: [1, 1.5, 0], s2A: [-0.5, -3.2, 0], s2B: [0.5, -3.2, 0], m2A: [-0.5, -2.5, 0], m2B: [0.5, -2.5, 0], f2A: [-1, -1.5, 0], f2B: [1, -1.5, 0] },
+        hbr: { half: 0.7, s1A: [-0.7, 3.5, 0], s1B: [0.7, 3.5, 0], m1A: [-0.7, 2.8, 0], m1B: [0.7, 2.8, 0], f1A: [-1, 1.7, 0], f1B: [1, 1.7, 0], s2A: [-0.7, -3.5, 0], s2B: [0.7, -3.5, 0], m2A: [-0.7, -2.8, 0], m2B: [0.7, -2.8, 0], f2A: [-1, -1.7, 0], f2B: [1, -1.7, 0] }
+    };
+    const CFG_2D_BR = {
+        reag: 'br', a1: 'Br1a', a2: 'Br2a', a3: 'Br1b', a4: 'Br2b',
+        bRG1: 'Br1a-Br2a', bRG2: 'Br1b-Br2b',
+        bC1A1: 'C1-Br1a', bC2B1: 'C2-Br2a', bC1A2: 'C1-Br1b', bC2B2: 'C2-Br2b',
+        hsA1: 'hsBr1a', hsB1: 'hsBr2a', hsA2: 'hsBr1b', hsB2: 'hsBr2b',
+        bondColor: 'bromine'
+    };
+    const CFG_2D_H2 = {
+        reag: 'h2', a1: 'Ha1', a2: 'Ha2', a3: 'Ha1b', a4: 'Ha2b',
+        bRG1: 'Ha1-Ha2', bRG2: 'Ha1b-Ha2b',
+        bC1A1: 'C1-Ha1', bC2B1: 'C2-Ha2', bC1A2: 'C1-Ha1b', bC2B2: 'C2-Ha2b',
+        hsA1: 'hsHa1', hsB1: 'hsHa2', hsA2: 'hsHa1b', hsB2: 'hsHa2b'
+    };
+    const CFG_2D_HBR = {
+        reag: 'hbr', a1: 'HBr_H', a2: 'HBr_Br', a3: 'HBr_H2', a4: 'HBr_Br2',
+        bRG1: 'HBr_H-HBr_Br', bRG2: 'HBr_H2-HBr_Br2',
+        bC1A1: 'C1-HBr_H', bC2B1: 'C2-HBr_Br', bC1A2: 'C1-HBr_H2', bC2B2: 'C2-HBr_Br2',
+        hsA1: 'hsHb1', hsB1: 'hsHb2', hsA2: 'hsHb1b', hsB2: 'hsHb2b',
+        bondColor: { 'C2-HBr_Br': 'bromine', 'C2-HBr_Br2': 'bromine' }
+    };
+
+    function runAddition2D(t, cfg) {
+        const A = REAG2D[cfg.reag];
+        const c1p = Y2D_ADD.C1, c2p = Y2D_ADD.C2;
+        const lenC = (c2p[0] - c1p[0]) / 2; // 1.0：C≡C 键长的一半
+
+        // 骨架固定：碳在十字中心，端氢水平
+        getA('C1').setPosition(...c1p); getA('C2').setPosition(...c2p);
+        getA('H1').setPosition(...Y2D_ADD.H1); getA('H2').setPosition(...Y2D_ADD.H2);
+
+        const a1 = getA(cfg.a1), a2 = getA(cfg.a2), a3 = getA(cfg.a3), a4 = getA(cfg.a4);
+        const bRG1 = getB(cfg.bRG1), bRG2 = getB(cfg.bRG2);
+        const bC1A1 = getB(cfg.bC1A1), bC2B1 = getB(cfg.bC2B1), bC1A2 = getB(cfg.bC1A2), bC2B2 = getB(cfg.bC2B2);
+        const bCC = getB('C1≡C2');
+        const hsC1 = getHalf('hsC1'), hsC2 = getHalf('hsC2');
+        const hsA1 = getHalf(cfg.hsA1), hsB1 = getHalf(cfg.hsB1), hsA2 = getHalf(cfg.hsA2), hsB2 = getHalf(cfg.hsB2);
+
+        // —— 第一步：试剂 1 从上方进入 → C≡C 断键后向上打开 → 试剂断键 → 原子到位连接 ——
+        if (t <= 15) { a1.setPosition(...mixPos(A.s1A, A.m1A, t, 0, 15)); a2.setPosition(...mixPos(A.s1B, A.m1B, t, 0, 15)); }
+        else if (t <= 30) { a1.setPosition(...A.m1A); a2.setPosition(...A.m1B); }
+        else { a1.setPosition(...mixPos(A.m1A, A.f1A, t, 30, 44)); a2.setPosition(...mixPos(A.m1B, A.f1B, t, 30, 44)); }
+
+        // —— 第二步：试剂 2 从下方淡入进入 → C=C 断键后向下打开 → 试剂 2 断键 → 原子到位连接 ——
+        const op2 = mixPos([0], [1], t, 50, 58)[0];
+        [a3, a4].forEach(a => a.setOpacity(op2));
+        [bRG2, bC1A2, bC2B2].forEach(b => { if (b) b.setOpacity(op2); });
+        if (t <= 58) { a3.setPosition(...mixPos(A.s2A, A.m2A, t, 50, 58)); a4.setPosition(...mixPos(A.s2B, A.m2B, t, 50, 58)); }
+        else if (t <= 78) { a3.setPosition(...A.m2A); a4.setPosition(...A.m2B); }
+        else { a3.setPosition(...mixPos(A.m2A, A.f2A, t, 78, 92)); a4.setPosition(...mixPos(A.m2B, A.f2B, t, 78, 92)); }
+
+        // —— 半键：每步先隐藏，按窗口显示（第一步向上、第二步向下）——
+        [hsC1, hsC2, hsA1, hsB1, hsA2, hsB2].forEach(x => x.setVisible(false));
+        const blend1 = (t >= 22 && t < 30) ? smoothStep((t - 22) / 8) : (t >= 30 ? 1 : 0);
+        if (t >= 22 && t < 44) {
+            const col = t >= 38 ? 0x2ecc71 : 0x2c3e50;
+            [hsC1, hsC2].forEach(x => { x.setVisible(true); x.mat.color.setHex(col); });
+            const rC1 = rotToward2D([1, 0], [0, 1], blend1);
+            const rC2 = rotToward2D([-1, 0], [0, 1], blend1);
+            hsC1.set([c1p[0] + rC1[0] * lenC, c1p[1] + rC1[1] * lenC, 0]);
+            hsC2.set([c2p[0] + rC2[0] * lenC, c2p[1] + rC2[1] * lenC, 0]);
+            if (t >= 30) {
+                const pA1 = [a1.group.position.x, a1.group.position.y, 0];
+                const pB1 = [a2.group.position.x, a2.group.position.y, 0];
+                [hsA1, hsB1].forEach(x => { x.setVisible(true); x.mat.color.setHex(col); });
+                hsA1.set([pA1[0], pA1[1] - A.half, 0]);
+                hsB1.set([pB1[0], pB1[1] - A.half, 0]);
+            }
+        }
+        const blend2 = (t >= 70 && t < 78) ? smoothStep((t - 70) / 8) : (t >= 78 ? 1 : 0);
+        if (t >= 70 && t < 92) {
+            const col = t >= 86 ? 0x2ecc71 : 0x2c3e50;
+            [hsC1, hsC2].forEach(x => { x.setVisible(true); x.mat.color.setHex(col); });
+            const rC1 = rotToward2D([1, 0], [0, -1], blend2);
+            const rC2 = rotToward2D([-1, 0], [0, -1], blend2);
+            hsC1.set([c1p[0] + rC1[0] * lenC, c1p[1] + rC1[1] * lenC, 0]);
+            hsC2.set([c2p[0] + rC2[0] * lenC, c2p[1] + rC2[1] * lenC, 0]);
+            if (t >= 78) {
+                const pA2 = [a3.group.position.x, a3.group.position.y, 0];
+                const pB2 = [a4.group.position.x, a4.group.position.y, 0];
+                [hsA2, hsB2].forEach(x => { x.setVisible(true); x.mat.color.setHex(col); });
+                hsA2.set([pA2[0], pA2[1] + A.half, 0]);
+                hsB2.set([pB2[0], pB2[1] + A.half, 0]);
+            }
+        }
+
+        // —— 键状态 ——
+        if (bRG1) { bRG1.isBroken = t >= 30; bRG1.setColorState(t > 26 && t < 30 ? 'break' : 'normal'); }
+        if (bRG2) { bRG2.isBroken = t >= 78; bRG2.setColorState(t > 74 && t < 78 ? 'break' : 'normal'); }
+        if (bCC) {
+            bCC.bondOrder = t < 22 ? 3 : (t < 70 ? 2 : 1);
+            bCC.setColorState((t > 15 && t < 22) || (t > 62 && t < 70) ? 'break' : 'normal');
+        }
+        const colorOf = (bb) => {
+            if (typeof cfg.bondColor === 'string') return cfg.bondColor;
+            return (cfg.bondColor && cfg.bondColor[bb.id]) || null;
+        };
+        const formBond = (bb, formT) => {
+            if (!bb) return;
+            bb.isBroken = t < formT;
+            if (t >= formT && t < formT + 8) bb.setColorState('make');
+            else if (t >= formT + 8) { const c = colorOf(bb); if (c) bb.setColorState(c); else bb.setColorState('normal'); }
+            else bb.setColorState('normal');
+        };
+        formBond(bC1A1, 44); formBond(bC2B1, 44); formBond(bC1A2, 92); formBond(bC2B2, 92);
+
+        // 结构式模式不显示机理标注
+        globalAnns.br1Plus.material.opacity = 0; globalAnns.br2Lp.material.opacity = 0;
+        globalAnns.br1bPlus.material.opacity = 0; globalAnns.br2bLp.material.opacity = 0;
+        globalAnns.c2Plus.material.opacity = 0;
+    }
+
+    // ================= Update Logics =================
+
+    function updateBromination(t) {
+        let info = document.getElementById('infoBox');
+        if (t < 9) info.innerHTML = TEXTS.br_s1_1;
+        else if (t < 26) info.innerHTML = TEXTS.br_s1_2;
+        else if (t < 50) info.innerHTML = TEXTS.br_s1_3;
+        else if (t < 59) info.innerHTML = TEXTS.br_s2_1;
+        else if (t < 78) info.innerHTML = TEXTS.br_s2_2;
+        else info.innerHTML = TEXTS.br_s2_3;
+        setEqActive(t < 50 ? 1 : 2);
+        if (viewMode === 'structural') { runAddition2D(t, CFG_2D_BR); return; }
+
+        let c1 = getA('C1'), c2 = getA('C2'), h1 = getA('H1'), h2 = getA('H2');
+        let br1a = getA('Br1a'), br2a = getA('Br2a'), br1b = getA('Br1b'), br2b = getA('Br2b');
+        let bBr1 = getB('Br1a-Br2a'), bBr2 = getB('Br1b-Br2b');
+        let bC1Br1a = getB('C1-Br1a'), bC2Br2a = getB('C2-Br2a');
+        let bC1Br1b = getB('C1-Br1b'), bC2Br2b = getB('C2-Br2b');
+        let bCC = getB('C1≡C2');
+        let useRot = (viewMode === 'ballstick');
+        let rg = (viewMode === 'structural') ? R2D.br : R3D.br;
+
+        // —— 第一步：第 1 个 Br₂ ——
+        if (t <= 7) {
+            br1a.setPosition(...mixPos(rg.A0, rg.A1, t, 0, 7));
+            br2a.setPosition(...mixPos(rg.B0, rg.B1, t, 0, 7));
+        } else if (t <= 26) {
+            br1a.setPosition(...mixPos(rg.A1, PLANAR_BR_UP_L, t, 11, 26));
+            br2a.setPosition(...mixPos(rg.B1, [1.15, 1.55, 0], t, 7, 15));
+        } else if (t <= 34) {
+            br1a.setPosition(...PLANAR_BR_UP_L);
+            br2a.setPosition(...mixPos([1.15, 1.55, 0], rg.B1, t, 26, 34));
+        } else if (t <= 48) {
+            br1a.setPosition(...PLANAR_BR_UP_L);
+            br2a.setPosition(...mixPos(rg.B1, PLANAR_BR_UP_R, t, 34, 48));
+        } else if (t <= 56) {
+            // 第一步完成后：平面分子绕 C-C 轴旋转 90°，面朝上
+            br1a.setPosition(...mixPos(PLANAR_BR_UP_L, ROT_BR_UP_L, t, 48, 56));
+            br2a.setPosition(...mixPos(PLANAR_BR_UP_R, ROT_BR_UP_R, t, 48, 56));
+        } else {
+            br1a.setPosition(...mixPos(useRot ? ROT_BR_UP_L : PLANAR_BR_UP_L, TET_BR_L, t, 62, 78));
+            br2a.setPosition(...mixPos(useRot ? ROT_BR_UP_R : PLANAR_BR_UP_R, TET_BR_R, t, 86, 100));
+        }
+
+        // 乙炔两端氢：第一步平面化，第二步四面体化
+        if (t < 48) h1.setPosition(...mixPos(YNE_POS.H1, PLANAR_DN_L, t, 11, 26));
+        else if (t <= 56) h1.setPosition(...mixPos(PLANAR_DN_L, ROT_DN_L, t, 48, 56));
+        else h1.setPosition(...mixPos(useRot ? ROT_DN_L : PLANAR_DN_L, TET_H_L, t, 62, 78));
+        if (t < 48) h2.setPosition(...mixPos([1.5, 0, 0], PLANAR_DN_R, t, 11, 26));
+        else if (t <= 56) h2.setPosition(...mixPos(PLANAR_DN_R, ROT_DN_R, t, 48, 56));
+        else h2.setPosition(...mixPos(useRot ? ROT_DN_R : PLANAR_DN_R, TET_H_R, t, 86, 100));
+
+        // —— 第二步：第 2 个 Br₂ 淡入 ——
+        let op2 = mixPos([0], [1], t, 50, 54)[0];
+        [br1b, br2b].forEach(a => a.setOpacity(op2));
+        [bBr2, bC1Br1b, bC2Br2b].forEach(b => { if (b) b.setOpacity(op2); });
+
+        if (t <= 58) {
+            br1b.setPosition(...mixPos(rg.A0, rg.A1, t, 50, 58));
+            br2b.setPosition(...mixPos(rg.B0, rg.B1, t, 50, 58));
+        } else if (t <= 78) {
+            br1b.setPosition(...mixPos(rg.A1, TET_BR_L2, t, 62, 78));
+            br2b.setPosition(...mixPos(rg.B1, [1.15, 1.55, 0], t, 58, 66));
+        } else if (t <= 86) {
+            br1b.setPosition(...TET_BR_L2);
+            br2b.setPosition(...mixPos([1.15, 1.55, 0], rg.B1, t, 78, 86));
+        } else {
+            br1b.setPosition(...TET_BR_L2);
+            br2b.setPosition(...mixPos(rg.B1, TET_BR_R2, t, 86, 100));
+        }
+
+        if (bBr1) { bBr1.isBroken = t >= 11; bBr1.setColorState(t > 7 && t < 11 ? 'break' : 'normal'); }
+        if (bBr2) { bBr2.isBroken = t >= 62; bBr2.setColorState(t > 58 && t < 62 ? 'break' : 'normal'); }
+        if (bCC) {
+            bCC.bondOrder = t < 18 ? 3 : (t < 70 ? 2 : 1);
+            bCC.setColorState((t > 16 && t < 24) || (t > 68 && t < 76) ? 'break' : 'normal');
+        }
+        if (bC1Br1a) { bC1Br1a.isBroken = t < 18; bC1Br1a.setColorState(t >= 18 && t < 26 ? 'make' : (t >= 26 ? 'bromine' : 'normal')); }
+        if (bC2Br2a) { bC2Br2a.isBroken = t < 42; bC2Br2a.setColorState(t >= 42 && t < 48 ? 'make' : (t >= 48 ? 'bromine' : 'normal')); }
+        if (bC1Br1b) { bC1Br1b.isBroken = t < 70; bC1Br1b.setColorState(t >= 70 && t < 78 ? 'make' : (t >= 78 ? 'bromine' : 'normal')); }
+        if (bC2Br2b) { bC2Br2b.isBroken = t < 92; bC2Br2b.setColorState(t >= 92 && t < 100 ? 'make' : (t >= 100 ? 'bromine' : 'normal')); }
+
+        // 结构式模式：t≥88 后才切换到竖直正交布局（此前跟随正常的进入→接近→成键动画）
+        if (viewMode === 'structural' && t >= 88) {
+            br1a.setPosition(...mixPos(br1a.group.position.toArray(), O2D_BR1A, t, 88, 100));
+            br1b.setPosition(...mixPos(br1b.group.position.toArray(), O2D_BR1B, t, 88, 100));
+            br2a.setPosition(...mixPos(br2a.group.position.toArray(), O2D_BR2A, t, 88, 100));
+            br2b.setPosition(...mixPos(br2b.group.position.toArray(), O2D_BR2B, t, 88, 100));
+            h1.setPosition(...mixPos(h1.group.position.toArray(), O2D_H_L, t, 88, 100));
+            h2.setPosition(...mixPos(h2.group.position.toArray(), O2D_H_R, t, 88, 100));
+        }
+
+        globalAnns.br1Plus.material.opacity = 0; globalAnns.br2Lp.material.opacity = 0;
+        globalAnns.br1bPlus.material.opacity = 0; globalAnns.br2bLp.material.opacity = 0;
+        globalAnns.c2Plus.material.opacity = 0;
+    }
+
+    function updateHydrogenation(t) {
+        let info = document.getElementById('infoBox');
+        if (t < 9) info.innerHTML = TEXTS.h2_s1_1;
+        else if (t < 26) info.innerHTML = TEXTS.h2_s1_2;
+        else if (t < 50) info.innerHTML = TEXTS.h2_s1_3;
+        else if (t < 59) info.innerHTML = TEXTS.h2_s2_1;
+        else if (t < 78) info.innerHTML = TEXTS.h2_s2_2;
+        else info.innerHTML = TEXTS.h2_s2_3;
+        setEqActive(t < 50 ? 1 : 2);
+        if (viewMode === 'structural') { runAddition2D(t, CFG_2D_H2); return; }
+
+        let ha1 = getA('Ha1'), ha2 = getA('Ha2'), ha1b = getA('Ha1b'), ha2b = getA('Ha2b');
+        let h1 = getA('H1'), h2 = getA('H2');
+        let bHH1 = getB('Ha1-Ha2'), bHH2 = getB('Ha1b-Ha2b');
+        let bC1Ha1 = getB('C1-Ha1'), bC2Ha2 = getB('C2-Ha2');
+        let bC1Ha1b = getB('C1-Ha1b'), bC2Ha2b = getB('C2-Ha2b');
+        let bCC = getB('C1≡C2');
+        let useRot = (viewMode === 'ballstick');
+        let rg = (viewMode === 'structural') ? R2D.h2 : R3D.h2;
+
+        // —— 第一步：第 1 个 H₂ ——
+        if (t <= 7) {
+            ha1.setPosition(...mixPos(rg.A0, rg.A1, t, 0, 7));
+            ha2.setPosition(...mixPos(rg.B0, rg.B1, t, 0, 7));
+        } else if (t <= 26) {
+            ha1.setPosition(...mixPos(rg.A1, PLANAR_UP_L, t, 11, 26));
+            ha2.setPosition(...mixPos(rg.B1, [1.15, 1.3, 0], t, 7, 15));
+        } else if (t <= 34) {
+            ha1.setPosition(...PLANAR_UP_L);
+            ha2.setPosition(...mixPos([1.15, 1.3, 0], rg.B1, t, 26, 34));
+        } else if (t <= 48) {
+            ha1.setPosition(...PLANAR_UP_L);
+            ha2.setPosition(...mixPos(rg.B1, PLANAR_UP_R, t, 34, 48));
+        } else if (t <= 56) {
+            // 第一步完成后：平面分子绕 C-C 轴旋转 90°，面朝上
+            ha1.setPosition(...mixPos(PLANAR_UP_L, ROT_UP_L, t, 48, 56));
+            ha2.setPosition(...mixPos(PLANAR_UP_R, ROT_UP_R, t, 48, 56));
+        } else {
+            ha1.setPosition(...mixPos(useRot ? ROT_UP_L : PLANAR_UP_L, TET_H_L1, t, 62, 78));
+            ha2.setPosition(...mixPos(useRot ? ROT_UP_R : PLANAR_UP_R, TET_H_R1, t, 86, 100));
+        }
+
+        if (t < 48) h1.setPosition(...mixPos(YNE_POS.H1, PLANAR_DN_L, t, 11, 26));
+        else if (t <= 56) h1.setPosition(...mixPos(PLANAR_DN_L, ROT_DN_L, t, 48, 56));
+        else h1.setPosition(...mixPos(useRot ? ROT_DN_L : PLANAR_DN_L, TET_H_L, t, 62, 78));
+        if (t < 48) h2.setPosition(...mixPos([1.5, 0, 0], PLANAR_DN_R, t, 11, 26));
+        else if (t <= 56) h2.setPosition(...mixPos(PLANAR_DN_R, ROT_DN_R, t, 48, 56));
+        else h2.setPosition(...mixPos(useRot ? ROT_DN_R : PLANAR_DN_R, TET_H_R, t, 86, 100));
+
+        // —— 第二步：第 2 个 H₂ 淡入 ——
+        let op2 = mixPos([0], [1], t, 50, 54)[0];
+        [ha1b, ha2b].forEach(a => a.setOpacity(op2));
+        [bHH2, bC1Ha1b, bC2Ha2b].forEach(b => { if (b) b.setOpacity(op2); });
+
+        if (t <= 58) {
+            ha1b.setPosition(...mixPos(rg.A0, rg.A1, t, 50, 58));
+            ha2b.setPosition(...mixPos(rg.B0, rg.B1, t, 50, 58));
+        } else if (t <= 78) {
+            ha1b.setPosition(...mixPos(rg.A1, TET_H_L2, t, 62, 78));
+            ha2b.setPosition(...mixPos(rg.B1, [1.15, 1.3, 0], t, 58, 66));
+        } else if (t <= 86) {
+            ha1b.setPosition(...TET_H_L2);
+            ha2b.setPosition(...mixPos([1.15, 1.3, 0], rg.B1, t, 78, 86));
+        } else {
+            ha1b.setPosition(...TET_H_L2);
+            ha2b.setPosition(...mixPos(rg.B1, TET_H_R2, t, 86, 100));
+        }
+
+        if (bHH1) { bHH1.isBroken = t >= 11; bHH1.setColorState(t > 7 && t < 11 ? 'break' : 'normal'); }
+        if (bHH2) { bHH2.isBroken = t >= 62; bHH2.setColorState(t > 58 && t < 62 ? 'break' : 'normal'); }
+        if (bCC) {
+            bCC.bondOrder = t < 18 ? 3 : (t < 70 ? 2 : 1);
+            bCC.setColorState((t > 16 && t < 24) || (t > 68 && t < 76) ? 'break' : 'normal');
+        }
+        if (bC1Ha1) { bC1Ha1.isBroken = t < 18; bC1Ha1.setColorState(t >= 18 && t < 26 ? 'make' : 'normal'); }
+        if (bC2Ha2) { bC2Ha2.isBroken = t < 42; bC2Ha2.setColorState(t >= 42 && t < 48 ? 'make' : 'normal'); }
+        if (bC1Ha1b) { bC1Ha1b.isBroken = t < 70; bC1Ha1b.setColorState(t >= 70 && t < 78 ? 'make' : 'normal'); }
+        if (bC2Ha2b) { bC2Ha2b.isBroken = t < 92; bC2Ha2b.setColorState(t >= 92 && t < 100 ? 'make' : 'normal'); }
+
+        // 结构式模式：t≥88 后才切换到竖直正交布局
+        if (viewMode === 'structural' && t >= 88) {
+            ha1.setPosition(...mixPos(ha1.group.position.toArray(), O2D_H_L1, t, 88, 100));
+            ha1b.setPosition(...mixPos(ha1b.group.position.toArray(), O2D_H_L2, t, 88, 100));
+            ha2.setPosition(...mixPos(ha2.group.position.toArray(), O2D_H_R1, t, 88, 100));
+            ha2b.setPosition(...mixPos(ha2b.group.position.toArray(), O2D_H_R2, t, 88, 100));
+            h1.setPosition(...mixPos(h1.group.position.toArray(), O2D_H_L_OUT, t, 88, 100));
+            h2.setPosition(...mixPos(h2.group.position.toArray(), O2D_H_R_OUT, t, 88, 100));
+        }
+
+        globalAnns.br1Plus.material.opacity = 0; globalAnns.br2Lp.material.opacity = 0;
+        globalAnns.br1bPlus.material.opacity = 0; globalAnns.br2bLp.material.opacity = 0;
+        globalAnns.c2Plus.material.opacity = 0;
+    }
+
+    function updateHBrAddition(t) {
+        let info = document.getElementById('infoBox');
+        if (t < 9) info.innerHTML = TEXTS.hbr_s1_1;
+        else if (t < 26) info.innerHTML = TEXTS.hbr_s1_2;
+        else if (t < 50) info.innerHTML = TEXTS.hbr_s1_3;
+        else if (t < 59) info.innerHTML = TEXTS.hbr_s2_1;
+        else if (t < 78) info.innerHTML = TEXTS.hbr_s2_2;
+        else info.innerHTML = TEXTS.hbr_s2_3;
+        setEqActive(t < 50 ? 1 : 2);
+        if (viewMode === 'structural') { runAddition2D(t, CFG_2D_HBR); return; }
+
+        let hb = getA('HBr_H'), brb = getA('HBr_Br'), hb2 = getA('HBr_H2'), brb2 = getA('HBr_Br2');
+        let h1 = getA('H1'), h2 = getA('H2');
+        let bHB1 = getB('HBr_H-HBr_Br'), bHB2 = getB('HBr_H2-HBr_Br2');
+        let bC1H = getB('C1-HBr_H'), bC2Br = getB('C2-HBr_Br');
+        let bC1H2 = getB('C1-HBr_H2'), bC2Br2 = getB('C2-HBr_Br2');
+        let bCC = getB('C1≡C2');
+        let useRot = (viewMode === 'ballstick');
+        let rg = (viewMode === 'structural') ? R2D.hbr : R3D.hbr;
+
+        // —— 第一步：第 1 个 HBr ——
+        if (t <= 7) {
+            hb.setPosition(...mixPos(rg.A0, rg.A1, t, 0, 7));
+            brb.setPosition(...mixPos(rg.B0, rg.B1, t, 0, 7));
+        } else if (t <= 26) {
+            hb.setPosition(...mixPos(rg.A1, PLANAR_UP_L, t, 11, 26));
+            brb.setPosition(...mixPos(rg.B1, [1.15, 1.6, 0], t, 7, 15));
+        } else if (t <= 34) {
+            hb.setPosition(...PLANAR_UP_L);
+            brb.setPosition(...mixPos([1.15, 1.6, 0], rg.B1, t, 26, 34));
+        } else if (t <= 48) {
+            hb.setPosition(...PLANAR_UP_L);
+            brb.setPosition(...mixPos(rg.B1, PLANAR_BR_UP_R, t, 34, 48));
+        } else if (t <= 56) {
+            // 第一步完成后：平面分子绕 C-C 轴旋转 90°，面朝上
+            hb.setPosition(...mixPos(PLANAR_UP_L, ROT_UP_L, t, 48, 56));
+            brb.setPosition(...mixPos(PLANAR_BR_UP_R, ROT_BR_UP_R, t, 48, 56));
+        } else {
+            hb.setPosition(...mixPos(useRot ? ROT_UP_L : PLANAR_UP_L, TET_H_L1, t, 62, 78));
+            brb.setPosition(...mixPos(useRot ? ROT_BR_UP_R : PLANAR_BR_UP_R, TET_BR_R, t, 86, 100));
+        }
+
+        if (t < 48) h1.setPosition(...mixPos(YNE_POS.H1, PLANAR_DN_L, t, 11, 26));
+        else if (t <= 56) h1.setPosition(...mixPos(PLANAR_DN_L, ROT_DN_L, t, 48, 56));
+        else h1.setPosition(...mixPos(useRot ? ROT_DN_L : PLANAR_DN_L, TET_H_L, t, 62, 78));
+        if (t < 48) h2.setPosition(...mixPos([1.5, 0, 0], PLANAR_DN_R, t, 11, 26));
+        else if (t <= 56) h2.setPosition(...mixPos(PLANAR_DN_R, ROT_DN_R, t, 48, 56));
+        else h2.setPosition(...mixPos(useRot ? ROT_DN_R : PLANAR_DN_R, TET_H_R, t, 86, 100));
+
+        // —— 第二步：第 2 个 HBr 淡入 ——
+        let op2 = mixPos([0], [1], t, 50, 54)[0];
+        [hb2, brb2].forEach(a => a.setOpacity(op2));
+        [bHB2, bC1H2, bC2Br2].forEach(b => { if (b) b.setOpacity(op2); });
+
+        if (t <= 58) {
+            hb2.setPosition(...mixPos(rg.A0, rg.A1, t, 50, 58));
+            brb2.setPosition(...mixPos(rg.B0, rg.B1, t, 50, 58));
+        } else if (t <= 78) {
+            hb2.setPosition(...mixPos(rg.A1, TET_H_L2, t, 62, 78));
+            brb2.setPosition(...mixPos(rg.B1, [1.15, 1.6, 0], t, 58, 66));
+        } else if (t <= 86) {
+            hb2.setPosition(...TET_H_L2);
+            brb2.setPosition(...mixPos([1.15, 1.6, 0], rg.B1, t, 78, 86));
+        } else {
+            hb2.setPosition(...TET_H_L2);
+            brb2.setPosition(...mixPos(rg.B1, TET_BR_R2, t, 86, 100));
+        }
+
+        if (bHB1) { bHB1.isBroken = t >= 11; bHB1.setColorState(t > 7 && t < 11 ? 'break' : 'normal'); }
+        if (bHB2) { bHB2.isBroken = t >= 62; bHB2.setColorState(t > 58 && t < 62 ? 'break' : 'normal'); }
+        if (bCC) {
+            bCC.bondOrder = t < 18 ? 3 : (t < 70 ? 2 : 1);
+            bCC.setColorState((t > 16 && t < 24) || (t > 68 && t < 76) ? 'break' : 'normal');
+        }
+        if (bC1H) { bC1H.isBroken = t < 18; bC1H.setColorState(t >= 18 && t < 26 ? 'make' : 'normal'); }
+        if (bC2Br) { bC2Br.isBroken = t < 42; bC2Br.setColorState(t >= 42 && t < 48 ? 'make' : (t >= 48 ? 'bromine' : 'normal')); }
+        if (bC1H2) { bC1H2.isBroken = t < 70; bC1H2.setColorState(t >= 70 && t < 78 ? 'make' : 'normal'); }
+        if (bC2Br2) { bC2Br2.isBroken = t < 92; bC2Br2.setColorState(t >= 92 && t < 100 ? 'make' : (t >= 100 ? 'bromine' : 'normal')); }
+
+        // 结构式模式：t≥88 后才切换到竖直正交布局
+        if (viewMode === 'structural' && t >= 88) {
+            hb.setPosition(...mixPos(hb.group.position.toArray(), O2D_H_L1, t, 88, 100));
+            hb2.setPosition(...mixPos(hb2.group.position.toArray(), O2D_H_L2, t, 88, 100));
+            brb.setPosition(...mixPos(brb.group.position.toArray(), O2D_BR2A, t, 88, 100));
+            brb2.setPosition(...mixPos(brb2.group.position.toArray(), O2D_BR2B, t, 88, 100));
+            h1.setPosition(...mixPos(h1.group.position.toArray(), O2D_H_L_OUT, t, 88, 100));
+            h2.setPosition(...mixPos(h2.group.position.toArray(), O2D_H_R, t, 88, 100));
+        }
+
+        globalAnns.br1Plus.material.opacity = 0; globalAnns.br2Lp.material.opacity = 0;
+        globalAnns.br1bPlus.material.opacity = 0; globalAnns.br2bLp.material.opacity = 0;
+        globalAnns.c2Plus.material.opacity = 0;
+    }
+
+    function updateCombustion(t) {
+        if(t<20) document.getElementById('infoBox').innerHTML = TEXTS.ox_1; else if(t<40) document.getElementById('infoBox').innerHTML = TEXTS.ox_2; else if(t<80) document.getElementById('infoBox').innerHTML = TEXTS.ox_3;
+        let breakTime = 20, formTime = 80;
+        const BASE = { C1: YNE_POS.C1, C2: YNE_POS.C2, H1: YNE_POS.H1, H2: [1.5, 0, 0] };
+        Object.keys(BASE).forEach(id => { let a = getA(id); if(!a) return; if(t < breakTime) a.setPosition(...BASE[id]); else if(t < formTime) a.setPosition(...mixPos(BASE[id], OX_FIN[id], t, 25, 75)); else a.setPosition(...OX_FIN[id]); });
+        for(let i=1; i<=5; i++) { let id = `O${i}`, a = getA(id); if(!a) continue; if(t < breakTime) a.setPosition(...OX_POS[id]); else if(t < formTime) a.setPosition(...mixPos(OX_POS[id], OX_FIN[id], t, 25, 75)); else a.setPosition(...OX_FIN[id]); }
+        bonds.forEach(b => {
+            let isNew = (b.id.includes('C1=O') || b.id.includes('C2=O') || b.id.includes('O5-H'));
+            if(isNew) { b.isBroken = (t < formTime); b.setColorState(t>=80&&t<90?'make':'normal'); } 
+            else { b.isBroken = (t >= breakTime); if(t>breakTime-10 && t<breakTime) b.setColorState('break'); else b.setColorState('normal'); }
+        });
+    }
+
+    function updatePolymerization(t) {
+        let is2D = (viewMode === 'structural');
+        
+        if(t<25) document.getElementById('infoBox').innerHTML = TEXTS.poly_1; 
+        else if(t<80) document.getElementById('infoBox').innerHTML = TEXTS.poly_2; 
+        else document.getElementById('infoBox').innerHTML = (is2D && t>=88) ? TEXTS.poly_4 : TEXTS.poly_3;
+
+        let c1xF = -3.125, c2xF = -1.875, c3xF = -0.625, c4xF = 0.625, c5xF = 1.875, c6xF = 3.125;
+        let initX = [ -4.6, -3.3, -0.6, 0.6, 3.3, 4.6 ];
+        let finX  = [ c1xF, c2xF, c3xF, c4xF, c5xF, c6xF ];
+        
+        let finY = [ -0.36, 0.36, -0.36, 0.36, -0.36, 0.36 ]; // 平面锯齿，链内键角约 120°
+        let flatSmooth = is2D ? smoothStep(Math.max(0, Math.min(1, (t - 86) / 14))) : 0;
+        let c3_flatX = -0.7, c4_flatX = 0.7;
+
+        let curX = [], curY = [];
+        for(let i=0; i<6; i++) {
+            let cx = mixPos([initX[i]], [finX[i]], t, 35, 70)[0];
+            let cy = mixPos([0], [finY[i]], t, 35, 70)[0];
+            if (is2D && (i===2 || i===3)) {
+                let flatTargetX = (i===2) ? c3_flatX : c4_flatX;
+                cx = cx + flatSmooth * (flatTargetX - cx);
+                cy = cy + flatSmooth * (0 - cy);
+            }
+            curX.push(cx); curY.push(cy);
+            getA(`C${i+1}`).setPosition(cx, cy, 0);
+        }
+
+        // —— 小短键与氢同步翻转（12–25：一个向上、一个向下，形成 120° 平面）——
+        for(let i=0; i<3; i++) {
+            let x1 = initX[i*2], x2 = initX[i*2+1];
+            // 翻转后的 120° 平面位置：V 短键长 0.7，C-H 键长 0.9
+            let v1R = [x1 - 0.35,  0.606, 0]; // 左碳小短键向上翻转
+            let v2R = [x2 + 0.35, -0.606, 0]; // 右碳小短键向下翻转
+            let h1R = [x1 - 0.45, -0.779, 0];
+            let h2R = [x2 + 0.45,  0.779, 0];
+
+            if (t <= 25) {
+                getAnchor(`V${i*2+1}`).setPosition(...mixPos([x1, 0.18, 0], v1R, t, 12, 25));
+                getAnchor(`V${i*2+2}`).setPosition(...mixPos([x2, 0.18, 0], v2R, t, 12, 25));
+                getA(`H${i*2+1}`).setPosition(...mixPos([x1 - 0.9, 0, 0], h1R, t, 12, 25));
+                getA(`H${i*2+2}`).setPosition(...mixPos([x2 + 0.9, 0, 0], h2R, t, 12, 25));
+            } else {
+                // 25% 之后：单体整体旋转靠近，小短键始终保持 120°，随碳一起转动
+                let cL = getA(`C${i*2+1}`), cR = getA(`C${i*2+2}`);
+                let u = new THREE.Vector3().subVectors(cR.group.position, cL.group.position).normalize();
+                let rot2 = function(v, deg) {
+                    let r = deg * Math.PI / 180, c = Math.cos(r), s = Math.sin(r);
+                    return new THREE.Vector3(v.x * c - v.y * s, v.x * s + v.y * c, 0);
+                };
+                let v1Dir = rot2(u, 120), h1Dir = rot2(u, -120);
+                let v2Dir = rot2(u, -60), h2Dir = rot2(u, 60);
+                let vDist = (t <= 75) ? 0.7 : 0.05; // 保持全长，尖端接触后直接变为新键
+                getAnchor(`V${i*2+1}`).setPosition(cL.group.position.x + v1Dir.x * vDist, cL.group.position.y + v1Dir.y * vDist, 0);
+                getAnchor(`V${i*2+2}`).setPosition(cR.group.position.x + v2Dir.x * vDist, cR.group.position.y + v2Dir.y * vDist, 0);
+                getA(`H${i*2+1}`).setPosition(cL.group.position.x + h1Dir.x * 0.9, cL.group.position.y + h1Dir.y * 0.9, 0);
+                getA(`H${i*2+2}`).setPosition(cR.group.position.x + h2Dir.x * 0.9, cR.group.position.y + h2Dir.y * 0.9, 0);
+                // 结构式模式最终：中间链节拉平后，C-H 键同步转竖直（符合书写习惯）
+                if (is2D && i === 1 && t >= 86) {
+                    let f = smoothStep(Math.max(0, Math.min(1, (t - 86) / 14)));
+                    let h3s = [cL.group.position.x + h1Dir.x * 0.9, cL.group.position.y + h1Dir.y * 0.9, 0];
+                    let h4s = [cR.group.position.x + h2Dir.x * 0.9, cR.group.position.y + h2Dir.y * 0.9, 0];
+                    let h3v = [cL.group.position.x, cL.group.position.y - 0.9, 0];
+                    let h4v = [cR.group.position.x, cR.group.position.y + 0.9, 0];
+                    getA(`H${i*2+1}`).setPosition(h3s[0] + f * (h3v[0] - h3s[0]), h3s[1] + f * (h3v[1] - h3s[1]), 0);
+                    getA(`H${i*2+2}`).setPosition(h4s[0] + f * (h4v[0] - h4s[0]), h4s[1] + f * (h4v[1] - h4s[1]), 0);
+                }
+            }
+        }
+
+        // 自由基单电子标记跟随小短键
+        for(let i=0; i<6; i++) {
+            let a = getAnchor(`V${i+1}`);
+            if (is2D) {
+                globalAnns.radicals[i].material.opacity = (t>=12 && t<75) ? Math.min(1, (t-12)/3) * Math.min(1, (75-t)/3) : 0;
+                globalAnns.radicals[i].position.set(a.group.position.x + (i%2===0 ? -0.2 : 0.2), a.group.position.y + 0.15, 0);
+            } else { globalAnns.radicals[i].material.opacity = 0; }
+        }
+
+        for(let i=0; i<3; i++) {
+            let bCC = getB(`C${i*2+1}≡C${i*2+2}`);
+            if(bCC) { bCC.bondOrder = t<10 ? 3 : 2; bCC.setColorState(t>8&&t<12?'break':'normal'); }
+            let v_visible = (t >= 12 && t < 75);
+            getB(`C${i*2+1}-V${i*2+1}`).isBroken = !v_visible; getB(`C${i*2+2}-V${i*2+2}`).isBroken = !v_visible;
+        }
+        
+        let link1 = getB('C2-C3'), link2 = getB('C4-C5');
+        if(link1) { link1.isBroken = t<75; link1.setColorState(t>=75&&t<82?'make':'normal'); }
+        if(link2) { link2.isBroken = t<75; link2.setColorState(t>=75&&t<82?'make':'normal'); }
+        
+        let ext1 = getB('ExtL-C1'), ext2 = getB('C6-ExtR');
+        if(ext1) { getAnchor('ExtL').setPosition(curX[0]-1.25, finY[1], 0); ext1.isBroken = t<75; ext1.setColorState(t>=75&&t<82?'make':'normal'); }
+        if(ext2) { getAnchor('ExtR').setPosition(curX[5]+1.25, finY[4], 0); ext2.isBroken = t<75; ext2.setColorState(t>=75&&t<82?'make':'normal'); }
+
+        let opac = mixPos([1.0], [0.0], t, 82, 95)[0]; 
+        let bL = getB('BrcL-C3'), bR = getB('C4-BrcR');
+
+        if (is2D) {
+            ['C1','C2','C5','C6','H1','H2','H5','H6'].forEach(id => { let a = getA(id); if(a) a.setOpacity(opac); });
+            ['C1≡C2','C5≡C6','C1-H1','C2-H2','C5-H5','C6-H6'].forEach(id => { let b = getB(id); if(b) b.setOpacity(opac); });
+            link1.setOpacity(opac); link2.setOpacity(opac); ext1.setOpacity(opac); ext2.setOpacity(opac);
+            
+            let brcX = curX[2]-0.8 + flatSmooth*(-2.3 - (curX[2]-0.8)); 
+            let brcY = 0; 
+            getAnchor('BrcL').setPosition(brcX, brcY, 0); 
+            getAnchor('BrcR').setPosition(-brcX, brcY, 0);
+
+            let brO = mixPos([0], [1.0], t, 84, 97)[0];
+            bL.isBroken = false; bL.setOpacity(brO); bR.isBroken = false; bR.setOpacity(brO);
+
+            polyAnns.bracketL.material.opacity = brO; polyAnns.bracketL.position.set(brcX + 0.8, 0, 0);
+            polyAnns.bracketR.material.opacity = brO; polyAnns.bracketR.position.set(-brcX - 0.8, 0, 0);
+            polyAnns.polyN.material.opacity = brO; polyAnns.polyN.position.set(-brcX - 0.4, -0.8, 0);
+            polyAnns.dotL.material.opacity = 0; polyAnns.dotR.material.opacity = 0;
+        } else {
+            atoms.forEach(a => a.setOpacity(1)); bonds.forEach(b => b.setOpacity(1));
+            bL.isBroken = true; bR.isBroken = true;
+            polyAnns.bracketL.material.opacity = 0; polyAnns.bracketR.material.opacity = 0; polyAnns.polyN.material.opacity = 0;
+            
+            let dtO = mixPos([0], [1], t, 82, 95)[0];
+            polyAnns.dotL.material.opacity = dtO; polyAnns.dotL.position.set(curX[0]-1.9, finY[1], 0);
+            polyAnns.dotR.material.opacity = dtO; polyAnns.dotR.position.set(curX[5]+1.9, finY[4], 0);
+        }
+    }
+
+    function animate() {
+        requestAnimationFrame(animate); controls.update();
+        if (currentReaction !== 'none' && isPlaying) {
+            let speed = (currentReaction === 'poly') ? 0.08 : 0.2; 
+            let val = parseFloat(slider.value) + speed; 
+            if (val >= 100) { val = 100; isPlaying = false; playPauseBtn.innerText = '▶️'; }
+            slider.value = val; progressText.innerText = Math.round(val) + '%';
+        }
+        if (currentReaction !== 'none') {
+            let t = parseFloat(slider.value);
+            if (currentReaction === 'br') updateBromination(t);
+            else if (currentReaction === 'h2') updateHydrogenation(t);
+            else if (currentReaction === 'hbr') updateHBrAddition(t);
+            else if (currentReaction === 'ox') updateCombustion(t);
+            else if (currentReaction === 'poly') updatePolymerization(t);
+            bonds.forEach(b => b.updatePosition());
+        }
+        // 化学式标签：2 秒后淡出，随后自动开始播放
+        if (formulaLabels.length) {
+            let el = performance.now() - labelFadeAt;
+            let op = (el <= 0) ? 1 : Math.max(0, 1 - (el / 600));
+            formulaLabels.forEach(s => s.material.opacity = op);
+        }
+        if (currentReaction !== 'none' && !isPlaying && labelAutoStart && parseFloat(slider.value) < 100 && performance.now() >= labelAutoStart) {
+            isPlaying = true; playPauseBtn.innerText = '⏸️';
+        }
+        if (currentReaction !== 'none') {
+            let tv = parseFloat(slider.value);
+            if (tv >= 100 && !productLabels.length) showProductLabels(currentReaction);
+            else if (tv < 100 && productLabels.length) clearProductLabels();
+        }
+        renderer.render(scene, camera);
+    }
+
+    // ====== 拖拽进度条相关代码 ======
+    const progContainer = document.getElementById('progressContainer');
+    let isDraggingProgress = false;
+    let dragStartX, dragStartY, initialLeft, initialTop;
+
+    progContainer.addEventListener('mousedown', (e) => {
+        if(e.target.tagName === 'INPUT' || e.target.id === 'playPauseBtn') return;
+        isDraggingProgress = true;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        
+        const rect = progContainer.getBoundingClientRect();
+        const parentRect = progContainer.parentElement.getBoundingClientRect();
+        
+        progContainer.style.bottom = 'auto';
+        progContainer.style.transform = 'none';
+        progContainer.style.left = (rect.left - parentRect.left) + 'px';
+        progContainer.style.top = (rect.top - parentRect.top) + 'px';
+        
+        initialLeft = parseFloat(progContainer.style.left);
+        initialTop = parseFloat(progContainer.style.top);
+        
+        progContainer.style.cursor = 'grabbing';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!isDraggingProgress) return;
+        const dx = e.clientX - dragStartX;
+        const dy = e.clientY - dragStartY;
+        progContainer.style.left = (initialLeft + dx) + 'px';
+        progContainer.style.top = (initialTop + dy) + 'px';
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (isDraggingProgress) {
+            isDraggingProgress = false;
+            progContainer.style.cursor = 'move';
+        }
+    });
+    // ====== 拖拽结束 ======
+
+    window.addEventListener('resize', () => { camera.aspect = container.clientWidth / container.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(container.clientWidth, container.clientHeight); });
+    slider.addEventListener('input', () => { labelAutoStart = 0; isPlaying = false; playPauseBtn.innerText = '▶️'; progressText.innerText = Math.round(slider.value) + '%'; });
+    playPauseBtn.addEventListener('click', () => { labelAutoStart = 0; if (parseFloat(slider.value) >= 100) slider.value = 0; isPlaying = !isPlaying; playPauseBtn.innerText = isPlaying ? '⏸️' : '▶️'; });
+
+    document.getElementById('btnBallStick').addEventListener('click', () => { if(viewMode === 'ballstick') return; viewMode = 'ballstick'; document.getElementById('btnBallStick').classList.add('active'); document.getElementById('btnStructural').classList.remove('active'); applyGlobalViewMode(); });
+    document.getElementById('btnStructural').addEventListener('click', () => { if(viewMode === 'structural') return; viewMode = 'structural'; document.getElementById('btnStructural').classList.add('active'); document.getElementById('btnBallStick').classList.remove('active'); applyGlobalViewMode(); });
+
+    function resetReactionBtns() { document.querySelectorAll('.btn-reaction').forEach(btn => btn.classList.remove('active')); }
+    document.getElementById('btnBromination').addEventListener('click', () => startReaction('br', 'btnBromination'));
+    document.getElementById('btnHydrogenation').addEventListener('click', () => startReaction('h2', 'btnHydrogenation'));
+    document.getElementById('btnHBrAddition').addEventListener('click', () => startReaction('hbr', 'btnHBrAddition'));
+    document.getElementById('btnCombustion').addEventListener('click', () => startReaction('ox', 'btnCombustion'));
+    document.getElementById('btnPolymerization').addEventListener('click', () => startReaction('poly', 'btnPolymerization'));
+    
+    document.getElementById('btnReset').addEventListener('click', () => { 
+        currentReaction = 'none'; 
+        isPlaying = false; 
+        document.getElementById('progressContainer').classList.remove('active'); 
+        resetReactionBtns(); 
+        
+        // 恢复进度条居中样式
+        progContainer.style.top = 'auto';
+        progContainer.style.bottom = '20px';
+        progContainer.style.left = '50%';
+        progContainer.style.transform = 'translateX(-50%)';
+        
+        initNormal(); 
+    });
+
+    function startReaction(type, btnId) {
+        currentReaction = type; resetReactionBtns(); document.getElementById(btnId).classList.add('active');
+        document.getElementById('progressContainer').classList.add('active'); slider.value = 0; progressText.innerText = '0%'; isPlaying = false; playPauseBtn.innerText = '▶️';
+        setTier(type === 'ox'
+            ? '<span class="tier-chip tier-scheme">示意 · 非完整机理</span>'
+            : '<span class="tier-chip tier-main">教材档 · 主动画</span><span class="tier-chip tier-adv">完整机理见进阶</span>');
+        setAdv(type);
+        if (type === 'br') prepareBromination(); else if (type === 'h2') prepareHydrogenation();
+        else if (type === 'hbr') prepareHBrAddition(); else if (type === 'ox') prepareCombustion(); else if (type === 'poly') preparePolymerization();
+        showReactantLabels(type);
+        labelFadeAt = performance.now() + 2000;
+        labelAutoStart = labelFadeAt + 600;
+    }
+
+    initNormal(); animate();
+</script>
+<script>
+(function () {
+  if (typeof setCamera !== 'function') return;
+  var _orig = setCamera, lastDist = null;
+  window.setCamera = function (d) { if (typeof d === 'number') lastDist = d; return _orig.apply(null, arguments); };
+  var b = document.getElementById('btn-reset-view');
+  if (b) b.addEventListener('click', function () {
+    camera.position.set(0, 0, (typeof lastDist === 'number' ? lastDist : 11));
+    camera.lookAt(0, 0, 0); controls.target.set(0, 0, 0); controls.update();
+  });
+})();
+</script>
+<script>window.BACK_SUBNAV = 'subnav-organic';</script>
+
+</body>
+</html>

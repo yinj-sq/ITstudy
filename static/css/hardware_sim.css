@@ -1,0 +1,294 @@
+/* 硬件仿真宿主页：全宽、全高 iframe 舞台 */
+body.hw-sim-active {
+  overflow: hidden;
+}
+body.hw-sim-active > .container {
+  max-width: 100%;
+  width: 100%;
+  padding-left: 12px;
+  padding-right: 12px;
+}
+body.hw-sim-active > footer {
+  display: none;
+}
+/* 宿主 AI 悬浮按钮会压在仿真控制条上；本页不显示 */
+body.hw-sim-active #aiFab,
+body.hw-sim-active #aiChatPanel {
+  display: none !important;
+}
+
+.hw-sim-page {
+  display: flex;
+  flex-direction: column;
+  height: var(--hw-h, calc(100vh - 96px));
+  min-height: 360px;
+}
+
+.hw-sim-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.hw-sim-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.hw-sim-title h1 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin: 0;
+  color: #1f2937;
+  white-space: nowrap;
+}
+.hw-sim-title h1 i {
+  color: #0d6efd;
+  margin-right: 4px;
+}
+.hw-sim-subtitle {
+  font-size: .78rem;
+  color: #6c757d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hw-sim-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 10px;
+  background: #e9eef5;
+}
+.hw-sim-tab {
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #495057;
+  font-size: .86rem;
+  font-weight: 600;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: background .15s, color .15s, box-shadow .15s;
+  white-space: nowrap;
+}
+.hw-sim-tab:hover {
+  background: rgba(255, 255, 255, .6);
+  color: #0d6efd;
+}
+.hw-sim-tab.active {
+  background: #fff;
+  color: #0d6efd;
+  box-shadow: 0 1px 4px rgba(13, 110, 253, .18);
+}
+.hw-sim-tab:focus-visible {
+  outline: 2px solid #0d6efd;
+  outline-offset: 2px;
+}
+
+.hw-sim-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.hw-sim-hint {
+  font-size: .75rem;
+  color: #6c757d;
+  max-width: 30rem;
+}
+.hw-sim-hint.warn {
+  color: #842029;
+  background: #fff3f3;
+  border: 1px solid #f1c2c7;
+  border-radius: 6px;
+  padding: 3px 8px;
+}
+.hw-sim-hint i {
+  margin-right: 3px;
+}
+
+.hw-sim-desc {
+  font-size: .78rem;
+  color: #6c757d;
+  margin: 0 0 8px;
+  min-height: 1.2em;
+}
+.hw-sim-mobile-note {
+  display: none;
+  font-size: .78rem;
+  color: #6c757d;
+  margin: 0 0 8px;
+}
+
+.hw-sim-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, .08);
+}
+.hw-sim-frame {
+  position: absolute;
+  inset: 0;
+  display: none;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
+.hw-sim-frame.active {
+  display: block;
+}
+.hw-sim-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, .95);
+  color: #495057;
+  font-size: .9rem;
+  text-align: center;
+  padding: 16px;
+}
+.hw-sim-loading.hidden {
+  display: none;
+}
+
+/* ── 使用提示（教学/认知脚手架） ── */
+.hw-sim-tips {
+  margin: 0 0 8px;
+  padding: 12px 14px;
+  border: 1px solid #dbe5f1;
+  border-radius: 10px;
+  background: #f8fbff;
+  max-height: 32vh;
+  overflow: auto;
+}
+.hw-sim-tips[hidden] {
+  display: none;
+}
+.hw-sim-tips-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.hw-sim-tips h3 {
+  font-size: .86rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 6px;
+}
+.hw-sim-tips h3 i {
+  color: #0d6efd;
+  margin-right: 4px;
+}
+.hw-sim-tips ol,
+.hw-sim-tips ul {
+  margin: 0;
+  padding-left: 1.15rem;
+  font-size: .78rem;
+  line-height: 1.55;
+  color: #495057;
+}
+.hw-sim-tips li + li {
+  margin-top: 3px;
+}
+
+/* ── 沉浸模式：隐藏站点外框，保留标签与操作 ── */
+body.hw-sim-immersive .navbar,
+body.hw-sim-immersive > .container > .alert,
+body.hw-sim-immersive .hw-sim-title,
+body.hw-sim-immersive .hw-sim-subtitle,
+body.hw-sim-immersive .hw-sim-desc {
+  display: none !important;
+}
+body.hw-sim-immersive > .container {
+  padding-left: 0;
+  padding-right: 0;
+}
+body.hw-sim-immersive .hw-sim-head {
+  margin: 6px 10px;
+}
+body.hw-sim-immersive .hw-sim-stage {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+@media (max-width: 768px) {
+  .hw-sim-tips-grid {
+    grid-template-columns: 1fr;
+  }
+  .hw-sim-tips {
+    max-height: 38vh;
+  }
+  .hw-sim-tips ol,
+  .hw-sim-tips ul {
+    font-size: .82rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hw-sim-tab {
+    transition: none;
+  }
+  .hw-sim-loading .spinner-border {
+    animation-duration: 1.6s;
+  }
+}
+
+@media (max-width: 768px) {
+  body.hw-sim-active > .container {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+  .hw-sim-head {
+    gap: 8px;
+  }
+  .hw-sim-title h1 {
+    font-size: 1.05rem;
+  }
+  .hw-sim-subtitle {
+    display: none;
+  }
+  .hw-sim-tabs {
+    order: 3;
+    width: 100%;
+  }
+  .hw-sim-tab {
+    flex: 1;
+    text-align: center;
+    padding: 7px 8px;
+  }
+  .hw-sim-actions {
+    margin-left: auto;
+  }
+  .hw-sim-hint {
+    display: none;
+  }
+  .hw-sim-hint.warn {
+    display: block;
+    width: 100%;
+    order: 4;
+  }
+  .hw-sim-desc {
+    display: none;
+  }
+  .hw-sim-mobile-note {
+    display: block;
+    margin-top: -2px;
+  }
+  .hw-sim-stage {
+    border-radius: 8px;
+  }
+}

@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% block title %}我的作业{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h2 class="mb-4"><i class="fas fa-tasks me-2"></i>我的作业</h2>
+
+  <div class="row g-3">
+    {% for hw in homeworks %}
+    {% set sub = submissions.get(hw.id) %}
+    <div class="col-md-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <h5 class="card-title">{{ hw.title }}
+            {% if not hw.is_active %}<span class="badge bg-secondary">已关闭</span>{% endif %}
+            {% if sub and sub.status == 'graded' %}
+            <span class="badge bg-{{ 'success' if sub.grade and sub.grade[0] in ('A','B') else 'warning' if sub.grade and sub.grade[0]=='C' else 'danger' }}">{{ sub.grade or '已批' }}</span>
+            {% elif sub %}<span class="badge bg-info">已提交</span>
+            {% else %}<span class="badge bg-warning text-dark">未提交</span>{% endif %}
+          </h5>
+          {% if hw.description %}<p class="card-text small text-muted" style="white-space: pre-wrap; word-break: break-word;">{{ hw.description[:100] }}</p>{% endif %}
+          <small class="text-muted d-block mb-2">
+            {% if hw.subject %}<span class="badge bg-info me-1">{{ hw.subject.name }}</span>{% endif %}
+            {% if hw.deadline %}<i class="fas fa-clock me-1"></i>截止: {{ hw.deadline.strftime('%m-%d %H:%M') }}{% endif %}
+          </small>
+          {% if sub %}
+          <div class="small text-muted mb-2">
+            提交: {{ sub.submit_time.strftime('%m-%d %H:%M') if sub.submit_time else '' }}
+            {% if sub.resubmit_time %} | 重交: {{ sub.resubmit_time.strftime('%m-%d %H:%M') }}{% endif %}
+          </div>
+          {% endif %}
+          <div class="d-flex gap-2">
+            {% if sub and sub.status == 'graded' %}
+            <a href="/student/homework/{{ hw.id }}/result" class="btn btn-outline-success btn-sm rounded-pill"><i class="fas fa-eye me-1"></i>查看批改</a>
+            {% endif %}
+            {% if hw.is_active %}
+            <a href="/student/homework/{{ hw.id }}" class="btn btn-primary btn-sm rounded-pill"><i class="fas fa-{{ 'redo' if sub else 'upload' }} me-1"></i>{{ '重新提交' if sub else '提交作业' }}</a>
+            {% else %}
+            <a href="/student/homework/{{ hw.id }}" class="btn btn-outline-secondary btn-sm rounded-pill"><i class="fas fa-eye me-1"></i>查看作业</a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+    {% if not homeworks %}
+    <div class="col-12"><div class="alert alert-info">暂无作业</div></div>
+    {% endif %}
+  </div>
+  {% if pagination and pagination.pages > 1 %}
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
+      <span class="text-muted small">共 {{ pagination.total }} 个作业，第 {{ pagination.page }} / {{ pagination.pages }} 页</span>
+      <nav aria-label="作业分页">
+          <ul class="pagination justify-content-center mb-0 flex-wrap">
+              <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                  <a class="page-link" href="{{ url_for('homework.student_homework', page=pagination.prev_num) if pagination.has_prev else '#' }}">上一页</a>
+              </li>
+              {% for p in range(1, pagination.pages + 1) %}
+                  {% if p == 1 or p == pagination.pages or (p >= pagination.page - 2 and p <= pagination.page + 2) %}
+                  <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                      <a class="page-link" href="{{ url_for('homework.student_homework', page=p) }}">{{ p }}</a>
+                  </li>
+                  {% elif p == 2 or p == pagination.pages - 1 %}
+                  <li class="page-item disabled"><span class="page-link">…</span></li>
+                  {% endif %}
+              {% endfor %}
+              <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                  <a class="page-link" href="{{ url_for('homework.student_homework', page=pagination.next_num) if pagination.has_next else '#' }}">下一页</a>
+              </li>
+          </ul>
+      </nav>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

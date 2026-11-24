@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+{% block title %}内置资源批量授权{% endblock %}
+{% block content %}
+<div class="container py-4" style="max-width:1000px;">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2 class="mb-1"><i class="fas fa-user-check me-2"></i>内置资源批量授权</h2>
+      <div class="text-muted">按年级 × 学科设定内置资源（如铜匠实验室）的课堂可用范围</div>
+    </div>
+    <a href="{{ url_for('resources.admin_resources') }}" class="btn btn-outline-secondary rounded-pill">
+      <i class="fas fa-arrow-left me-1"></i>返回资源管理
+    </a>
+  </div>
+
+  {% if suppressed %}
+  <div class="alert alert-warning">
+    <div class="fw-bold mb-2"><i class="fas fa-eye-slash me-1"></i>已停用的内置资源</div>
+    <div class="d-flex flex-wrap gap-2">
+      {% for item in suppressed %}
+      <form method="post" action="{{ url_for('resources.admin_builtin_restore') }}" class="d-inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="key" value="{{ item.key }}">
+        <button class="btn btn-sm btn-outline-success rounded-pill">
+          <i class="fas fa-rotate-left me-1"></i>恢复「{{ item.label }}」
+        </button>
+      </form>
+      {% endfor %}
+    </div>
+    <div class="small text-muted mt-2">停用后的内置资源重启不会自动复活；恢复后重新按下方授权范围开放。</div>
+  </div>
+  {% endif %}
+
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+    <div class="card shadow-sm mb-3">
+      <div class="card-header"><strong><i class="fas fa-users me-1"></i>授权范围（交集语义）</strong></div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="form-check mb-1">
+              <input class="form-check-input" type="checkbox" name="all_grades" value="1" id="allGrades">
+              <label class="form-check-label" for="allGrades">不限年级（全体年级可用）</label>
+            </div>
+            <select multiple class="form-select form-select-sm" name="grades" size="6" id="gradeSel">
+              {% for g in grade_options %}<option value="{{ g }}">{{ g }}</option>{% endfor %}
+            </select>
+            <div class="small text-muted mt-1">未勾选「不限」时至少选择 1 个年级</div>
+          </div>
+          <div class="col-md-6">
+            <div class="form-check mb-1">
+              <input class="form-check-input" type="checkbox" name="all_subjects" value="1" id="allSubjects">
+              <label class="form-check-label" for="allSubjects">不限学科（全体学科可用）</label>
+            </div>
+            <select multiple class="form-select form-select-sm" name="subject_ids" size="6" id="subjectSel">
+              {% for s in subjects %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+            </select>
+            <div class="small text-muted mt-1">教师任教学科需命中任一所选学科</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+      <div class="card-header"><strong><i class="fas fa-list-check me-1"></i>选择要授权的内容资源</strong></div>
+      <div class="table-responsive">
+        <table class="table align-middle mb-0">
+          <thead class="table-light">
+            <tr><th style="width:44px;"><input type="checkbox" id="checkAll" title="全选"></th>
+                <th>资源</th><th>学科</th><th>当前授权范围</th></tr>
+          </thead>
+          <tbody>
+            {% for res in builtins %}
+            <tr>
+              <td><input class="form-check-input resource-check" type="checkbox" name="resource_ids" value="{{ res.id }}"></td>
+              <td>
+                <strong>{{ res.title }}</strong>
+                <span class="badge bg-info text-dark ms-1">内置</span>
+                {% if not res.show_in_classroom %}<span class="badge bg-secondary ms-1">课堂不可见</span>{% endif %}
+              </td>
+              <td class="small">{{ res.subject.name if res.subject else '未分类' }}</td>
+              <td class="small">{{ scopes.get(res.id, {}).get('summary', '未配置授权') }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="text-center text-muted py-4">暂无内置资源</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <button class="btn btn-primary rounded-pill px-4"><i class="fas fa-save me-1"></i>应用授权范围</button>
+    <span class="small text-muted ms-2">将覆盖所选资源的现有授权范围；未勾选资源不受影响。</span>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var allGrades = document.getElementById('allGrades');
+  var gradeSel = document.getElementById('gradeSel');
+  var allSubjects = document.getElementById('allSubjects');
+  var subjectSel = document.getElementById('subjectSel');
+  if (allGrades) allGrades.addEventListener('change', function () { gradeSel.disabled = allGrades.checked; });
+  if (allSubjects) allSubjects.addEventListener('change', function () { subjectSel.disabled = allSubjects.checked; });
+  var checkAll = document.getElementById('checkAll');
+  if (checkAll) checkAll.addEventListener('change', function () {
+    document.querySelectorAll('.resource-check').forEach(function (cb) { cb.checked = checkAll.checked; });
+  });
+})();
+</script>
+{% endblock %}

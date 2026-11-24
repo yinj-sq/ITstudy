@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% block title %}账号轨迹详情{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0"><i class="fas fa-route text-primary me-2"></i>账号轨迹详情</h3>
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-secondary rounded-pill" href="{{ url_for('logs.admin_account_trail') }}">
+        <i class="fas fa-arrow-left me-1"></i>返回列表
+      </a>
+      <form method="post"
+            action="{{ url_for('logs.admin_account_trail_delete', session_id=trail.id) }}"
+            onsubmit="return confirm('删除该条账号轨迹？页面访问记录也会一并删除。');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="next" value="{{ url_for('logs.admin_account_trail') }}">
+        <button class="btn btn-outline-danger rounded-pill">
+          <i class="fas fa-trash me-1"></i>删除该轨迹
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <div class="text-muted small">账号</div>
+          <div class="fw-bold">{{ trail.account_name or '—' }}</div>
+          <div class="small">{{ type_label }}{% if trail.account_id is not none %} #{{ trail.account_id }}{% endif %}</div>
+          <div class="small text-muted">{{ 'API/SPA' if trail.channel == 'api' else '网页登录' }}</div>
+        </div>
+        <div class="col-md-4">
+          <div class="text-muted small">登录</div>
+          <div>{{ trail.login_at.strftime('%Y-%m-%d %H:%M:%S') if trail.login_at else '—' }}</div>
+          <div class="small text-muted">IP：{{ trail.login_ip or '—' }}</div>
+        </div>
+        <div class="col-md-4">
+          <div class="text-muted small">状态</div>
+          <div><span class="badge bg-primary">{{ status }}</span></div>
+          <div class="small text-muted mt-1">
+            最后活跃：{{ trail.last_seen_at.strftime('%Y-%m-%d %H:%M:%S') if trail.last_seen_at else '—' }}
+          </div>
+          <div class="small text-muted">
+            退出：{{ trail.logout_at.strftime('%Y-%m-%d %H:%M:%S') if trail.logout_at else '未正常退出' }}
+            {% if trail.logout_reason %}（{{ trail.logout_reason }}）{% endif %}
+          </div>
+        </div>
+        <div class="col-12">
+          <div class="text-muted small">User-Agent</div>
+          <div class="small" style="word-break:break-all">{{ trail.user_agent or '—' }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-header bg-transparent py-3 d-flex justify-content-between align-items-center">
+      <strong><i class="fas fa-file-lines me-1"></i>页面访问（{{ pagination.total }} 次）</strong>
+      {% if pagination.pages > 1 %}
+      <span class="small text-muted">第 {{ pagination.page }} / {{ pagination.pages }} 页</span>
+      {% endif %}
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr><th style="width:170px;">时间</th><th>页面</th><th>路径</th></tr>
+        </thead>
+        <tbody>
+          {% for page in pages %}
+          <tr>
+            <td class="small text-nowrap">{{ page.time.strftime('%Y-%m-%d %H:%M:%S') if page.time else '—' }}</td>
+            <td class="small">{{ page.label }}</td>
+            <td class="small text-muted" style="word-break:break-all">{{ page.path }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="3" class="text-center text-muted py-4">暂无页面访问记录</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if pagination.pages > 1 %}
+    <div class="card-footer d-flex justify-content-end gap-1">
+      <a class="btn btn-sm btn-outline-secondary {% if not pagination.has_prev %}disabled{% endif %}"
+         href="{{ url_for('logs.admin_account_trail_detail', session_id=trail.id, page=pagination.prev_num) if pagination.has_prev else '#' }}">上一页</a>
+      <a class="btn btn-sm btn-outline-secondary {% if not pagination.has_next %}disabled{% endif %}"
+         href="{{ url_for('logs.admin_account_trail_detail', session_id=trail.id, page=pagination.next_num) if pagination.has_next else '#' }}">下一页</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

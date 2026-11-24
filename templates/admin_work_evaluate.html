@@ -1,0 +1,154 @@
+{% extends 'base.html' %}
+{% block title %}评价作品{% endblock %}
+{% block head %}
+<style>
+  .work-text { white-space:pre-wrap; word-break:break-word; max-height:36vh; overflow:auto; }
+  .work-preview-toolbar { display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+    margin:10px 0 8px; }
+  .work-preview-toolbar .zoom-label { min-width:52px; text-align:center;
+    font-variant-numeric:tabular-nums; }
+  .work-preview-viewport { width:100%; height:clamp(420px, 62vh, 760px); overflow:auto;
+    background:#fff; border:1px solid #dee2e6; border-radius:8px; position:relative; }
+  .work-preview-frame { width:100%; height:100%; border:0; background:#fff; display:block; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2 class="mb-1"><i class="fas fa-check-double me-2"></i>评价作品</h2>
+      <div class="text-muted">{{ work.activity.title }} · {{ work.student.name if work.student else '学生已删除' }}</div>
+    </div>
+    <a href="{{ url_for('activities.admin_works_activity', act_id=work.activity_id) }}" class="btn btn-outline-secondary rounded-pill"><i class="fas fa-arrow-left me-1"></i>返回作品列表</a>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-md-7">
+      <div class="card shadow-sm h-100">
+        <div class="card-header"><strong><i class="fas fa-file-alt me-1"></i>作品内容</strong></div>
+        <div class="card-body">
+          {% if work.status == 'submitted' and work.evaluation %}
+          <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle me-1"></i>
+            学生已重新提交作品，请重新评价；下方表单保留上一次评价内容供参考。
+          </div>
+          {% endif %}
+          {% if work.text_content %}
+          <div class="mb-3 work-text">{{ work.text_content }}</div>
+          {% endif %}
+          {% if work.file_path %}
+          <div class="work-preview-toolbar" role="toolbar" aria-label="作品预览缩放">
+            <span class="small text-muted"><i class="fas fa-search me-1"></i>作品预览</span>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="workPreviewZoomOut" aria-label="缩小">−</button>
+            <span class="small zoom-label" id="workPreviewZoomLabel" aria-live="polite">100%</span>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="workPreviewZoomIn" aria-label="放大">+</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="workPreviewZoomReset" title="恢复到 100%">重置</button>
+            <a href="{{ url_for('activities.work_file', work_id=work.id) }}" class="btn btn-sm btn-outline-success ms-auto"><i class="fas fa-download me-1"></i>下载</a>
+          </div>
+          <div class="work-preview-viewport" id="workPreviewViewport" tabindex="0"
+               aria-label="作品文件预览区，可滚动，Ctrl+滚轮或加减键缩放">
+            <iframe id="workPreviewFrame" class="work-preview-frame"
+                    src="{{ url_for('activities.work_file_preview', work_id=work.id, embed=1, source='evaluate') }}"
+                    title="作品文件预览" loading="eager" referrerpolicy="no-referrer"
+                    allowfullscreen></iframe>
+          </div>
+          {% elif not work.text_content %}
+          <div class="text-muted">作品没有文本或文件内容。</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="col-md-5">
+      <div class="card shadow-sm">
+        <div class="card-header"><strong><i class="fas fa-pen me-1"></i>评价</strong></div>
+        <div class="card-body">
+          <form method="post">
+            <div class="mb-3">
+              <label class="form-label">分数</label>
+              <input type="number" step="0.1" name="score" class="form-control" value="{{ work.evaluation.score if work.evaluation and work.evaluation.score is not none else '' }}">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">等级</label>
+              <input type="text" name="grade" class="form-control" value="{{ work.evaluation.grade if work.evaluation else '' }}" placeholder="A+ / A / B">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">评语</label>
+              <textarea name="comment" class="form-control" rows="6">{{ work.evaluation.comment if work.evaluation else '' }}</textarea>
+            </div>
+            <button class="btn btn-primary rounded-pill px-4"><i class="fas fa-save me-1"></i>保存评价</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var frame = document.getElementById('workPreviewFrame');
+  var label = document.getElementById('workPreviewZoomLabel');
+  var viewport = document.getElementById('workPreviewViewport');
+  if (!frame || !label) return;
+  var zoom = 1;
+  var MIN = 0.5;
+  var MAX = 3;
+  var STEP = 0.1;
+
+  function apply() {
+    var z = Math.round(zoom * 100) / 100;
+    var applied = false;
+    // 同源预览页：优先放大其文档本身（文字/表格重新排版，放大后不糊）。
+    // 直接给 iframe 元素设 CSS zoom 在 Chromium 上不改变内容尺寸，不能作为主方案。
+    try {
+      var doc = frame.contentDocument;
+      if (doc && doc.documentElement) {
+        doc.documentElement.style.zoom = z === 1 ? '' : z;
+        frame.style.zoom = '';
+        frame.style.transform = '';
+        frame.style.width = '';
+        frame.style.height = '';
+        applied = true;
+      }
+    } catch (e) { applied = false; }
+    if (!applied) {
+      // 兜底：跨域/文档未就绪时缩放 iframe 元素本身
+      frame.style.width = (100 / z) + '%';
+      frame.style.height = (100 / z) + '%';
+      frame.style.transform = 'scale(' + z + ')';
+      frame.style.transformOrigin = 'top left';
+    }
+    label.textContent = Math.round(z * 100) + '%';
+  }
+
+  function setZoom(value) {
+    zoom = Math.min(MAX, Math.max(MIN, value));
+    apply();
+  }
+
+  var out = document.getElementById('workPreviewZoomOut');
+  var inn = document.getElementById('workPreviewZoomIn');
+  var reset = document.getElementById('workPreviewZoomReset');
+  if (out) out.addEventListener('click', function () { setZoom(zoom - STEP); });
+  if (inn) inn.addEventListener('click', function () { setZoom(zoom + STEP); });
+  if (reset) reset.addEventListener('click', function () { setZoom(1); });
+
+  // 教学场景：鼠标停在作品上即可 Ctrl+滚轮缩放，不打断评价表单填写。
+  if (viewport) {
+    viewport.addEventListener('wheel', function (e) {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      setZoom(zoom + (e.deltaY < 0 ? STEP : -STEP));
+    }, { passive: false });
+    viewport.addEventListener('keydown', function (e) {
+      if (e.key === '+' || e.key === '=') { e.preventDefault(); setZoom(zoom + STEP); }
+      else if (e.key === '-' || e.key === '_') { e.preventDefault(); setZoom(zoom - STEP); }
+      else if (e.key === '0') { e.preventDefault(); setZoom(1); }
+    });
+  }
+
+  frame.addEventListener('load', apply);
+})();
+</script>
+{% endblock %}

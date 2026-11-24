@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+{% block title %}{{ hw.title }}{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h3 class="mb-3">{{ hw.title }}
+    {% if not hw.is_active %}<span class="badge bg-secondary fs-6 align-middle">已关闭</span>{% endif %}
+  </h3>
+  {% if hw.description %}<p class="text-muted mb-3" style="white-space: pre-wrap; word-break: break-word;">{{ hw.description }}</p>{% endif %}
+
+  <div class="row">
+    <div class="col-md-8">
+      {% if attachments %}
+      <div class="card shadow-sm mb-3">
+        <div class="card-header"><strong><i class="fas fa-paperclip me-1"></i>老师发布的附件</strong></div>
+        <div class="card-body">
+          <div class="d-flex flex-wrap gap-2">
+            {% for a in attachments %}
+            <a href="/student/homework/preview/{{ hw.id }}/{{ a|urlencode }}" target="_blank" class="btn btn-sm btn-outline-info rounded-pill"><i class="fas fa-eye me-1"></i>{{ a }}</a>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if existing and existing_files %}
+      <div class="card shadow-sm mb-3">
+        <div class="card-header"><strong><i class="fas fa-paperclip me-1"></i>我已提交的附件</strong></div>
+        <div class="card-body">
+          <div class="d-flex flex-wrap gap-2">
+            {% for fn in existing_files %}
+            <span class="input-group input-group-sm" style="width:auto;">
+              <span class="input-group-text"><i class="fas fa-file me-1"></i>{{ fn }}</span>
+              <a href="{{ url_for('homework.student_preview_submission', sub_id=existing.id, filename=fn) }}"
+                 target="_blank" rel="noopener" class="btn btn-outline-primary btn-sm"
+                 title="预览">预览</a>
+              <a href="/static/submissions/{{ existing.id }}/{{ fn|urlencode }}"
+                 download class="btn btn-outline-success btn-sm" title="下载">下载</a>
+              {% if hw.is_active %}
+              <form method="post"
+                    action="{{ url_for('homework.student_delete_submission_file', hw_id=hw.id, sub_id=existing.id) }}"
+                    data-filename="{{ fn }}"
+                    style="display:inline;" onsubmit="return confirm('确定删除附件 ' + this.dataset.filename + '？');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="filename" value="{{ fn }}">
+                <button type="submit" class="btn btn-outline-danger btn-sm" title="删除附件">删除</button>
+              </form>
+              {% endif %}
+            </span>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="card shadow-sm">
+        <div class="card-header"><strong><i class="fas fa-upload me-1"></i>{{ '重新提交' if existing else '提交作业' }}</strong></div>
+        <div class="card-body">
+          {% if not hw.is_active %}
+          <div class="alert alert-secondary mb-0">
+            <i class="fas fa-lock me-1"></i>作业已关闭，只可查看历史内容和批改结果，不能再提交。
+          </div>
+          {% else %}
+          <form method="post" enctype="multipart/form-data">
+            <div class="mb-3">
+              <label class="form-label">文字作答</label>
+              <textarea name="text_content" class="form-control" rows="6" placeholder="输入你的答案...">{{ existing.text_content if existing else '' }}</textarea>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">上传文件</label>
+              <input type="file" name="attachments" class="form-control" multiple>
+              <small class="text-muted">支持图片/PDF/音视频/Office文档</small>
+            </div>
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-primary rounded-pill px-5"><i class="fas fa-paper-plane me-1"></i>{{ '重新提交' if existing else '提交' }}</button>
+              <a href="/student/homework" class="btn btn-outline-secondary rounded-pill"><i class="fas fa-arrow-left"></i> 返回</a>
+            </div>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card shadow-sm">
+        <div class="card-header"><strong><i class="fas fa-info-circle me-1"></i>作业信息</strong></div>
+        <div class="card-body small">
+          <p><b>学科：</b>{{ hw.subject.name if hw.subject else '未分类' }}</p>
+          <p><b>截止：</b>{{ hw.deadline.strftime('%Y-%m-%d %H:%M') if hw.deadline else '不限' }}</p>
+          {% if existing %}
+          <p><b>首次提交：</b>{{ existing.submit_time.strftime('%Y-%m-%d %H:%M') if existing.submit_time else '-' }}</p>
+          {% if existing.resubmit_time %}<p><b>上次重交：</b>{{ existing.resubmit_time.strftime('%Y-%m-%d %H:%M') }}</p>{% endif %}
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

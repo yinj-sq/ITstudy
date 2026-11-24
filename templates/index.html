@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+{% block title %}学生登录{% endblock %}
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <!-- 登录表单 -->
+        <div class="col-md-4 mb-4">
+            <div class="card p-4 shadow-lg">
+                <div class="text-center mb-3">
+                    <i class="fas fa-user-graduate fa-3x text-primary mb-2"></i>
+                    <h2>学生登录</h2>
+                </div>
+
+                <ul class="nav nav-tabs mb-3" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-password" type="button">
+                            <i class="fas fa-key me-1"></i>学号登录
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-name" type="button">
+                            <i class="fas fa-user me-1"></i>姓名登录
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="tab-password">
+                        <form method="post">
+                            <div class="form-group mb-3">
+                                <label for="studentNumber">学号</label>
+                                <input type="text" id="studentNumber" name="student_number" class="form-control rounded-pill" placeholder="请输入学号">
+                            </div>
+                            <div class="form-group mb-3">
+                                <label for="studentPassword">密码</label>
+                                <input type="password" id="studentPassword" name="password" class="form-control rounded-pill" placeholder="请输入密码">
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100 rounded-pill">登录</button>
+                        </form>
+                    </div>
+
+                    <div class="tab-pane fade" id="tab-name">
+                        <form method="post">
+                            <div class="form-group mb-3">
+                                <label for="studentName">姓名</label>
+                                <input type="text" id="studentName" name="name" class="form-control rounded-pill" placeholder="请输入姓名">
+                            </div>
+                            <div class="form-group mb-3">
+                                <label for="studentNamePassword">密码</label>
+                                <input type="password" id="studentNamePassword" name="password" class="form-control rounded-pill" placeholder="请输入密码">
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100 rounded-pill">登录</button>
+                        </form>
+                        <small class="text-muted">使用姓名和密码登录</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 作息时间表 -->
+        <div class="col-md-3">
+            <div class="card shadow-lg h-100">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-clock me-2"></i>今日作息时间</h5>
+                </div>
+                <div class="card-body" id="loginSchedule">
+                    <div class="text-muted text-center py-3">
+                        <i class="fas fa-spinner fa-spin me-1"></i>加载中...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function escapeHtml(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+fetch('/api/schedule')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        if (!d.success || !d.data.length) {
+            document.getElementById('loginSchedule').innerHTML =
+                '<div class="text-muted text-center py-3">暂无作息安排</div>';
+            return;
+        }
+        var html = '<div class="list-group list-group-flush">';
+        d.data.forEach(function(s) {
+            html += '<div class="list-group-item d-flex justify-content-between align-items-center px-0">';
+            html += '<span><i class="fas fa-bell text-primary me-2"></i>' + escapeHtml(s.period_name) + '</span>';
+            html += '<span class="badge bg-secondary">' + escapeHtml(s.start_time) + ' - ' + escapeHtml(s.end_time) + '</span>';
+            html += '</div>';
+        });
+        html += '</div>';
+        document.getElementById('loginSchedule').innerHTML = html;
+    })
+    .catch(function() {
+        document.getElementById('loginSchedule').innerHTML =
+            '<div class="text-muted text-center py-3">无法加载作息表</div>';
+    });
+</script>
+{% endblock %}

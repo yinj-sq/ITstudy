@@ -1,0 +1,18 @@
+Fonts bundled with the ESP32-S3 guide
+=====================================
+
+Archivo
+-------
+Copyright 2019 The Archivo Project Authors
+https://github.com/Omnibus-Type/Archivo
+Licensed under the SIL Open Font License, Version 1.1 (see OFL.txt).
+
+IBM Plex Mono
+-------------
+Copyright 2017 IBM Corporation
+https://github.com/IBM/plex
+Licensed under the SIL Open Font License, Version 1.1 (see OFL.txt).
+
+Only the Latin subset (woff2) is bundled; Chinese text falls back to the
+operating system's CJK font. Full font families and license notices are
+available from the upstream projects above.

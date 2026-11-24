@@ -1,0 +1,131 @@
+{% extends 'base.html' %}
+{% block title %}{{ survey.title }}{% endblock %}
+{% block head %}
+<style>
+  .ss-matrix td, .ss-matrix th { text-align:center; vertical-align:middle; }
+  .ss-matrix .row-label { text-align:left; font-weight:500; }
+  .ss-score-label { display:inline-block; min-width:3.4em; text-align:center; }
+  .ss-text-block { max-height:38vh; overflow:auto; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container py-4" style="max-width:860px;">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2 class="mb-1"><i class="fas fa-poll me-2"></i>{{ survey.title }}</h2>
+      <div class="text-muted">{{ survey.resource.title }}</div>
+    </div>
+    <a href="{{ url_for('resources.study') }}" class="btn btn-outline-secondary rounded-pill"><i class="fas fa-arrow-left me-1"></i>返回资源</a>
+  </div>
+
+  {% if survey.description %}
+  <div class="card shadow-sm mb-4">
+    <div class="card-body" style="white-space:pre-wrap;">{{ survey.description }}</div>
+  </div>
+  {% endif %}
+
+  {% if answer %}
+  <div class="alert alert-success"><i class="fas fa-check-circle me-1"></i>
+    你已于 {{ answer.submitted_at.strftime('%Y-%m-%d %H:%M') }} 提交这份问卷。{% if survey.is_anonymous %}本问卷为匿名问卷，老师看不到你的姓名。{% endif %}
+  </div>
+  <div class="card shadow-sm">
+    <div class="card-header"><strong><i class="fas fa-receipt me-1"></i>我的答卷</strong></div>
+    <div class="card-body">
+      {% for q in questions %}
+      <div class="mb-3 pb-3 {% if not loop.last %}border-bottom{% endif %}">
+        <div class="fw-bold mb-1">{{ loop.index }}. {{ q.title }}{% if q.required %}<span class="text-danger ms-1">*</span>{% endif %}</div>
+        <div class="text-secondary" style="white-space:pre-wrap;">{{ q.display_value }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% else %}
+  {% if not accepting_ok %}
+  <div class="alert alert-warning"><i class="fas fa-clock me-1"></i>{{ accepting_msg }}</div>
+  {% endif %}
+  <form method="post" class="card shadow-sm">
+    <div class="card-body">
+      {% for q in questions %}
+      <div class="mb-4 pb-3 {% if not loop.last %}border-bottom{% endif %}">
+        <div class="fw-bold mb-2">{{ loop.index }}. {{ q.title }}{% if q.required %}<span class="text-danger ms-1">*</span>{% endif %}</div>
+        {% set opts = q.opts %}
+        {% set rows = q.rows %}
+        {% set qkey = 'q' ~ q.id %}
+        {% if q.q_type == 'radio' %}
+          {% for o in opts %}
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="{{ qkey }}" id="{{ qkey }}_{{ loop.index }}" value="{{ o }}" {% if q.required %}required{% endif %}>
+            <label class="form-check-label" for="{{ qkey }}_{{ loop.index }}">{{ o }}</label>
+          </div>
+          {% endfor %}
+        {% elif q.q_type == 'checkbox' %}
+          {% for o in opts %}
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="{{ qkey }}" id="{{ qkey }}_{{ loop.index }}" value="{{ o }}">
+            <label class="form-check-label" for="{{ qkey }}_{{ loop.index }}">{{ o }}</label>
+          </div>
+          {% endfor %}
+        {% elif q.q_type == 'select' %}
+          <select class="form-select" name="{{ qkey }}" {% if q.required %}required{% endif %}>
+            <option value="">请选择…</option>
+            {% for o in opts %}<option value="{{ o }}">{{ o }}</option>{% endfor %}
+          </select>
+        {% elif q.q_type == 'text' %}
+          <input type="text" name="{{ qkey }}" class="form-control" maxlength="500" {% if q.required %}required{% endif %}>
+        {% elif q.q_type == 'textarea' %}
+          <textarea name="{{ qkey }}" class="form-control" rows="4" {% if q.required %}required{% endif %}></textarea>
+        {% elif q.q_type == 'score' %}
+          <div class="d-flex flex-wrap gap-3">
+            {% for s in [1, 2, 3, 4, 5] %}
+            <label class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="{{ qkey }}" value="{{ s }}" {% if q.required %}required{% endif %}>
+              <span class="ss-score-label">{{ s }} 分</span>
+            </label>
+            {% endfor %}
+          </div>
+        {% elif q.q_type == 'matrix_radio' %}
+          <div class="table-responsive">
+            <table class="table table-bordered ss-matrix">
+              <thead><tr><th style="width:40%;">项目</th>{% for o in opts %}<th>{{ o }}</th>{% endfor %}</tr></thead>
+              <tbody>
+                {% for r in rows %}
+                {% set ridx = loop.index0 %}
+                <tr>
+                  <td class="row-label">{{ r }}</td>
+                  {% for o in opts %}
+                  <td><input class="form-check-input" type="radio" name="{{ qkey }}__m{{ ridx }}" value="{{ o }}" {% if q.required %}required{% endif %}></td>
+                  {% endfor %}
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% elif q.q_type == 'matrix_score' %}
+          <div class="table-responsive">
+            <table class="table table-bordered ss-matrix">
+              <thead><tr><th style="width:40%;">项目</th>{% for s in [1, 2, 3, 4, 5] %}<th>{{ s }}分</th>{% endfor %}</tr></thead>
+              <tbody>
+                {% for r in rows %}
+                {% set ridx = loop.index0 %}
+                <tr>
+                  <td class="row-label">{{ r }}</td>
+                  {% for s in [1, 2, 3, 4, 5] %}
+                  <td><input class="form-check-input" type="radio" name="{{ qkey }}__m{{ ridx }}" value="{{ s }}" {% if q.required %}required{% endif %}></td>
+                  {% endfor %}
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+      {% if accepting_ok %}
+      <button class="btn btn-primary rounded-pill px-5"><i class="fas fa-paper-plane me-1"></i>提交问卷</button>
+      <div class="small text-muted mt-2"><i class="fas fa-info-circle me-1"></i>每人仅能提交一次，提交后不可修改。</div>
+      {% endif %}
+    </div>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

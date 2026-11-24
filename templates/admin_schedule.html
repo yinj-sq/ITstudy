@@ -1,0 +1,192 @@
+{% extends 'base.html' %}
+{% block title %}作息时间管理 - 管理员{% endblock %}
+{% block content %}
+<div class="container py-4">
+    <h2 class="mb-4"><i class="fas fa-clock me-2"></i>作息时间表管理</h2>
+
+    <!-- 添加时段 -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">添加作息时段</h5>
+        </div>
+        <div class="card-body">
+            <form method="post" action="{{ url_for('classroom.add_schedule') }}" class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">时段名称 <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" name="period_name" required
+                           placeholder="例如：第一节课">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">开始时间 <span class="text-danger">*</span></label>
+                    <input type="time" class="form-control" name="start_time" required>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">结束时间 <span class="text-danger">*</span></label>
+                    <input type="time" class="form-control" name="end_time" required>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-plus me-1"></i>添加
+                    </button>
+                </div>
+                <div class="col-md-3">
+                    <a href="{{ url_for('classroom.admin_classroom') }}" class="btn btn-success w-100">
+                        <i class="fas fa-desktop me-1"></i>进入大屏展示
+                    </a>
+                </div>
+                <div class="col-md-3">
+                    <a href="{{ url_for('classroom.admin_class_schedule') }}" class="btn btn-info w-100">
+                        <i class="fas fa-calendar-alt me-1"></i>课程表管理
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 作息时间列表 -->
+    <div class="card">
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h5 class="mb-0">作息时间表 (共 {{ schedules|length }} 个时段)</h5>
+            <div class="d-flex align-items-center gap-2">
+                <a href="{{ url_for('classroom.export_schedule') }}" class="btn btn-sm btn-outline-light">
+                    <i class="fas fa-file-export me-1"></i>导出
+                </a>
+                <button class="btn btn-sm btn-outline-light" data-bs-toggle="modal" data-bs-target="#scheduleImportModal">
+                    <i class="fas fa-file-import me-1"></i>导入
+                </button>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>时段名称</th>
+                        <th>开始时间</th>
+                        <th>结束时间</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if schedules %}
+                        {% for s in schedules %}
+                        <tr class="{% if not s.is_active %}table-secondary{% endif %}">
+                            <td>{{ s.sort_order + 1 if s.sort_order is not none else loop.index }}</td>
+                            <td><strong>{{ s.period_name }}</strong></td>
+                            <td><span class="badge bg-primary">{{ s.start_time }}</span></td>
+                            <td><span class="badge bg-info">{{ s.end_time }}</span></td>
+                            <td>
+                                {% if s.is_active %}
+                                <span class="badge bg-success">启用</span>
+                                {% else %}
+                                <span class="badge bg-secondary">禁用</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-primary btn-sm" aria-label="编辑节次"
+                                            onclick='editSchedule({{ s.id }}, {{ s.period_name|tojson }}, {{ s.start_time|tojson }}, {{ s.end_time|tojson }}, {{ "true" if s.is_active else "false" }})'
+                                            data-bs-toggle="modal" data-bs-target="#editScheduleModal">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="btn btn-outline-danger btn-sm" aria-label="删除节次"
+                                            onclick='deleteSchedule({{ s.id }}, {{ s.period_name|tojson }})'>
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr><td colspan="6" class="text-center text-muted py-4">
+                            暂无作息时段，请添加（例如：第一节课 08:00-08:45）
+                        </td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 编辑时段模态框 -->
+<div class="modal fade" id="editScheduleModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="editScheduleForm" method="post">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">编辑作息时段</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="关闭"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">时段名称</label>
+                        <input type="text" class="form-control" name="period_name" id="editPeriodName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">开始时间</label>
+                        <input type="time" class="form-control" name="start_time" id="editStartTime" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">结束时间</label>
+                        <input type="time" class="form-control" name="end_time" id="editEndTime" required>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" name="is_active" id="editActive" value="true">
+                        <label class="form-check-label">启用该时段</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function editSchedule(id, name, start, end, active) {
+    document.getElementById('editScheduleForm').action = '/admin/schedule/' + id + '/edit';
+    document.getElementById('editPeriodName').value = name;
+    document.getElementById('editStartTime').value = start;
+    document.getElementById('editEndTime').value = end;
+    document.getElementById('editActive').checked = active;
+}
+function deleteSchedule(id, name) {
+    if (!confirm('确定要删除时段 "' + name + '" 吗？')) return;
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/admin/schedule/' + id + '/delete';
+    document.body.appendChild(form);
+    form.submit();
+}
+</script>
+
+<!-- 导入作息时间表模态框 -->
+<div class="modal fade" id="scheduleImportModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{{ url_for('classroom.import_schedule') }}" enctype="multipart/form-data">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-file-import me-1"></i>导入作息时间表</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info py-2 small">
+                        <i class="fas fa-info-circle me-1"></i>支持使用"导出"功能生成的 Excel 模板。
+                        导入将<b>全量替换</b>当前作息时间表。格式：节次名称 / 开始时间(HH:MM) / 结束时间(HH:MM) / 是否启用。
+                    </div>
+                    <input type="file" name="file" class="form-control" accept=".xlsx,.xls" required>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-check me-1"></i>导入
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

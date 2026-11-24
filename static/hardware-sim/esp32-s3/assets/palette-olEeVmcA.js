@@ -1,0 +1,1 @@
+import{r as e}from"./theme-CQOOS2oI.js";var t=e=>getComputedStyle(document.documentElement).getPropertyValue(e).trim();function n(n){let r,i=-1;return()=>((!r||i!==e())&&(r=Object.fromEntries(Object.entries(n).map(([e,n])=>[e,t(n)])),i=e()),r)}export{n as t};

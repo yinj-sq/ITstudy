@@ -1,0 +1,116 @@
+{# 独立页面：不继承 base，避免课堂内嵌时出现站内导航/AI 助手 #}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ file_name }} · GeoGebra</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#fff; }
+  #ggbWrap { position:relative; width:100%; height:100%; }
+  #ggbContainer { width:100%; height:100%; }
+  #ggbLoading { position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:10px; background:#fff;
+    color:#6c757d; font:14px/1.6 system-ui, "Microsoft YaHei", sans-serif; z-index:5; }
+  #ggbLoading .spin { width:28px; height:28px; border:3px solid #dbe3ef;
+    border-top-color:#1f6feb; border-radius:50%; animation:sp 0.9s linear infinite; }
+  @keyframes sp { to { transform:rotate(360deg); } }
+  .ggb-bar { height:44px; display:flex; align-items:center; gap:10px;
+    padding:0 12px; background:#1f2937; color:#e5e7eb; font:13px/1
+    system-ui, "Microsoft YaHei", sans-serif; }
+  .ggb-bar a, .ggb-bar button { color:#e5e7eb; text-decoration:none;
+    background:transparent; border:1px solid rgba(255,255,255,.35);
+    border-radius:999px; padding:6px 12px; font-size:12px; cursor:pointer; }
+  .ggb-bar a:hover, .ggb-bar button:hover { background:rgba(255,255,255,.12); }
+  .ggb-bar .name { flex:1; overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; opacity:.9; }
+</style>
+</head>
+<body>
+{% if not embed %}
+<div class="ggb-bar">
+  <a href="javascript:history.back()"><i>←</i> 返回</a>
+  <span class="name">{{ file_name }}</span>
+  <a href="{{ file_url }}" download>下载 .ggb</a>
+  <button type="button" id="ggbFullscreen">全屏</button>
+</div>
+{% endif %}
+<div id="ggbWrap">
+  <div id="ggbContainer"></div>
+  <div id="ggbLoading"><div class="spin"></div><div>正在加载 GeoGebra 课件…</div></div>
+</div>
+<script src="{{ versioned_static('geogebra/GeoGebra/deployggb.js') }}"></script>
+<script>
+(function () {
+  var embed = {{ 'true' if embed else 'false' }};
+  var barH = embed ? 0 : 44;
+  var wrap = document.getElementById('ggbWrap');
+  var loading = document.getElementById('ggbLoading');
+  wrap.style.height = 'calc(100% - ' + barH + 'px)';
+  function size() {
+    return {
+      w: Math.max(320, wrap.clientWidth),
+      h: Math.max(240, wrap.clientHeight)
+    };
+  }
+  var s = size();
+  var modelUrl = {{ file_url|tojson }};
+  var params = {
+    appName: 'classic',
+    width: s.w,
+    height: s.h,
+    filename: modelUrl,
+    language: 'zh',
+    showMenuBar: false,
+    showToolBar: true,
+    showAlgebraInput: false,
+    enableRightClick: false,
+    showResetIcon: false,
+    showFullscreenButton: false,
+    borderColor: null,
+    appletOnLoad: function (api) {
+      window.__ggbReady = true;
+      window.ggbApplet = api;
+      if (loading) loading.style.display = 'none';
+    }
+  };
+  var applet = new GGBApplet(params, true);
+  // 固定本地完整引擎目录，避免官方默认 codebase 导致慢加载或离线失败。
+  applet.setHTML5Codebase('/static/geogebra/GeoGebra/HTML5/5.0/web3d/', true);
+  applet.inject('ggbContainer');
+
+  var resizeTimer = null;
+  window.addEventListener('resize', function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () {
+      if (!window.ggbApplet || typeof window.ggbApplet.setWidth !== 'function') return;
+      var ns = size();
+      try {
+        window.ggbApplet.setWidth(ns.w);
+        window.ggbApplet.setHeight(ns.h);
+      } catch (e) { /* 旧版本 API 不存在时忽略 */ }
+    }, 200);
+  });
+
+  var fsBtn = document.getElementById('ggbFullscreen');
+  if (fsBtn) fsBtn.addEventListener('click', function () {
+    if (document.fullscreenElement) {
+      document.exitFullscreen && document.exitFullscreen();
+    } else if (wrap.requestFullscreen) {
+      wrap.requestFullscreen();
+    }
+  });
+
+  // 加载兜底提示（30 秒仍未就绪）
+  setTimeout(function () {
+    if (!window.__ggbReady && loading) {
+      loading.innerHTML = '<div style="text-align:center;padding:24px;">' +
+        '<div>GeoGebra 加载较慢或失败。</div>' +
+        '<div style="margin-top:8px;"><a download>下载 .ggb</a> 后可用 GeoGebra 桌面版打开。</div></div>';
+      loading.querySelector('a').href = modelUrl;
+    }
+  }, 30000);
+})();
+</script>
+</body>
+</html>

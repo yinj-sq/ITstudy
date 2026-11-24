@@ -1,0 +1,414 @@
+{% extends 'base.html' %}
+{% block title %}AI对话配置{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h2 class="mb-4"><i class="fas fa-robot me-2"></i>AI对话配置</h2>
+
+  <div class="row g-3">
+    <div class="col-md-8">
+      <div class="card shadow-sm mb-3">
+        <div class="card-header bg-primary text-white"><strong><i class="fas fa-cog me-1"></i>API 配置</strong></div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label">服务商协议</label>
+            <select id="providerSelect" class="form-select rounded-pill" onchange="onProviderChange()">
+              <option value="openai" {% if not config.provider or config.provider == 'openai' %}selected{% endif %}>OpenAI 兼容（OpenAI/DeepSeek/通义/智谱/月之暗面等）</option>
+              <option value="anthropic" {% if config.provider == 'anthropic' %}selected{% endif %}>Anthropic（Claude 原生 /v1/messages）</option>
+            </select>
+            <small class="text-muted">选择 API 协议格式。Anthropic 使用 x-api-key 认证与 /v1/messages 端点。</small>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">API URL</label>
+            <input type="text" id="apiUrl" class="form-control rounded-pill" value="{{ config.api_url or '' }}" placeholder="例如: https://api.openai.com/v1">
+            <small class="text-muted" id="apiUrlHint">OpenAI兼容的API地址，如：https://api.openai.com/v1、https://api.deepseek.com/v1</small>
+            <small class="text-muted d-block mt-1">DeepSeek 官方地址（api.deepseek.com）+ deepseek-flash 时，AI 助手自动启用联网搜索、阅读链接、文件输入与内容安全，并在对话面板提供语音输入与朗读入口。</small>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">API Key</label>
+            <div class="input-group">
+              <input type="password" id="apiKey" class="form-control rounded-start-pill" value="{{ masked_api_key or '' }}" placeholder="sk-...">
+              <button class="btn btn-outline-secondary rounded-end-pill" type="button" aria-label="显示或隐藏 API 密钥" onclick="toggleKeyVisibility()"><i class="fas fa-eye"></i></button>
+            </div>
+            <small class="text-muted">API密钥在数据库中加密保存；掩码值表示保留现有密钥</small>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">模型</label>
+            <div class="input-group">
+              <select id="modelSelect" class="form-select rounded-start-pill">
+                {% if config.model %}
+                <option value="{{ config.model }}" selected>{{ config.model }}</option>
+                {% else %}
+                <option value="">请先获取模型列表</option>
+                {% endif %}
+              </select>
+              <button class="btn btn-outline-primary rounded-end-pill" type="button" onclick="fetchModels()" id="fetchModelsBtn">
+                <i class="fas fa-sync-alt me-1"></i>获取模型列表
+              </button>
+            </div>
+            <small class="text-muted">点击"获取模型列表"从API URL自动获取可用模型</small>
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-3">
+        <div class="card-header"><strong><i class="fas fa-sliders-h me-1"></i>模型参数</strong></div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Max Tokens</label>
+              <input type="number" id="maxTokens" class="form-control rounded-pill" value="{{ config.max_tokens or 2048 }}" min="256" max="8192">
+              <small class="text-muted">单次回复最大token数</small>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Temperature</label>
+              <input type="number" id="temperature" class="form-control rounded-pill" value="{{ config.temperature or 0.7 }}" min="0" max="2" step="0.1">
+              <small class="text-muted">创造性程度，越高越随机</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-3">
+        <div class="card-header"><strong><i class="fas fa-image me-1"></i>图片理解（视觉）</strong></div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label" for="visionPresetSelect">国内视觉模型快速预设</label>
+            <select id="visionPresetSelect" class="form-select rounded-pill" onchange="applyVisionPreset()">
+              <option value="">自定义 / 保持当前配置</option>
+              {% for p in vision_presets %}
+              <option value="{{ p.key }}" data-provider="{{ p.provider }}"
+                      data-api-url="{{ p.api_url }}" data-model="{{ p.model }}"
+                      data-hint="{{ p.hint }}">{{ p.label }}（{{ p.model }}）</option>
+              {% endfor %}
+            </select>
+            <small class="text-muted" id="visionPresetHint">
+              选择预设会自动填入上方 API 地址、模型并开启图片理解；API Key 仍需按对应平台填写。
+              国内模型均使用 OpenAI 兼容协议，型号与地址以官方文档为准。
+            </small>
+          </div>
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="visionEnabledSwitch" {% if config.vision_enabled %}checked{% endif %}>
+            <label class="form-check-label" for="visionEnabledSwitch"><strong>当前对话模型支持图片理解</strong></label>
+            <br><small class="text-muted">开启后 AI 助手会把当前页面中的图片自动压缩后随消息发送给模型解读；仅对支持视觉输入的模型开启（如 DeepSeek Flash、GLM-5.3-Flash、MiniMax M3.1-Flash、GPT-4o、Claude 3/4 等）。不支持视觉的模型请保持关闭，界面会提示图片不会发送。</small>
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-3">
+        <div class="card-header"><strong><i class="fas fa-shield-alt me-1"></i>功能控制</strong></div>
+        <div class="card-body">
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="enabledSwitch" {% if config.enabled %}checked{% endif %}>
+            <label class="form-check-label" for="enabledSwitch"><strong>启用AI对话功能（总开关）</strong></label>
+            <br><small class="text-muted">关闭后学生端和教师端都不显示 AI 助手；教师端还可在下方「教师端 AI」单独控制</small>
+          </div>
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="pageContextSwitch" {% if config.page_context_default %}checked{% endif %}>
+            <label class="form-check-label" for="pageContextSwitch"><strong>默认基于页面内容对话</strong></label>
+            <br><small class="text-muted">开启后，AI对话默认基于当前页面内容进行回答，用户可自行切换</small>
+          </div>
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="studentPageOnlySwitch" {% if student_page_only %}checked{% endif %}>
+            <label class="form-check-label" for="studentPageOnlySwitch"><strong>学生 AI 仅限当前页面内容</strong></label>
+            <br><small class="text-muted">即时生效，无需保存。开启后学生不能切回自由对话，AI 只围绕学生设备上当前页面的内容作答，与本页无关的问题会被婉拒；教师也可在 AI 助手面板的「学生限本页」按钮随时切换</small>
+            <span id="pageOnlyMsg" class="ms-2 small"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-3">
+        <div class="card-header bg-success text-white"><strong><i class="fas fa-chalkboard-teacher me-1"></i>教师端 AI</strong></div>
+        <div class="card-body">
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="teacherEnabledSwitch" {% if config.teacher_enabled != false %}checked{% endif %}>
+            <label class="form-check-label" for="teacherEnabledSwitch"><strong>启用教师端 AI 对话</strong></label>
+            <br><small class="text-muted">教师使用登录页的「只读模式」或「编辑模式」登录后都可使用 AI；关闭后教师端不显示 AI 助手，不影响学生端</small>
+          </div>
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="teacherPageContextSwitch" {% if config.teacher_page_context_default != false %}checked{% endif %}>
+            <label class="form-check-label" for="teacherPageContextSwitch"><strong>教师默认基于页面内容对话</strong></label>
+            <br><small class="text-muted">开启后教师打开 AI 助手默认围绕当前页面内容回答，可在面板中自行切换；教师与管理员始终使用上方 API / 模型配置</small>
+          </div>
+          <div class="alert alert-light border mb-0 small">
+            <i class="fas fa-info-circle me-1"></i>教师编辑模式可在「教学资源 → AI 配置」填写自己的 API 地址和密钥；只读模式始终自动使用上方管理员 API 配置。未填写个人配置的编辑模式也会回退到上方配置。
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-3">
+        <div class="card-header bg-info text-white"><strong><i class="fas fa-image me-1"></i>生图模型（可选）</strong></div>
+        <div class="card-body">
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="imageEnabledSwitch" {% if image_config and image_config.enabled %}checked{% endif %}>
+            <label class="form-check-label" for="imageEnabledSwitch"><strong>启用生图功能</strong></label>
+            <br><small class="text-muted">开启后 AI 助手工具栏显示「生图」按钮；对话模型可先优化描述再生图</small>
+          </div>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">生图服务协议</label>
+              <select id="imageProvider" class="form-select rounded-pill">
+                <option value="openai_images" selected>OpenAI Images 兼容</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">API 地址</label>
+              <input type="text" id="imageApiUrl" class="form-control rounded-pill"
+                     value="{{ (image_config.api_url or '') if image_config else '' }}"
+                     placeholder="例如: https://api.openai.com/v1">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">API Key</label>
+              <input type="password" id="imageApiKey" class="form-control rounded-pill"
+                     value="{{ masked_image_api_key }}"
+                     placeholder="留空则沿用上方对话模型 Key">
+              <small class="text-muted">掩码表示保留原值；清空则沿用对话 Key</small>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">生图模型</label>
+              <input type="text" id="imageModel" class="form-control rounded-pill"
+                     value="{{ (image_config.model or '') if image_config else '' }}"
+                     placeholder="例如: gpt-image-1 / dall-e-3">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">默认尺寸</label>
+              <input type="text" id="imageSize" class="form-control rounded-pill"
+                     value="{{ (image_config.size or '1024x1024') if image_config else '1024x1024' }}">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">质量</label>
+              <input type="text" id="imageQuality" class="form-control rounded-pill"
+                     value="{{ (image_config.quality or '') if image_config else '' }}"
+                     placeholder="留空用服务端默认">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">单次张数</label>
+              <input type="number" id="imageMaxImages" class="form-control rounded-pill"
+                     min="1" max="4" value="{{ (image_config.max_images or 1) if image_config else 1 }}">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">超时（秒）</label>
+              <input type="number" id="imageTimeout" class="form-control rounded-pill"
+                     min="10" max="300" value="{{ (image_config.timeout_seconds or 90) if image_config else 90 }}">
+            </div>
+          </div>
+          <div class="form-check form-switch mt-3">
+            <input class="form-check-input" type="checkbox" id="imageAllowStudent" {% if not image_config or image_config.allow_student %}checked{% endif %}>
+            <label class="form-check-label" for="imageAllowStudent">允许学生使用</label>
+          </div>
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="imageAllowTeacher" {% if not image_config or image_config.allow_teacher %}checked{% endif %}>
+            <label class="form-check-label" for="imageAllowTeacher">允许教师使用</label>
+          </div>
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="imageAutoIntent" {% if image_config and image_config.auto_intent %}checked{% endif %}>
+            <label class="form-check-label" for="imageAutoIntent">自动判断是否生图</label>
+            <br><small class="text-muted">开启后每条普通对话会先让对话模型判断是否要生图；会额外增加一次模型请求与延迟，按需开启</small>
+          </div>
+          <div class="alert alert-light border mb-0 mt-3 small">
+            <i class="fas fa-info-circle me-1"></i>一期支持 OpenAI Images 兼容接口；生成图片保存在服务端，按用户鉴权读取，不直接暴露 API Key。
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-3">
+        <div class="card-header bg-warning text-dark"><strong><i class="fas fa-users-cog me-1"></i>配置模式</strong></div>
+        <div class="card-body">
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="radio" name="configMode" id="modeAdmin" value="admin" {% if not config.config_mode or config.config_mode == 'admin' %}checked{% endif %}>
+            <label class="form-check-label" for="modeAdmin">
+              <strong><i class="fas fa-shield-halved me-1"></i>应用控制端配置</strong>
+            </label>
+            <br><small class="text-muted">学生无需配置，直接使用管理员在上方填写的 API 配置进行对话。适合统一管理的场景。</small>
+          </div>
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="radio" name="configMode" id="modeStudent" value="student" {% if config.config_mode == 'student' %}checked{% endif %}>
+            <label class="form-check-label" for="modeStudent">
+              <strong><i class="fas fa-user-gear me-1"></i>学生端自行配置</strong>
+            </label>
+            <br><small class="text-muted">学生需要自行填写 API URL、Key 和选择模型后方可使用。适合学生自带 API Key 的场景。</small>
+          </div>
+          <div class="alert alert-info mb-0 small">
+            <i class="fas fa-info-circle me-1"></i>切换模式后，学生端将自动适配。选择"学生端自行配置"时，学生首次使用AI助手会弹出配置引导。
+          </div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary rounded-pill px-4" onclick="saveConfig()">
+        <i class="fas fa-save me-1"></i>保存配置
+      </button>
+      <span id="saveMsg" class="ms-2"></span>
+    </div>
+
+    <div class="col-md-4">
+      <div class="card shadow-sm mb-3">
+        <div class="card-header bg-info text-white"><strong><i class="fas fa-info-circle me-1"></i>安全说明</strong></div>
+        <div class="card-body small">
+          <ul class="mb-0">
+            <li class="mb-2">API Key 在服务端数据库中以 Fernet 密文保存</li>
+            <li class="mb-2">用户端通过服务端代理访问AI，无法获取API Key</li>
+            <li class="mb-2">每个学生的对话记录相互隔离</li>
+            <li class="mb-2">管理员可随时关闭AI对话功能</li>
+            <li class="mb-2">页面内容仅在用户选择时发送给AI</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card shadow-sm">
+        <div class="card-header"><strong><i class="fas fa-plug me-1"></i>兼容API</strong></div>
+        <div class="card-body small">
+          <p class="mb-1">支持以下AI服务：</p>
+          <ul class="mb-2">
+            <li>OpenAI / DeepSeek / 通义千问</li>
+            <li>智谱AI / 月之暗面</li>
+            <li>其他OpenAI兼容服务</li>
+            <li><strong>Anthropic Claude（原生协议）</strong></li>
+          </ul>
+          <p class="mb-0 text-muted">Anthropic 地址填 <code>https://api.anthropic.com/v1</code></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleKeyVisibility(){
+  var inp=document.getElementById('apiKey');
+  inp.type=inp.type==='password'?'text':'password';
+}
+
+function onProviderChange(){
+  var prov=document.getElementById('providerSelect').value;
+  var hint=document.getElementById('apiUrlHint');
+  var urlInput=document.getElementById('apiUrl');
+  if(prov==='anthropic'){
+    hint.innerHTML='Anthropic Claude 原生地址，如：https://api.anthropic.com/v1';
+    if(!urlInput.value.trim()){ urlInput.placeholder='例如: https://api.anthropic.com/v1'; }
+  }else{
+    hint.innerHTML='OpenAI兼容的API地址，如：https://api.openai.com/v1、https://api.deepseek.com';
+    if(!urlInput.value.trim()){ urlInput.placeholder='例如: https://api.openai.com/v1'; }
+  }
+}
+
+function applyVisionPreset(){
+  var sel=document.getElementById('visionPresetSelect');
+  var opt=sel.options[sel.selectedIndex];
+  if(!opt || !opt.value) return;
+  document.getElementById('providerSelect').value=opt.dataset.provider || 'openai';
+  document.getElementById('apiUrl').value=opt.dataset.apiUrl || '';
+  var model=opt.dataset.model || '';
+  var modelSel=document.getElementById('modelSelect');
+  var found=false;
+  for(var i=0;i<modelSel.options.length;i++){
+    if(modelSel.options[i].value===model){ found=true; break; }
+  }
+  if(!found && model){
+    var o=document.createElement('option');
+    o.value=model; o.textContent=model;
+    modelSel.appendChild(o);
+  }
+  if(model) modelSel.value=model;
+  document.getElementById('visionEnabledSwitch').checked=true;
+  document.getElementById('visionPresetHint').textContent =
+    (opt.dataset.hint || '') + ' 已填入地址与模型，请填写对应平台的 API Key 后保存。';
+  onProviderChange();
+}
+
+function fetchModels(){
+  var btn=document.getElementById('fetchModelsBtn');
+  btn.disabled=true;
+  btn.innerHTML='<i class="fas fa-spinner fa-spin me-1"></i>获取中...';
+  fetch('/admin/ai_config/fetch_models',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      api_url:document.getElementById('apiUrl').value.trim(),
+      api_key:document.getElementById('apiKey').value.trim(),
+      provider:document.getElementById('providerSelect').value
+    })
+  }).then(function(r){return r.json();}).then(function(data){
+    btn.disabled=false;
+    btn.innerHTML='<i class="fas fa-sync-alt me-1"></i>获取模型列表';
+    if(data.success){
+      var sel=document.getElementById('modelSelect');
+      var cur=sel.value;
+      sel.innerHTML='';
+      data.models.forEach(function(m){
+        var opt=document.createElement('option');
+        opt.value=m.id;
+        opt.textContent=m.name;
+        if(m.id===cur) opt.selected=true;
+        sel.appendChild(opt);
+      });
+      if(data.models.length>0 && !sel.value){
+        sel.selectedIndex=0;
+      }
+    }else{
+      alert(data.msg||'获取模型列表失败');
+    }
+  }).catch(function(e){
+    btn.disabled=false;
+    btn.innerHTML='<i class="fas fa-sync-alt me-1"></i>获取模型列表';
+    alert('请求失败: '+e.message);
+  });
+}
+
+document.getElementById('studentPageOnlySwitch').addEventListener('change', function(){
+  var sw = this, msg = document.getElementById('pageOnlyMsg');
+  fetch('/teacher/ai/page-only', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({enabled: sw.checked})
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if (!d.success) { sw.checked = !sw.checked; msg.textContent = '✗ ' + (d.msg || '切换失败'); msg.className = 'ms-2 small text-danger'; return; }
+    sw.checked = !!d.enabled;
+    msg.textContent = d.enabled ? '✓ 已开启' : '✓ 已关闭'; msg.className = 'ms-2 small text-success';
+  }).catch(function(){ sw.checked = !sw.checked; msg.textContent = '✗ 请求失败'; msg.className = 'ms-2 small text-danger'; });
+});
+
+function saveConfig(){
+  var msg=document.getElementById('saveMsg');
+  msg.textContent='保存中...';
+  msg.className='ms-2 text-muted';
+  fetch('/admin/ai_config/save',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      api_url:document.getElementById('apiUrl').value.trim(),
+      api_key:document.getElementById('apiKey').value.trim(),
+      model:document.getElementById('modelSelect').value,
+      provider:document.getElementById('providerSelect').value,
+      enabled:document.getElementById('enabledSwitch').checked,
+      config_mode:document.querySelector('input[name="configMode"]:checked').value,
+      page_context_default:document.getElementById('pageContextSwitch').checked,
+      teacher_enabled:document.getElementById('teacherEnabledSwitch').checked,
+      teacher_page_context_default:document.getElementById('teacherPageContextSwitch').checked,
+      vision_enabled:document.getElementById('visionEnabledSwitch').checked,
+      image_enabled:document.getElementById('imageEnabledSwitch').checked,
+      image_provider:document.getElementById('imageProvider').value,
+      image_api_url:document.getElementById('imageApiUrl').value.trim(),
+      image_api_key:document.getElementById('imageApiKey').value.trim(),
+      image_model:document.getElementById('imageModel').value.trim(),
+      image_size:document.getElementById('imageSize').value.trim(),
+      image_quality:document.getElementById('imageQuality').value.trim(),
+      image_max_images:parseInt(document.getElementById('imageMaxImages').value)||1,
+      image_timeout_seconds:parseInt(document.getElementById('imageTimeout').value)||90,
+      image_allow_student:document.getElementById('imageAllowStudent').checked,
+      image_allow_teacher:document.getElementById('imageAllowTeacher').checked,
+      image_auto_intent:document.getElementById('imageAutoIntent').checked,
+      max_tokens:parseInt(document.getElementById('maxTokens').value)||2048,
+      temperature:parseFloat(document.getElementById('temperature').value)||0.7
+    })
+  }).then(function(r){return r.json();}).then(function(data){
+    if(data.success){
+      msg.textContent='✓ 保存成功';
+      msg.className='ms-2 text-success';
+    }else{
+      msg.textContent='✗ '+data.msg;
+      msg.className='ms-2 text-danger';
+    }
+    setTimeout(function(){msg.textContent='';},3000);
+  }).catch(function(e){
+    msg.textContent='✗ 请求失败';
+    msg.className='ms-2 text-danger';
+  });
+}
+</script>
+{% endblock %}

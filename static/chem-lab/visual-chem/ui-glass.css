@@ -1,0 +1,334 @@
+/* ui-glass.css：caf2 磨砂玻璃 UI 共享样式 */
+/* ============ 磨砂玻璃 UI（半透明 + 圆角面板） ============ */
+        :root {
+            --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+            --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+        }
+        #app-container {
+            flex-direction: column !important;
+            background: #000 !important;
+            background-image:
+                radial-gradient(560px 420px at 10% 8%, rgba(70, 130, 255, 0.22), transparent 65%),
+                radial-gradient(480px 360px at 92% 30%, rgba(80, 220, 150, 0.10), transparent 65%),
+                radial-gradient(760px 540px at 50% 112%, rgba(45, 170, 190, 0.18), transparent 70%) !important;
+        }
+        /* ===== 浅色模式：蓝绿渐变总背景 + 毛玻璃过渡 + 浅色滚动条（全站统一） ===== */
+        #app-container.light-bg {
+            background: #dcecf5 !important;
+            background-image:
+                radial-gradient(620px 460px at 6% 0%, rgba(120, 185, 255, 0.55), transparent 66%),
+                radial-gradient(560px 460px at 84% 64%, rgba(120, 220, 170, 0.45), transparent 68%),
+                radial-gradient(760px 540px at 52% 112%, rgba(90, 195, 205, 0.35), transparent 70%) !important;
+        }
+        #app-container.light-bg #canvas-area {
+            background:
+                radial-gradient(620px 460px at 18% 8%, rgba(140, 195, 255, 0.50), transparent 66%),
+                radial-gradient(560px 460px at 82% 68%, rgba(130, 225, 180, 0.42), transparent 68%),
+                #dcecf5 !important;
+        }
+        #app-container.light-bg #sidebar,
+        #app-container.light-bg #info-sidebar {
+            background: rgba(235, 240, 248, 0.45) !important;
+        }
+        #app-container.light-bg #controls-panel::-webkit-scrollbar-thumb,
+        #app-container.light-bg #info-sidebar::-webkit-scrollbar-thumb,
+        #app-container.light-bg #info-panel::-webkit-scrollbar-thumb,
+        #app-container.light-bg #teach-panel::-webkit-scrollbar-thumb,
+        #app-container.light-bg ::-webkit-scrollbar-thumb {
+            background: rgba(120, 185, 255, 0.55) !important;
+        }
+        #app-container.light-bg #controls-panel::-webkit-scrollbar-track,
+        #app-container.light-bg #info-sidebar::-webkit-scrollbar-track,
+        #app-container.light-bg #info-panel::-webkit-scrollbar-track,
+        #app-container.light-bg #teach-panel::-webkit-scrollbar-track,
+        #app-container.light-bg ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.06) !important;
+        }
+        #app-container.light-bg,
+        #app-container.light-bg #controls-panel,
+        #app-container.light-bg #info-sidebar,
+        #app-container.light-bg #info-panel,
+        #app-container.light-bg #teach-panel {
+            scrollbar-color: rgba(120, 185, 255, 0.55) rgba(0, 0, 0, 0.06);
+        }
+        #main-row { flex: 1; display: flex; min-height: 0; padding: 0 12px 12px; gap: 10px; align-items: stretch; }
+
+        /* 顶部品牌栏 */
+        #topbar {
+            flex-shrink: 0; margin: 10px 12px 8px; height: 62px; box-sizing: border-box;
+            display: flex; align-items: center; justify-content: space-between; gap: 12px;
+            padding: 0 18px; border-radius: 18px; z-index: 200; position: relative;
+        }
+        .glass, #topbar, #info-sidebar, .glass-panel, #cell-panel {
+            background: rgba(16, 22, 36, 0.50);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            box-shadow:
+                0 12px 32px rgba(0, 0, 0, 0.45),
+                inset 0 1px 0 rgba(255, 255, 255, 0.12),
+                inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+        }
+        /* 系统辅助设置：减少透明 → 面板趋于实心；增强对比 → 更实底色与明确描边 */
+        @media (prefers-reduced-transparency: reduce) {
+            .glass, #topbar, #info-sidebar, .glass-panel, #cell-panel {
+                background: rgba(16, 22, 36, 0.94);
+                -webkit-backdrop-filter: none;
+                backdrop-filter: none;
+            }
+            #app-container.light-bg #topbar,
+            #app-container.light-bg #info-sidebar,
+            #app-container.light-bg .glass-panel {
+                background: rgba(235, 240, 248, 0.97);
+                -webkit-backdrop-filter: none;
+                backdrop-filter: none;
+            }
+        }
+        @media (prefers-contrast: more) {
+            .glass, #topbar, #info-sidebar, .glass-panel, #cell-panel {
+                background: rgba(16, 22, 36, 0.92);
+                border-color: rgba(255, 255, 255, 0.35);
+            }
+        }
+        .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+        #brand-logo {
+            width: 40px; height: 40px; object-fit: contain; display: block;
+        }
+        .brand-text { line-height: 1.25; display: flex; align-items: baseline; gap: 12px; }
+        .brand-title { font-size: 17px; font-weight: 700; color: #fff; letter-spacing: 1px; white-space: nowrap; }
+        .brand-divider { color: #ffffff; opacity: 0.9; margin: 0 8px; }
+        .brand-sub { font-size: 11px; color: #9fb3d1; letter-spacing: 2px; margin-top: 0; white-space: nowrap; }
+        .topbar-actions { display: flex; align-items: center; gap: 8px; }
+        .top-btn {
+            background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.18);
+            color: #eaf2ff; padding: 8px 14px; border-radius: 12px; font-size: 12px;
+            cursor: pointer; text-decoration: none; transition: all 0.2s; white-space: nowrap; font-family: inherit;
+        }
+        .top-btn:hover { background: rgba(255, 170, 85, 0.25); border-color: #ffaa66; color: #fff; }
+        .top-btn.pause-btn { background: rgba(220, 60, 60, 0.18); border-color: rgba(255, 90, 90, 0.4); }
+        .top-btn.pause-btn.paused { background: rgba(60, 190, 110, 0.22); border-color: rgba(90, 255, 140, 0.45); }
+        .top-btn .tb-icon { display: inline-block; width: 14px; height: 14px; margin-right: 6px; vertical-align: -2px; }
+        .top-btn.pause-btn::before {
+            content: ''; display: inline-block; width: 13px; height: 13px; margin-right: 6px; vertical-align: -2px;
+            background-color: currentColor;
+            -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round'%3E%3Cline x1='8' y1='5' x2='8' y2='19'/%3E%3Cline x1='16' y1='5' x2='16' y2='19'/%3E%3C/svg%3E") center / contain no-repeat;
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round'%3E%3Cline x1='8' y1='5' x2='8' y2='19'/%3E%3Cline x1='16' y1='5' x2='16' y2='19'/%3E%3C/svg%3E") center / contain no-repeat;
+        }
+        .top-btn.pause-btn.paused::before {
+            -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linejoin='round'%3E%3Cpath d='M8.5 5.8v12.4L18 12z'/%3E%3C/svg%3E") center / contain no-repeat;
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linejoin='round'%3E%3Cpath d='M8.5 5.8v12.4L18 12z'/%3E%3C/svg%3E") center / contain no-repeat;
+        }
+
+        /* 左侧控制栏：两块磨砂圆角面板 */
+        #sidebar {
+            /* ★ 自适应宽度：15vw 随屏宽线性缩放。1920 及以上恒为 232px（和你电脑上完全一样），
+               1440 → 216px，1280 → 192px，1024 → 150px。
+               ⇒ 白板 / 投影这类「分辨率报 1920 但浏览器只给到一千多」的设备上，画布不会再被侧栏挤扁。
+               第一行是给很老的浏览器的兜底值（读不懂 clamp 就用它）。 */
+            width: 232px !important;
+            width: clamp(150px, 15vw, 232px) !important;
+            background: transparent !important;
+            border: none !important; box-shadow: none !important;
+        }
+        #controls-panel {
+            display: flex; flex-direction: column; gap: 10px; overflow-y: auto;
+            background: transparent !important; padding: 0 !important; border: none !important;
+        }
+        .glass-panel {
+            border-radius: 16px; padding: 12px 12px 10px;
+            display: flex; flex-direction: column; gap: 8px; flex-shrink: 0;
+        }
+        .glass-panel .panel-title {
+            font-size: 13px; font-weight: 700; color: #ffaa55; text-align: center; letter-spacing: 4px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.12); padding-bottom: 7px; margin: 0 0 2px;
+        }
+        #controls-panel .control-section { gap: 6px; margin-bottom: 0; }
+        #controls-panel .control-section + .control-section {
+            margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(255, 255, 255, 0.1);
+        }
+        #controls-panel h4 { font-size: 11px; color: #aec0db; letter-spacing: 2px; }
+
+        /* 右侧信息栏：磨砂圆角面板 */
+        #info-sidebar {
+            width: 232px !important;
+            width: clamp(150px, 15vw, 232px) !important;
+            border-radius: 16px; border-left: none !important;
+            overflow-y: auto;
+        }
+        #info-panel { flex: 3 1 0; padding: 12px 12px 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); overflow: hidden; min-height: 0; }
+        #teach-panel { flex: 2 1 0; padding: 10px 12px; overflow-y: auto; min-height: 0; }
+
+        /* 图例（位于结构信息内、结构类型上方），含晶胞边界 */
+        #legend-box {
+            border-radius: 12px; background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1); padding: 8px 10px; margin-bottom: 8px;
+            display: flex; flex-direction: column; gap: 6px;
+        }
+        #legend-box .legend-item { gap: 8px; font-size: 11px; color: #dbe4f2; }
+        .cell-sample {
+            width: 14px; height: 14px; flex-shrink: 0; border: 2px solid rgba(140, 160, 200, 0.9);
+            border-radius: 3px; background: rgba(140, 160, 200, 0.15); box-shadow: 0 0 4px rgba(140, 160, 200, 0.4);
+        }
+
+        /* 所有小面板 / 按钮圆角 */
+        #canvas-area { border-radius: 16px; background: #000 !important; }
+        .anim-btn, .transform-btn, .large-cell-btn, .view-btn, .filter-btn, .reset-btn, .intro-btn { border-radius: 12px; }
+
+        /* 浅色背景下的玻璃面板 */
+        #app-container.light-bg #topbar,
+        #app-container.light-bg #info-sidebar,
+        #app-container.light-bg .glass-panel {
+            background: rgba(235, 240, 248, 0.78);
+            border-color: rgba(120, 140, 175, 0.35);
+            box-shadow: 0 10px 30px rgba(30, 50, 80, 0.18);
+        }
+        #app-container.light-bg .brand-title { color: #223; }
+        #app-container.light-bg .brand-sub { color: #556; }
+        #app-container.light-bg .top-btn { color: #223; border-color: rgba(70, 90, 120, 0.35); background: rgba(255, 255, 255, 0.5); }
+        #app-container.light-bg .glass-panel .panel-title { color: #b06a00; }
+        #app-container.light-bg #controls-panel h4 { color: #667; }
+        #app-container.light-bg #legend-box { background: rgba(255, 255, 255, 0.55); border-color: rgba(120, 140, 175, 0.3); }
+        #app-container.light-bg #legend-box .legend-item { color: #334; }
+        #app-container.light-bg .cell-sample { border-color: rgba(70, 90, 120, 0.8); }
+
+        /* ============ 第二轮：面板彻底分离、压缩间距、晶胞面板 ============ */
+        #main-row { padding: 0 10px 10px; gap: 10px; }
+        /* ★ 自适应：间隙与外边距随屏宽收缩（1920 及以上仍是 10px，与原来一致） */
+        #main-row {
+            padding: 0 clamp(6px, 0.55vw, 10px) clamp(6px, 0.55vw, 10px);
+            gap: clamp(6px, 0.55vw, 10px);
+        }
+        #controls-panel { gap: 10px; }
+        .glass-panel { padding: 7px 9px 6px; gap: 4px; }
+        .glass-panel .panel-title { font-size: 11.5px; padding-bottom: 3px; letter-spacing: 3px; margin-bottom: 0; }
+        #controls-panel .control-section { gap: 3px; }
+        #controls-panel .control-section + .control-section { margin-top: 4px; padding-top: 4px; }
+        #controls-panel h4 { font-size: 9.5px; letter-spacing: 1.5px; margin-bottom: 0; padding-bottom: 1px; }
+        .view-btn, .filter-btn { padding: 4px 0; font-size: 10px; }
+        .anim-btn, .transform-btn { padding: 5px 3px; font-size: 10px; }
+        .large-cell-btn { padding: 5px 0; font-size: 10px; }
+        #topbar { height: 46px; margin: 6px 10px; }
+        /* ★ 自适应：矮屏（笔记本 / 白板）自动压矮顶栏，把高度让给画布 */
+        #topbar { height: clamp(40px, 4.4vh, 46px); margin: clamp(4px, 0.5vh, 6px) 10px; }
+        .slider-container label { font-size: 9.5px; }
+        .slider-container input { margin-top: 0; height: 2px; }
+        .control-section .grid-2 { gap: 4px; }
+        .control-section .grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; }
+        /* 10-04：四方（黄铜矿）/ 六方（CaCu5）晶胞去掉「对角」后只剩 4 个视角按钮 */
+        .control-section .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; }
+        .atom-filter-group { gap: 4px; }
+        #info-sidebar { gap: 8px; }
+
+        /* 右侧信息栏拆成两个独立玻璃面板 */
+        #info-sidebar {
+            display: flex; flex-direction: column; gap: 10px;
+            background: transparent !important; border: none !important;
+            box-shadow: none !important; overflow-y: auto;
+        }
+        #info-panel, #teach-panel { border: none !important; }
+        .info-glass { flex: 3 1 0; min-height: 0; }
+        .teach-glass { flex: 2 1 0; min-height: 0; }
+        #info-panel.info-glass, #teach-panel.teach-glass { padding: 10px 10px; }
+
+        /* 晶胞所在空间的圆角边界线 */
+        #scene-boundary {
+            position: absolute; top: 10px; right: 10px; bottom: 46px; left: 10px;
+            border: 1.5px solid rgba(150, 190, 255, 0.45); border-radius: 14px;
+            box-shadow: 0 0 14px rgba(120, 180, 255, 0.12), inset 0 0 18px rgba(120, 180, 255, 0.06);
+            pointer-events: none; z-index: 5;
+        }
+        #app-container.light-bg #scene-boundary {
+            border-color: rgba(70, 110, 170, 0.55);
+            box-shadow: 0 0 14px rgba(70, 110, 170, 0.15);
+        }
+
+        /* 晶胞面板（位于边界线内左上角，显示当前功能） */
+        #cell-panel {
+            position: absolute; top: 16px; left: 16px; z-index: 120;
+            display: flex; justify-content: flex-start; align-items: flex-start;
+            padding: 5px 9px; border-radius: 10px; pointer-events: none;
+            max-width: 46%;
+            max-width: min(46%, 340px);
+            border: 2px solid rgba(150, 190, 255, 0.6) !important;
+            box-shadow: 0 0 12px rgba(120, 180, 255, 0.28), 0 6px 18px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.10) !important;
+        }
+        .cell-panel-fn {
+            font-size: 12px;
+            font-size: clamp(10px, 0.72vw, 12px);
+            font-weight: 600; color: #d6ecff; padding: 2px 4px;
+            white-space: nowrap; line-height: 1.2;
+        }
+        #app-container.light-bg #cell-panel { background: rgba(235, 240, 248, 0.75); border-color: rgba(70, 110, 170, 0.8) !important; }
+        #app-container.light-bg .cell-panel-fn { color: #145c8a; }
+
+        /* 竖屏布局适配 */
+        @media (orientation: portrait) {
+            #main-row { flex-direction: column !important; padding: 0 12px 12px; }
+            #topbar { height: auto; min-height: 56px; flex-wrap: wrap; }
+            .brand-text { flex-wrap: wrap; row-gap: 2px; }
+            #sidebar { width: 100% !important; max-height: none; }
+            #controls-panel { max-height: none; }
+            #info-sidebar { width: 100% !important; flex-direction: row; }
+        }
+
+        /* ============ 自适应：窄视口 / 矮视口（希沃白板、投影、小笔记本） ============ */
+        /* 说明：1920 及以上这些规则一条都不会触发，你电脑上看到的和改之前一模一样。 */
+        @media (max-width: 1400px) {
+            .glass-panel { padding: 5px 7px 5px; }
+            .glass-panel .panel-title { font-size: 10.5px; letter-spacing: 2px; padding-bottom: 2px; }
+            #controls-panel h4 { font-size: 9px; letter-spacing: 1px; }
+            #legend-box { padding: 6px 8px; margin-bottom: 6px; }
+            /* 画布变窄后左上角说明牌不再独占一行，允许折行，免得糊在晶胞上 */
+            .cell-panel-fn { white-space: normal; }
+        }
+        @media (max-width: 1100px) {
+            #sidebar, #info-sidebar { width: clamp(110px, 13vw, 170px) !important; }
+            .view-btn, .filter-btn { font-size: 9.5px; }
+            .anim-btn, .transform-btn, .large-cell-btn { font-size: 9.5px; padding: 4px 2px; }
+            #brand-logo { width: 32px; height: 32px; }
+            .brand-title { font-size: 15px; }
+            .brand-sub { letter-spacing: 1px; }
+        }
+        @media (max-height: 780px) {
+            #topbar { height: 40px; }
+            #brand-logo { width: 30px; height: 30px; }
+            .brand-title { font-size: 15px; }
+            .top-btn { padding: 6px 10px; font-size: 11px; }
+            #legend-box { padding: 5px 7px; margin-bottom: 5px; }
+            #legend-box .legend-item { font-size: 10px; }
+            #cell-panel { top: 10px; left: 10px; }
+        }
+
+        #info { display: none !important; }
+
+        /* ============ 教学面板内容切换淡入（全站同步） ============ */
+        #teach-content {
+            transition: opacity 180ms var(--ease-out), transform 180ms var(--ease-out);
+        }
+        #teach-content.content-swap {
+            opacity: 0;
+            transform: translateY(4px);
+            transition: none;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            #teach-content { transition: opacity 180ms ease; }
+            #teach-content.content-swap { transform: none; }
+        }
+
+        /* ============ 两侧栏「底端对齐到底」（全站统一） ============ */
+        /* 原因：左右两栏的内容高度天然不一样（左栏按钮多、右栏说明多），
+           以前只有右侧按 3:2 撑满、左侧按内容高度停住，于是窗口宽高一变，
+           左栏就停在半空、右栏贴到底，看着就是「下端不齐」。
+           做法：两栏都显式 flex 纵向排布，让每栏的最后一块玻璃面板吃掉剩余高度
+           —— 任何屏幕尺寸下，左右两列的底边都贴住同一条线（#main-row 的底边）。 */
+        #sidebar { display: flex; flex-direction: column; min-height: 0; }
+        #controls-panel { flex: 1 1 auto; min-height: 0; }
+        #controls-panel > .glass-panel:last-child { flex: 1 1 auto; }
+        #info-sidebar { min-height: 0; }
+        /* 右侧若是「结构信息 3 : 教学说明 2」两块，比例已经是撑满的，别动它 */
+        #info-sidebar > .glass-panel:last-child:not(.teach-glass):not(.info-glass) { flex: 1 1 auto; }
+        /* 竖屏 / 窄屏两栏已经改成上下堆叠，不再强行拉高 */
+        @media (orientation: portrait), (max-width: 700px) {
+            #controls-panel > .glass-panel:last-child,
+            #info-sidebar > .glass-panel:last-child:not(.teach-glass):not(.info-glass) { flex: 0 1 auto; }
+        }

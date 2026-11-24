@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block title %}活动管理{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h2 class="mb-4"><i class="fas fa-tasks me-2"></i>活动管理</h2>
+  <div class="card shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light"><tr><th>资源</th><th>可见性</th><th>活动数</th><th style="width:220px;">操作</th></tr></thead>
+        <tbody>
+          {% for r in resources %}
+          <tr>
+            <td><strong>{{ r.title }}</strong></td>
+            <td>
+              {% if r.show_in_student %}<span class="badge bg-primary">学生</span>{% endif %}
+              {% if r.show_in_classroom %}<span class="badge bg-info">教师</span>{% endif %}
+              {% if not r.show_in_student and not r.show_in_classroom %}<span class="badge bg-secondary">隐藏</span>{% endif %}
+            </td>
+            <td>{{ stats.get(r.id, 0) }}</td>
+            <td>
+              <a href="{{ url_for('activities.admin_activities', res_id=r.id) }}" class="btn btn-outline-primary btn-sm rounded-pill"><i class="fas fa-tasks me-1"></i>学习活动</a>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="text-center text-muted py-4">暂无资源</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if pagination and pagination.pages > 1 %}
+    <div class="card-footer bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span class="text-muted small">共 {{ pagination.total }} 个资源，第 {{ pagination.page }} / {{ pagination.pages }} 页</span>
+        <nav aria-label="资源分页">
+            <ul class="pagination justify-content-center mb-0 flex-wrap">
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('activities.teacher_resources', page=pagination.prev_num) if pagination.has_prev else '#' }}">上一页</a>
+                </li>
+                {% for p in range(1, pagination.pages + 1) %}
+                    {% if p == 1 or p == pagination.pages or (p >= pagination.page - 2 and p <= pagination.page + 2) %}
+                    <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                        <a class="page-link" href="{{ url_for('activities.teacher_resources', page=p) }}">{{ p }}</a>
+                    </li>
+                    {% elif p == 2 or p == pagination.pages - 1 %}
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('activities.teacher_resources', page=pagination.next_num) if pagination.has_next else '#' }}">下一页</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

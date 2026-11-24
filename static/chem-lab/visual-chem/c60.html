@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>碳60 (C60) 足球烯 - 可视化化学</title>
+    <style>
+        :root {
+            /* 碳60 主色：碳灰蓝 */
+            --crystal-c1: rgba(120, 190, 255, 0.30);
+            --crystal-c2: rgba(70, 120, 180, 0.20);
+        }
+        html, body { width: 100%; height: 100%; overflow: hidden !important; margin: 0; padding: 0; }
+        #app-container { width: 100% !important; height: 100% !important; }
+
+        /* ---------- 图例色点 ---------- */
+        .dot-c      { background: #1e2024; box-shadow: 0 0 6px #5a626e; border: 1px solid #8b95a3; }
+        .dot-ghost  { background: rgba(140, 150, 165, 0.26); border: 1px dashed #8c96a5; box-shadow: none; }
+        .bond-sample { width: 16px; height: 4px; background: linear-gradient(90deg, #8fa6c8, #c3d4ec, #8fa6c8); border-radius: 2px; }
+        .bond-sample.broken { background: none; border-top: 3px dashed #ff8a5c; height: 0; }
+        .bond-sample.vdw { background: none; border-top: 3px dashed #6ee7ff; height: 0; }
+        .bond-sample.d66 { background: linear-gradient(90deg, #c79a2e, #ffd166, #c79a2e); width: 12px; height: 5px; }
+        .bond-sample.stub { background: linear-gradient(90deg, #3d4a5c, #7d8ea6, #3d4a5c); width: 10px; }
+        .color-dot.sq { border-radius: 3px; }
+        /* 60° 角标：图例里用一个小扇形示意 */
+        .angle-sample { width: 16px; height: 12px; border-left: 2px solid #ffd166; border-bottom: 2px solid #ffd166; border-bottom-left-radius: 10px; }
+        .ring-sample5 { width: 14px; height: 14px; background: rgba(255, 159, 67, 0.30); border: 1px solid #ff9f43; clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%); }
+        .ring-sample6 { width: 14px; height: 14px; background: rgba(79, 209, 255, 0.24); border: 1px solid #4fd1ff; clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%); }
+
+        /* ---------- 布局：左侧控制 200px + 画布 + 右侧信息 200px ---------- */
+        #sidebar { width: 200px !important; }
+        #info-sidebar {
+            width: 200px; flex-shrink: 0; z-index: 100;
+            background: rgba(20, 20, 30, 0.6); border-left: 1px solid #334;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.5);
+            display: flex; flex-direction: column;
+            color: #fff; font-size: 11px; overflow-y: auto; box-sizing: border-box;
+        }
+        #info-panel { flex: 3 1 0; padding: 10px 10px; border-bottom: 1px solid #444; overflow: hidden; min-height: 0; }
+        #teach-panel { flex: 2 1 0; padding: 10px 10px; overflow-y: auto; min-height: 0; }
+        .panel-title { font-weight: bold; font-size: 12px; border-bottom: 1px solid #555; padding-bottom: 4px; margin-bottom: 6px; color: #ffaa00; }
+        .info-item { display: flex; justify-content: space-between; gap: 6px; padding: 3px 0; border-bottom: 1px dashed rgba(255,255,255,0.1); line-height: 1.3; font-size: 10.5px; }
+        .info-item span { color: #aaa; flex-shrink: 0; }
+        .info-item b { text-align: right; color: #fff; font-weight: 600; }
+        /* ★ 高频考点行：单独描一下，值得学生多看两眼 */
+        .info-item.key b { color: #ffd166; }
+        #teach-content { line-height: 1.65; color: #ddd; }
+        #teach-content strong { color: #ffaa00; }
+        #teach-content .hl { color: #ff9b6b; font-weight: bold; }
+        #teach-content .hl2 { color: #7fd8ff; font-weight: bold; }
+        #controls-panel, #info-sidebar { -webkit-overflow-scrolling: touch; }
+        body { overflow: auto !important; }
+        #app-container { min-width: 640px; }
+
+        /* ---------- 物质切换按钮 ---------- */
+        .species-btn { width: 100%; padding: 8px 4px; font-size: 12px; font-weight: bold; line-height: 1.25; }
+        .species-btn small { display: block; font-weight: normal; font-size: 10px; opacity: 0.75; margin-top: 2px; }
+
+        #rotate-hint {
+            display: none;
+            position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+            background: rgba(15, 25, 45, 0.94); color: #ffd966;
+            border: 1px solid #ffaa00; border-radius: 20px;
+            padding: 8px 18px; font-size: 13px; font-weight: bold;
+            z-index: 99999; box-shadow: 0 4px 15px rgba(0,0,0,0.45);
+            white-space: nowrap;
+        }
+        .hint-close { margin-left: 10px; cursor: pointer; color: #99a; }
+        .hint-close:hover { color: #ff5555; }
+        @media (hover: none) and (pointer: coarse) {
+            body::-webkit-scrollbar, #app-container *::-webkit-scrollbar { display: none; width: 0; height: 0; }
+            body, #app-container * { scrollbar-width: none; }
+        }
+        #app-container #controls-panel::-webkit-scrollbar,
+        #app-container #info-sidebar::-webkit-scrollbar,
+        #app-container #info-panel::-webkit-scrollbar,
+        #app-container #teach-panel::-webkit-scrollbar,
+        body::-webkit-scrollbar { width: 5px; height: 5px; }
+        #app-container #controls-panel::-webkit-scrollbar-thumb,
+        #app-container #info-sidebar::-webkit-scrollbar-thumb,
+        #app-container #info-panel::-webkit-scrollbar-thumb,
+        #app-container #teach-panel::-webkit-scrollbar-thumb,
+        body::-webkit-scrollbar-thumb { background: rgba(255, 170, 0, 0.45); border-radius: 4px; }
+        #app-container.light-bg #sidebar,
+        #app-container.light-bg #info-sidebar { background: rgba(233, 238, 245, 0.95); border-color: #b8c2cf; color: #223; }
+        #app-container.light-bg #info-panel { border-color: #c4ccd6; }
+        #app-container.light-bg .panel-title { color: #b06a00; border-color: #c4ccd6; }
+        #app-container.light-bg .info-item span { color: #556; }
+        #app-container.light-bg .info-item b { color: #112; }
+        #app-container.light-bg .info-item b.key { color: #a06a00; }
+        #app-container.light-bg .info-item { border-color: rgba(0,0,0,0.08); }
+        #app-container.light-bg #teach-content { color: #334; }
+
+        @media (orientation: portrait) {
+            #rotate-hint { display: block; }
+            #app-container { flex-direction: column !important; width: 100vw !important; min-width: 0 !important; height: auto !important; min-height: 100vh; overflow: visible !important; }
+            #sidebar { width: 100% !important; height: auto !important; max-height: 45vh; border-right: none; border-bottom: 1px solid #334; }
+            #controls-panel { overflow-y: auto !important; min-height: 0; }
+            #canvas-area { width: 100% !important; flex: 1; }
+            #info-sidebar { width: 100% !important; height: auto !important; max-height: none; flex-direction: row; border-left: none; border-top: 1px solid #334; }
+            #info-panel { border-bottom: none; border-right: 1px solid #334; }
+        }
+
+        .light-bg { background: #dcecf5 !important; }
+        #loading-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #111122; color: #ffaa00; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10000; font-size: 16px; font-weight: bold; letter-spacing: 2px;}
+        #error-log { position: absolute; top: 10px; right: 10px; background: rgba(50, 0, 0, 0.9); color: #ff5555; padding: 15px; border: 2px solid red; border-radius: 8px; z-index: 9999; display: none; font-size: 13px; max-width: 300px; word-wrap: break-word; }
+    </style>
+    <link rel="stylesheet" href="ui-glass.css">
+
+<style id="chem-lab-embed-style">
+  /* ITstudy 化学仿真统一壳：隐藏原站顶栏/品牌/版权水印。
+     不强制页面高度与 overflow —— 各页面自有布局（周期表需要滚动，
+     3D 页需要全屏），统一覆盖会把周期表底部裁掉。 */
+  #topbar, #copyright, .wm-copyright, #btn-home,
+  .topbar-actions, .back-home-btn,
+  .brand, .brand-title, #brand-logo { display: none !important; }
+  canvas { max-width: 100%; }
+  /* 课堂 iframe 高度较小时：周期表隐藏趋势图、压缩行高，保证 118 元素可见 */
+  @media (max-height: 720px) {
+    #chart-panel { display: none !important; }
+    .ptable.size-s { grid-auto-rows: 32px !important; }
+    #info-sidebar { width: 220px; }
+  }
+</style>
+</head>
+<body>
+    <div id="app-container">
+        <div id="rotate-hint">📱 建议横屏观看，获得最佳体验 <span class="hint-close" onclick="this.parentNode.style.display='none'">✕</span></div>
+
+        <!-- 顶部品牌栏 -->
+        <div id="topbar" class="glass">
+            <div class="brand">
+                <img id="brand-logo" src="favicon.png" alt="可视化化学">
+                <div class="brand-text">
+                    <div class="brand-title">可视化化学<span class="brand-divider">·</span>可视化学</div>
+                    <div class="brand-sub">让微观结构，触手可及！</div>
+                </div>
+            </div>
+            <div class="topbar-actions">
+                <a class="top-btn" id="btn-home" href="index.html" target="_top"><svg class="tb-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.8V21h14V9.8"/></svg>主页</a>
+                <button class="top-btn pause-btn" id="btn-pause">暂停模型自转</button>
+                <button class="top-btn" id="btn-reset-view"><svg class="tb-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>视角复原</button>
+            </div>
+        </div>
+
+        <div id="main-row">
+        <div id="sidebar">
+            <div id="controls-panel">
+                <div class="glass-panel">
+                    <div class="panel-title">结构标记</div>
+                    <div class="control-section">
+                        <button class="filter-btn" id="btn-mark5">12 个五元环</button>
+                        <button class="filter-btn" id="btn-mark6">20 个六元环</button>
+                        <button class="filter-btn" id="btn-mark66">30 条 6:6 键（C=C）</button>
+                    </div>
+                </div>
+
+                <div class="glass-panel">
+                    <div class="panel-title">动画演示</div>
+                    <div class="control-section">
+                        <button class="anim-btn" id="btn-intro"><svg class="btn-ico" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><path d="M8 5.14v13.72L19 12z"/></svg>开始组装动画</button>
+                        <button class="step-btn" id="btn-intro-reset" style="display:none;">重播组装动画</button>
+                    </div>
+                    <div class="control-section">
+                        <h4>显示规模</h4>
+                        <div class="grid-2">
+                            <button class="filter-btn active-filter" id="btn-scale-single">单个分子</button>
+                            <button class="filter-btn" id="btn-scale-multi">堆积示意</button>
+                        </div>
+                    </div>
+                    <div class="control-section" id="sec-bond">
+                        <h4>键的区分</h4>
+                        <button class="filter-btn" id="btn-bond">标注键角 108° / 120°</button>
+                    </div>
+                </div>
+
+                <div class="glass-panel">
+                    <div class="panel-title">显示模块</div>
+                    <div class="control-section">
+                        <h4>视角 (Z为上)</h4>
+                        <div class="grid-2">
+                            <button class="view-btn active" id="view-perspective">透视</button>
+                            <button class="view-btn" id="view-diag">对角</button>
+                            <button class="view-btn" id="view-x">X轴</button>
+                            <button class="view-btn" id="view-y">Y轴</button>
+                            <button class="view-btn" id="view-z" style="grid-column: span 2;">Z轴</button>
+                        </div>
+                    </div>
+                    <div class="control-section">
+                        <h4>背景</h4>
+                        <div class="slider-container">
+                            <label>缩放 🎚️ <span id="scale-value">1.00</span></label>
+                            <input type="range" id="scale-slider" min="0.4" max="1.80" step="0.01" value="1.00">
+                        </div>
+                        <button class="view-btn" id="btn-bg-toggle" style="margin-top: 5px;"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M4.3 4.3l1.6 1.6M18.1 18.1l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.3 19.7l1.6-1.6M18.1 5.9l1.6-1.6"/></svg>切换浅色背景</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="canvas-area">
+            <div id="loading-screen">⏳ 正在加载 3D 引擎...</div>
+            <div id="error-log">⚠ 运行出错：<br><span id="error-msg"></span></div>
+            <script> window.addEventListener('error', function(e) { document.getElementById('loading-screen').style.display = 'none'; document.getElementById('error-log').style.display = 'block'; document.getElementById('error-msg').innerText += e.message + '\n'; }); </script>
+
+            <div id="axes-container"></div>
+            <div id="scene-boundary"></div>
+            <div id="cell-panel" class="glass">
+                <div class="cell-panel-fn" id="cell-fn-label">碳60 C₆₀ · 截角二十面体</div>
+            </div>
+        </div>
+
+        <div id="info-sidebar">
+            <div id="info-panel" class="glass-panel info-glass">
+                <div class="panel-title">结构信息</div>
+                <div id="legend-box">
+                    <div class="legend-item"><div class="color-dot dot-c"></div><span>碳原子 C（60 个）</span></div>
+                    <div class="legend-item"><div class="bond-sample"></div><span>C–C 单键（6:5，60 条）</span></div>
+                    <div class="legend-item" id="legend-66" style="display:none;"><div class="bond-sample d66"></div><span>6:6 键（两个六元环共用，30 条）</span></div>
+                    <div class="legend-item" id="legend-r5" style="display:none;"><div class="ring-sample5"></div><span>五元环（12 个）</span></div>
+                    <div class="legend-item" id="legend-r6" style="display:none;"><div class="ring-sample6"></div><span>六元环（20 个）</span></div>
+                    <div class="legend-item" id="legend-vdw" style="display:none;"><div class="bond-sample vdw"></div><span>分子间范德华力</span></div>
+                </div>
+                <div id="info-items"></div>
+            </div>
+            <div id="teach-panel" class="glass-panel teach-glass">
+                <div class="panel-title">教学解析</div>
+                <div id="teach-content"></div>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <script src="three.min.js"></script>
+    <script src="OrbitControls-umd.js"></script>
+    <script src="Engine.js"></script>
+    <script src="ui-glass.js"></script>
+    <script>
+
+    /* =========================================================================
+       碳60 C₆₀ —— 足球烯（截角二十面体）
+       -------------------------------------------------------------------------
+       坐标来源：截角二十面体的解析坐标（φ = 1.618…），三组循环置换共 60 个点：
+         (0, ±1, ±3φ) / (±2, ±(1+2φ), ±φ) / (±1, ±(2+φ), ±2φ)
+       已离线校验：60 顶点、90 条棱（最近邻 2.0，次近邻 3.24，阈值不会误判）、
+       12 个五元环 + 20 个六元环、欧拉公式 V−E+F = 60−90+32 = 2。
+       模型单位 ≈ Å：棱长 1.40（对应 C–C 键 1.40/1.45 Å），分子半径 3.47（实测约 3.55）。
+       ========================================================================= */
+
+    var C60_V = [[0.0,0.7,3.3979],[0.0,0.7,-3.3979],[0.0,-0.7,3.3979],[0.0,-0.7,-3.3979],[0.7,3.3979,0.0],[0.7,-3.3979,0.0],[-0.7,3.3979,0.0],[-0.7,-3.3979,0.0],[3.3979,0.0,0.7],[3.3979,0.0,-0.7],[-3.3979,0.0,0.7],[-3.3979,0.0,-0.7],[1.4,2.9652,1.1326],[1.4,2.9652,-1.1326],[1.4,-2.9652,1.1326],[1.4,-2.9652,-1.1326],[-1.4,2.9652,1.1326],[-1.4,2.9652,-1.1326],[-1.4,-2.9652,1.1326],[-1.4,-2.9652,-1.1326],[2.9652,1.1326,1.4],[2.9652,1.1326,-1.4],[2.9652,-1.1326,1.4],[2.9652,-1.1326,-1.4],[-2.9652,1.1326,1.4],[-2.9652,1.1326,-1.4],[-2.9652,-1.1326,1.4],[-2.9652,-1.1326,-1.4],[1.1326,1.4,2.9652],[1.1326,1.4,-2.9652],[1.1326,-1.4,2.9652],[1.1326,-1.4,-2.9652],[-1.1326,1.4,2.9652],[-1.1326,1.4,-2.9652],[-1.1326,-1.4,2.9652],[-1.1326,-1.4,-2.9652],[0.7,2.5326,2.2652],[0.7,2.5326,-2.2652],[0.7,-2.5326,2.2652],[0.7,-2.5326,-2.2652],[-0.7,2.5326,2.2652],[-0.7,2.5326,-2.2652],[-0.7,-2.5326,2.2652],[-0.7,-2.5326,-2.2652],[2.5326,2.2652,0.7],[2.5326,2.2652,-0.7],[2.5326,-2.2652,0.7],[2.5326,-2.2652,-0.7],[-2.5326,2.2652,0.7],[-2.5326,2.2652,-0.7],[-2.5326,-2.2652,0.7],[-2.5326,-2.2652,-0.7],[2.2652,0.7,2.5326],[2.2652,0.7,-2.5326],[2.2652,-0.7,2.5326],[2.2652,-0.7,-2.5326],[-2.2652,0.7,2.5326],[-2.2652,0.7,-2.5326],[-2.2652,-0.7,2.5326],[-2.2652,-0.7,-2.5326]];
+    var C60_E = [[0,2],[0,28],[0,32],[1,3],[1,29],[1,33],[2,30],[2,34],[3,31],[3,35],[4,6],[4,12],[4,13],[5,7],[5,14],[5,15],[6,16],[6,17],[7,18],[7,19],[8,9],[8,20],[8,22],[9,21],[9,23],[10,11],[10,24],[10,26],[11,25],[11,27],[12,36],[12,44],[13,37],[13,45],[14,38],[14,46],[15,39],[15,47],[16,40],[16,48],[17,41],[17,49],[18,42],[18,50],[19,43],[19,51],[20,44],[20,52],[21,45],[21,53],[22,46],[22,54],[23,47],[23,55],[24,48],[24,56],[25,49],[25,57],[26,50],[26,58],[27,51],[27,59],[28,36],[28,52],[29,37],[29,53],[30,38],[30,54],[31,39],[31,55],[32,40],[32,56],[33,41],[33,57],[34,42],[34,58],[35,43],[35,59],[36,40],[37,41],[38,42],[39,43],[44,45],[46,47],[48,49],[50,51],[52,54],[53,55],[56,58],[57,59]];
+    var C60_F5 = [[0,32,40,36,28],[1,29,37,41,33],[2,30,38,42,34],[3,35,43,39,31],[4,13,45,44,12],[5,14,46,47,15],[6,16,48,49,17],[7,19,51,50,18],[8,22,54,52,20],[9,21,53,55,23],[10,24,56,58,26],[11,27,59,57,25]];
+    var C60_F6 = [[0,2,34,58,56,32],[0,28,52,54,30,2],[1,3,31,55,53,29],[1,33,57,59,35,3],[4,6,17,41,37,13],[4,12,36,40,16,6],[5,7,18,42,38,14],[5,15,39,43,19,7],[8,9,23,47,46,22],[8,20,44,45,21,9],[10,11,25,49,48,24],[10,26,50,51,27,11],[12,44,20,52,28,36],[13,37,29,53,21,45],[14,38,30,54,22,46],[15,47,23,55,31,39],[16,40,32,56,24,48],[17,49,25,57,33,41],[18,50,26,58,34,42],[19,43,35,59,27,51]];
+    var C60_B66 = [[0,2],[1,3],[4,6],[5,7],[8,9],[10,11],[12,36],[13,37],[14,38],[15,39],[16,40],[17,41],[18,42],[19,43],[20,44],[21,45],[22,46],[23,47],[24,48],[25,49],[26,50],[27,51],[28,52],[29,53],[30,54],[31,55],[32,56],[33,57],[34,58],[35,59]];
+    var MOL_R = 3.469;
+
+
+    /* C₆₀ 晶体：面心立方堆积，a = 14.17 Å，晶胞 14 个格点分子（8 顶角 + 6 面心），净含 4 个分子，
+       最近邻分子中心距 = a/√2 ≈ 10.0 Å（配位数 12），分子之间只有范德华力。 */
+    var FCC_A = 14.17;
+
+    const stage = createStage('canvas-area', 'axes-container');
+    if (window.GlassUI) GlassUI.placeWatermark(document.getElementById('canvas-area'), stage.watermark);
+    window.addEventListener('resize', () => { if (window.GlassUI) GlassUI.placeWatermark(document.getElementById('canvas-area'), stage.watermark); });
+
+    const { scene, perspCamera, orthoCamera, renderer, controls, engineState } = stage;
+
+    const canvasArea   = document.getElementById('canvas-area');
+    const infoItemsEl  = document.getElementById('info-items');
+    const teachContent = document.getElementById('teach-content');
+    const cellFnLabel  = document.getElementById('cell-fn-label');
+    const scaleSlider  = document.getElementById('scale-slider');
+    const scaleValueEl = document.getElementById('scale-value');
+    const pauseBtn     = document.getElementById('btn-pause');
+    const legend66     = document.getElementById('legend-66');
+    const legendR5     = document.getElementById('legend-r5');
+    const legendR6     = document.getElementById('legend-r6');
+    const legendVdw    = document.getElementById('legend-vdw');
+
+    /* ---------------------------------------------------------------------
+       一、材质与几何
+       --------------------------------------------------------------------- */
+    var ATOM_R = 0.34, BOND_R = 0.105, BOND_R66 = 0.135;
+
+    const MAT = {
+        C:       new THREE.MeshPhongMaterial({ color: 0x1e2024, shininess: 70, specular: 0xa8b2be }),
+        Chot:    new THREE.MeshPhongMaterial({ color: 0xffd166, emissive: 0x553300, shininess: 80 }),
+        bond:    new THREE.MeshPhongMaterial({ color: 0x9fb4d0, shininess: 40 }),
+        bond66:  new THREE.MeshPhongMaterial({ color: 0xffd166, emissive: 0x3a2a00, shininess: 60 }),
+        face5:   new THREE.MeshPhongMaterial({ color: 0xff9f43, transparent: true, opacity: 0.26,
+                                               side: THREE.DoubleSide, depthWrite: false }),
+        face6:   new THREE.MeshPhongMaterial({ color: 0x4fd1ff, transparent: true, opacity: 0.14,
+                                               side: THREE.DoubleSide, depthWrite: false }),
+        vdw:     new THREE.LineBasicMaterial({ color: 0x6ee7ff, transparent: true, opacity: 0.75 }),
+        box:     new THREE.LineBasicMaterial({ color: 0x8fa6c8, transparent: true, opacity: 0.45 })
+    };
+    const GEO = {
+        c:     new THREE.SphereGeometry(ATOM_R, 20, 14),
+        cLow:  new THREE.SphereGeometry(ATOM_R, 12, 8),
+        bond:  new THREE.CylinderGeometry(BOND_R, BOND_R, 1, 8, 1),
+        bond66:new THREE.CylinderGeometry(BOND_R66, BOND_R66, 1, 8, 1)
+    };
+
+    const V3 = (a) => new THREE.Vector3(a[0], a[1], a[2]);
+    const easeInOut = (t) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    const easeOut   = (t) => 1 - Math.pow(1 - t, 3);
+
+    function clearGroup(g) {
+        if (!g) return;
+        for (let i = g.children.length - 1; i >= 0; i--) {
+            const c = g.children[i];
+            g.remove(c);
+            if (c.children && c.children.length) clearGroup(c);
+        }
+    }
+
+    function makeBond(p1, p2, mat, geo) {
+        const a = V3(p1), b = V3(p2);
+        const dir = new THREE.Vector3().subVectors(b, a);
+        const len = dir.length();
+        const mesh = new THREE.Mesh(geo || GEO.bond, mat);
+        mesh.position.copy(a).addScaledVector(dir, 0.5);
+        mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+        mesh.scale.set(1, len, 1);
+        mesh.userData.fullLen = len;
+        return mesh;
+    }
+
+    /* 一段圆弧（键角标注）：顶点 v + 两个邻居方向 */
+    function makeArc(vertex, n1, n2, radius, color) {
+        const v = V3(vertex);
+        const d1 = new THREE.Vector3().subVectors(V3(n1), v).normalize();
+        const d2 = new THREE.Vector3().subVectors(V3(n2), v).normalize();
+        const theta = Math.acos(Math.max(-1, Math.min(1, d1.dot(d2))));
+        const pts = [];
+        for (let k = 0; k <= 20; k++) {
+            const t = theta * k / 20;
+            const dir = d1.clone().multiplyScalar(Math.sin(theta - t) / Math.sin(theta))
+                          .addScaledVector(d2, Math.sin(t) / Math.sin(theta));
+            pts.push(v.clone().addScaledVector(dir.normalize(), radius));
+        }
+        return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
+                              new THREE.LineBasicMaterial({ color: color }));
+    }
+
+    function makeLabelSprite(text, color) {
+        const cv = document.createElement('canvas');
+        cv.width = 256; cv.height = 128;
+        const ctx = cv.getContext('2d');
+        if (ctx) {
+            ctx.clearRect(0, 0, 256, 128);
+            ctx.font = 'bold 62px "Microsoft YaHei", sans-serif';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.lineWidth = 10; ctx.strokeStyle = 'rgba(10,14,22,0.85)';
+            ctx.strokeText(text, 128, 66);
+            ctx.fillStyle = color; ctx.fillText(text, 128, 66);
+        }
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthTest: false, depthWrite: false }));
+        sp.scale.set(0.9, 0.45, 1); sp.renderOrder = 999;
+        return sp;
+    }
+
+    function tween(dur, fn, onDone) {
+        const t0 = performance.now();
+        let cancelled = false;
+        function step(now) {
+            if (cancelled) return;
+            let t = (now - t0) / dur;
+            if (t > 1) t = 1;
+            fn(easeInOut(t), t);
+            if (t < 1) requestAnimationFrame(step);
+            else if (onDone) onDone();
+        }
+        requestAnimationFrame(step);
+        return () => { cancelled = true; };
+    }
+
+    /* ---------------------------------------------------------------------
+       二、分子
+       --------------------------------------------------------------------- */
+    const gMol  = new THREE.Group();   /* 单个分子 */
+    const gPack = new THREE.Group();   /* 面心立方堆积示意 */
+    const gMark = new THREE.Group();   /* 环面 + 键角标注（随分子缩放） */
+    gMol.add(gMark);
+    scene.add(gMol, gPack);
+
+    let cAtoms = [];
+    let cBonds = [];        /* {mesh, a, b, is66} */
+    let face5Meshes = [], face6Meshes = [];
+    let angleGroup = new THREE.Group();
+    gMark.add(angleGroup);
+    let packUnits = [];     /* 堆积里的分子 group */
+    let vdwPairCount = 0;   /* 堆积里画出的最近邻分子对数（范德华力虚线） */
+
+    /* 每个 C 属于 1 个五元环 + 2 个六元环；三个键角 = 1 个 108°（五元环内）+ 2 个 120° */
+    const ring5Of = C60_V.map(() => -1);
+    C60_F5.forEach((f, fi) => f.forEach(v => { ring5Of[v] = fi; }));
+
+    function isBond66(a, b) {
+        for (let k = 0; k < C60_B66.length; k++) {
+            const p = C60_B66[k];
+            if ((p[0] === a && p[1] === b) || (p[0] === b && p[1] === a)) return true;
+        }
+        return false;
+    }
+
+    function buildMolecule() {
+        clearGroup(gMol);
+        gMol.add(gMark);           /* gMark 保留（里面只有环面/标注） */
+        clearGroup(gMark);
+        gMark.add(angleGroup);
+        cAtoms = []; cBonds = []; face5Meshes = []; face6Meshes = [];
+
+        C60_V.forEach((p, i) => {
+            const m = new THREE.Mesh(GEO.c, MAT.C);
+            m.position.copy(V3(p));
+            m.userData = { kind: 'C', idx: i, home: V3(p), nb: [] };
+            gMol.add(m);
+            cAtoms.push(m);
+        });
+
+        C60_E.forEach(([a, b]) => {
+            const d66 = isBond66(a, b);
+            const mesh = makeBond(C60_V[a], C60_V[b], MAT.bond, d66 ? GEO.bond66 : GEO.bond);
+            mesh.userData.is66 = d66;
+            gMol.add(mesh);
+            cBonds.push({ mesh: mesh, a: a, b: b, is66: d66 });
+            cAtoms[a].userData.nb.push(b);
+            cAtoms[b].userData.nb.push(a);
+        });
+
+        /* 环面：环形顶点扇三角化 */
+        function makeFaceMesh(face, mat) {
+            const pts = face.map(i => V3(C60_V[i]));
+            const c = new THREE.Vector3();
+            pts.forEach(p => c.add(p)); c.multiplyScalar(1 / pts.length);
+            const verts = [];
+            for (let k = 1; k + 1 < pts.length; k++) {
+                verts.push(pts[0].x, pts[0].y, pts[0].z, pts[k].x, pts[k].y, pts[k].z, pts[k + 1].x, pts[k + 1].y, pts[k + 1].z);
+            }
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+            geo.computeVertexNormals();
+            const m = new THREE.Mesh(geo, mat);
+            m.userData.center = c.clone();
+            return m;
+        }
+        C60_F5.forEach(f => { const m = makeFaceMesh(f, MAT.face5); m.visible = false; gMark.add(m); face5Meshes.push(m); });
+        C60_F6.forEach(f => { const m = makeFaceMesh(f, MAT.face6); m.visible = false; gMark.add(m); face6Meshes.push(m); });
+    }
+
+    /* 键角标注：挑一个五元环标 5 个 108°，再挑与它相邻的一个六元环标 6 个 120° */
+    function buildAngleMarks() {
+        clearGroup(angleGroup);
+        const f5 = C60_F5[0];
+        const R5 = Math.atan2(1, 1) * 0 + 0.62;
+        for (let k = 0; k < f5.length; k++) {
+            const v = f5[k], p0 = f5[(k + f5.length - 1) % f5.length], p1 = f5[(k + 1) % f5.length];
+            angleGroup.add(makeArc(C60_V[v], C60_V[p0], C60_V[p1], R5, 0xffd166));
+        }
+        const c5 = new THREE.Vector3();
+        f5.forEach(i => c5.add(V3(C60_V[i]))); c5.multiplyScalar(1 / f5.length);
+        const sp5 = makeLabelSprite('108°', '#ffd166');
+        sp5.position.copy(c5).multiplyScalar(1.06);
+        angleGroup.add(sp5);
+
+        /* 与这个五元环共边的六元环 */
+        let f6 = null;
+        for (let k = 0; k < C60_F6.length && !f6; k++) {
+            const f = C60_F6[k];
+            for (let t = 0; t < f.length; t++) {
+                const a = f[t], b = f[(t + 1) % f.length];
+                if (f5.indexOf(a) >= 0 && f5.indexOf(b) >= 0) { f6 = f; break; }
+            }
+        }
+        if (f6) {
+            for (let k = 0; k < f6.length; k++) {
+                const v = f6[k], p0 = f6[(k + f6.length - 1) % f6.length], p1 = f6[(k + 1) % f6.length];
+                angleGroup.add(makeArc(C60_V[v], C60_V[p0], C60_V[p1], 0.62, 0x7fd8ff));
+            }
+            const c6 = new THREE.Vector3();
+            f6.forEach(i => c6.add(V3(C60_V[i]))); c6.multiplyScalar(1 / f6.length);
+            const sp6 = makeLabelSprite('120°', '#7fd8ff');
+            sp6.position.copy(c6).multiplyScalar(1.06);
+            angleGroup.add(sp6);
+        }
+        angleGroup.visible = false;
+    }
+
+    /* C₆₀ 晶体：面心立方。画出 1 个完整晶胞的全部 14 个分子
+       （8 个顶角 + 6 个面心，每个都是完整的足球烯），外加晶胞线框和"分子间范德华力"虚线。 */
+    function buildPack() {
+        clearGroup(gPack);
+        packUnits = [];
+        const a = FCC_A, h = a / 2;
+
+        /* 14 个格点：8 个顶角 + 6 个面心 */
+        const offs = [];
+        [0, a].forEach(x => [0, a].forEach(y => [0, a].forEach(z => offs.push([x, y, z]))));
+        offs.push([h, h, 0], [h, h, a], [h, 0, h], [h, a, h], [0, h, h], [a, h, h]);
+        const mid = new THREE.Vector3(h, h, h);      /* 晶胞中心，让整胞居中 */
+
+        /* 模板：只克隆原子 + 键（不含环面/标注） */
+        const proto = new THREE.Group();
+        cAtoms.forEach(a2 => { const m = new THREE.Mesh(GEO.cLow, MAT.C); m.position.copy(a2.position); proto.add(m); });
+        cBonds.forEach(b => { const m = new THREE.Mesh(b.is66 ? GEO.bond66 : GEO.bond, b.is66 ? MAT.bond66 : MAT.bond);
+                              m.position.copy(b.mesh.position); m.quaternion.copy(b.mesh.quaternion); m.scale.copy(b.mesh.scale); proto.add(m); });
+
+        offs.forEach(o => {
+            const g = proto.clone(true);
+            g.position.set(o[0] - mid.x, o[1] - mid.y, o[2] - mid.z);
+            gPack.add(g);
+            packUnits.push(g);
+        });
+
+        /* 范德华力虚线：所有最近邻分子对（中心距 a/√2 ≈ 10.0 Å），即每个分子的 12 个紧邻 */
+        const nn = h * Math.SQRT2, pts = [];
+        for (let i = 0; i < offs.length; i++) {
+            for (let j = i + 1; j < offs.length; j++) {
+                const dx = offs[i][0] - offs[j][0], dy = offs[i][1] - offs[j][1], dz = offs[i][2] - offs[j][2];
+                if (Math.abs(Math.hypot(dx, dy, dz) - nn) < 1e-6) {
+                    pts.push(new THREE.Vector3(offs[i][0] - mid.x, offs[i][1] - mid.y, offs[i][2] - mid.z),
+                             new THREE.Vector3(offs[j][0] - mid.x, offs[j][1] - mid.y, offs[j][2] - mid.z));
+                }
+            }
+        }
+        const geo = new THREE.BufferGeometry().setFromPoints(pts);
+        vdwPairCount = pts.length / 2;
+        const lines = new THREE.LineSegments(geo, new THREE.LineDashedMaterial({ color: 0x6ee7ff, dashSize: 0.8, gapSize: 0.9, transparent: true, opacity: 0.45 }));
+        lines.computeLineDistances();
+        gPack.add(lines);
+
+        /* 晶胞线框（边长 a = 14.17 Å） */
+        const boxGeo = new THREE.BoxGeometry(FCC_A, FCC_A, FCC_A);
+        const box = new THREE.LineSegments(new THREE.EdgesGeometry(boxGeo), MAT.box);
+        box.position.set(h - mid.x, h - mid.y, h - mid.z);
+        gPack.add(box);
+    }
+
+    /* ---------------------------------------------------------------------
+       三、状态与取景
+       --------------------------------------------------------------------- */
+    let isSingle = true, isIntroMode = false, isAnimating = false, introStep = 0;
+    let globalScale = 1.0, fitRadius = 4.2, lastViewType = 'perspective';
+    const modelCenter = new THREE.Vector3(0, 0, 0);
+    let show5 = false, show6 = false, show66 = false, showAngle = false;
+
+    function measureFit(group) {
+        const box = new THREE.Box3().setFromObject(group);
+        const c = box.getCenter(new THREE.Vector3());
+        const s = box.getSize(new THREE.Vector3());
+        return { r: Math.max(0.8, s.length() / 2 * 0.62), c: c };
+    }
+
+    function refreshFitRadius() {
+        const g = isSingle ? gMol : gPack;
+        const f = measureFit(g);
+        fitRadius = f.r * 1.15;
+        modelCenter.copy(f.c);
+        controls.minDistance = fitRadius * 0.9;
+        controls.maxDistance = Math.max(80, fitRadius * 10);
+        return Math.max(6, fitRadius * 3.0);
+    }
+
+    function applyScale() { gMol.scale.setScalar(globalScale); gPack.scale.setScalar(globalScale); }
+
+    function applyVisibility() {
+        gMol.visible = isSingle || isIntroMode;
+        gPack.visible = !isSingle && !isIntroMode;
+        gMark.visible = isSingle || isIntroMode;
+    }
+
+    function setView(type) {
+        if (isIntroMode) return;
+        lastViewType = type;
+        const dist = refreshFitRadius();
+        const t = modelCenter;
+        document.querySelectorAll('.view-btn:not(.pause-btn):not(#btn-reset-view):not(#btn-bg-toggle)').forEach(b => b.classList.remove('active'));
+        if (type === 'perspective') {
+            engineState.activeCamera = perspCamera;
+            perspCamera.position.set(t.x + dist * 0.62, t.y - dist * 0.62, t.z + dist * 0.48);
+            perspCamera.up.set(0, 0, 1);
+            perspCamera.near = 0.1; perspCamera.far = 6000; perspCamera.updateProjectionMatrix();
+            const b = document.getElementById('view-perspective'); if (b) b.classList.add('active');
+            controls.autoRotate = true;
+            if (pauseBtn) { pauseBtn.classList.remove('paused'); pauseBtn.innerText = '暂停模型自转'; }
+        } else {
+            engineState.activeCamera = orthoCamera;
+            const r = fitRadius * 1.25;
+            const asp = (canvasArea.clientWidth || 800) / (canvasArea.clientHeight || 600);
+            orthoCamera.left = -r * asp; orthoCamera.right = r * asp;
+            orthoCamera.top = r; orthoCamera.bottom = -r;
+            orthoCamera.up.set(0, 0, 1);
+            const d = dist * 1.6;
+            if (type === 'x') orthoCamera.position.set(t.x + d, t.y, t.z);
+            if (type === 'y') orthoCamera.position.set(t.x, t.y - d, t.z);
+            if (type === 'z') orthoCamera.position.set(t.x, t.y + 0.001, t.z + d);
+            if (type === 'diag') orthoCamera.position.set(t.x + d, t.y - d, t.z + d);
+            orthoCamera.updateProjectionMatrix(); orthoCamera.lookAt(t);
+            const b = document.getElementById('view-' + type); if (b) b.classList.add('active');
+            controls.autoRotate = false;
+            if (pauseBtn) { pauseBtn.classList.add('paused'); pauseBtn.innerText = '恢复模型自转'; }
+        }
+        controls.target.copy(t);
+        controls.object = engineState.activeCamera;
+        controls.update();
+    }
+
+    function animateView(type) {
+        if (isIntroMode || isAnimating) return;
+        isAnimating = true;
+        const dist = refreshFitRadius();
+        const t = modelCenter;
+        if (window.GlassUI && GlassUI.animateOrtho) {
+            GlassUI.animateOrtho({
+                orthoCamera, controls, engineState, canvasArea, type,
+                target: t,
+                initPos: new THREE.Vector3(t.x + dist * 0.62, t.y - dist * 0.62, t.z + dist * 0.48),
+                isLargeCell: () => false, maxCoord: () => 1, pauseBtn,
+                viewRadius: fitRadius * 1.25,
+                endPos: (ty, tg, dd) => {
+                    if (ty === 'x') return new THREE.Vector3(tg.x + dd, tg.y, tg.z);
+                    if (ty === 'y') return new THREE.Vector3(tg.x, tg.y - dd, tg.z);
+                    if (ty === 'z') return new THREE.Vector3(tg.x, tg.y + 0.001, tg.z + dd);
+                    return new THREE.Vector3(tg.x + dd, tg.y - dd, tg.z + dd);
+                }
+            }).then(() => { isAnimating = false; });
+        } else { setView(type); isAnimating = false; }
+    }
+
+    /* ---------------------------------------------------------------------
+       四、面板内容
+       --------------------------------------------------------------------- */
+    function setTeach(html) { if (teachContent) teachContent.innerHTML = html; }
+
+    const INFO_ROWS = [
+        ['化学式', 'C₆₀', 0],
+        ['晶体类型', '分子晶体（面心立方堆积）', 0],
+        ['分子构型', '截角二十面体（足球状）', 1],
+        ['顶点（C 原子）', '60 个', 1],
+        ['棱（C–C 键）', '90 条', 1],
+        ['面', '32 个 = 12 个五元环 + 20 个六元环', 1],
+        ['欧拉公式', 'V − E + F = 60 − 90 + 32 = 2', 1],
+        ['每个 C 成键', '3 个 C（sp² 杂化）', 1],
+        ['键角', '五元环内 108°，六元环内 120°', 1],
+        ['C–C 键长', '1.40 Å（6:6）/ 1.45 Å（6:5）', 0],
+        ['分子直径', '约 0.71 nm（7.1 Å）', 0],
+        ['晶胞参数 a', '14.17 Å，每胞净含 4 个 C₆₀', 0],
+        ['晶胞格点分子', '14 个 = 8 顶角 + 6 面心', 1],
+        ['配位数', '12（最近邻中心距 a/√2 ≈ 10.0 Å）', 1],
+        ['分子间作用力', '范德华力', 0],
+        ['同素异形体', '金刚石、石墨、碳纳米管', 0]
+    ];
+
+    function renderInfo() {
+        if (infoItemsEl) {
+            infoItemsEl.innerHTML = INFO_ROWS.map(r =>
+                '<div class="info-item' + (r[2] ? ' key' : '') + '"><span>' + r[0] + '</span><b>' + r[1] + '</b></div>').join('') +
+                '<div style="margin-top:6px;font-size:12px;line-height:1.5;color:#8b98a8;">与金刚石、石墨互为<b style="color:#ffd166">同素异形体</b>：' +
+                '都由碳元素组成，但碳原子的连接方式不同 ⇒ 性质差别极大。</div>';
+        }
+        if (legend66) legend66.style.display = show66 ? 'flex' : 'none';
+        if (legendR5) legendR5.style.display = show5 ? 'flex' : 'none';
+        if (legendR6) legendR6.style.display = show6 ? 'flex' : 'none';
+        if (legendVdw) legendVdw.style.display = isSingle ? 'none' : 'flex';
+        if (cellFnLabel) cellFnLabel.textContent = isSingle
+            ? '碳60 C₆₀ · 截角二十面体分子'
+            : 'C₆₀ 晶体 · 面心立方堆积（晶胞 14 个分子）';
+    }
+
+    const TEACH_MAIN = '<strong>碳60 C₆₀ —— 足球烯</strong><br>' +
+        '60 个 C 原子构成<span class="hl">截角二十面体</span>：12 个正五元环 + 20 个正六元环，' +
+        '共 <span class="hl">90 条 C–C 键</span>。每个 C 用 sp² 杂化与另外 3 个 C 成 σ 键，' +
+        '剩下的 1 个 p 轨道在球面上肩并肩重叠，形成覆盖整个分子的<span class="hl2">大 π 键</span>。<br>' +
+        '★ 五元环内键角 <span class="hl">108°</span>、六元环内 <span class="hl">120°</span>——' +
+        '五元环的存在使球面弯曲并闭合成笼。<br>' +
+        '<span style="color:#aaa">C₆₀ 是<b>分子晶体</b>：笼内是共价键，笼与笼之间只有范德华力 ⇒ 熔点不高、' +
+        '硬度小、易溶于苯和 CS₂。点击任意 C 原子可看它的成键与键角。</span><br>' +
+        '<span style="color:#8b98a8">模型用的是理想截角二十面体坐标（90 条棱等长）；真实 C₆₀ 里两个六元环共用的 ' +
+        '30 条键略短（1.40 Å），六元环与五元环之间的 60 条略长（1.45 Å）。</span>';
+
+    const TEACH_PACK = '<strong>C₆₀ 晶体 —— 面心立方堆积</strong><br>' +
+        'C₆₀ 分子（看作一个球）作<span class="hl">面心立方最密堆积</span>，晶胞参数 a = 14.17 Å。<br>' +
+        '画出的是 1 个完整晶胞：<span class="hl">8 个顶角 + 6 个面心 = 14 个 C₆₀ 分子</span>，' +
+        '按 1/8 和 1/2 折算，每个晶胞<span class="hl">净含 4 个 C₆₀</span>。<br>' +
+        '最近邻分子中心相距 a/√2 ≈ <span class="hl2">10.0 Å</span>，每个分子周围有 <span class="hl2">12 个紧邻</span>' +
+        '（配位数 12）；蓝色虚线表示分子之间只有<span class="hl2">范德华力</span>。<br>' +
+        '<span style="color:#aaa">这也是"足球烯是分子晶体"的直接证据：分子内部是共价键，分子之间是范德华力。</span>';
+
+    const TEACH_66 = '<strong>30 条 6:6 键（金色）</strong><br>' +
+        '每条 C–C 键被两个环共用。两个<b>六元环</b>共用的键叫 <span class="hl">6:6 键</span>，共 <span class="hl">30 条</span>；' +
+        '六元环与五元环共用的叫 <span class="hl2">6:5 键</span>，共 60 条。<br>' +
+        '6:6 键短（1.40 Å）、双键成分多，6:5 键长（1.45 Å）——C₆₀ 的加成反应主要发生在 <span class="hl">6:6 键</span>上。<br>' +
+        '<span style="color:#aaa">因为五元环之间<b>互不相邻</b>，30 条 6:6 键正好把 20 个六元环连成一片。</span>';
+
+    /* ---------------------------------------------------------------------
+       五、点选原子
+       --------------------------------------------------------------------- */
+    function clearSelection() { cAtoms.forEach(a => { a.material = MAT.C; }); }
+
+    function selectAtom(mesh) {
+        clearSelection();
+        const ud = mesh.userData;
+        if (!ud || !ud.nb) return;
+        mesh.material = MAT.Chot;
+        const lens = ud.nb.map(j => {
+            const d = V3(C60_V[ud.idx]).distanceTo(V3(C60_V[j]));
+            return (isBond66(ud.idx, j) ? '1.40' : '1.45');
+        }).join(' / ');
+        setTeach('<strong>碳原子 C #' + (ud.idx + 1) + '</strong><br>' +
+            '它与相邻的 3 个 C 成键：<span class="hl">2 条 6:5 键（1.45 Å）+ 1 条 6:6 键（1.40 Å）</span>。<br>' +
+            '三个键角分别是 <span class="hl">108°（五元环内）</span>、<span class="hl">120°</span>、<span class="hl">120°</span>。<br>' +
+            '<span style="color:#aaa">sp² 杂化：3 个 σ 键 + 1 个 p 轨道参与整个球面的大 π 键。' +
+            '它属于第 ' + (ring5Of[ud.idx] + 1) + ' 个五元环。</span>');
+    }
+
+    /* ---------------------------------------------------------------------
+       六、交互绑定
+       --------------------------------------------------------------------- */
+    const raycaster = new THREE.Raycaster();
+    const ndc = new THREE.Vector2();
+    let downPt = null;
+
+    canvasArea.addEventListener('pointerdown', (e) => { downPt = { x: e.clientX, y: e.clientY }; });
+    canvasArea.addEventListener('pointerup', (e) => {
+        if (!downPt) return;
+        const moved = Math.hypot(e.clientX - downPt.x, e.clientY - downPt.y);
+        downPt = null;
+        if (moved > 6 || isIntroMode || !isSingle) return;
+        const r = canvasArea.getBoundingClientRect();
+        ndc.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+        ndc.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+        raycaster.setFromCamera(ndc, engineState.activeCamera);
+        const hits = raycaster.intersectObjects(cAtoms, false);
+        if (hits.length) selectAtom(hits[0].object);
+        else { clearSelection(); setTeach(isSingle ? TEACH_MAIN : TEACH_PACK); }
+    });
+
+    function setUIEnabled(enabled) {
+        document.querySelectorAll('.control-section').forEach(el => {
+            const keep = !!el.querySelector('#btn-intro') || !!el.querySelector('.step-btn');
+            const on = enabled || keep;
+            el.style.opacity = on ? '1' : '0.3';
+            el.style.pointerEvents = on ? 'auto' : 'none';
+        });
+    }
+
+    function applyMarks() {
+        face5Meshes.forEach(m => { m.visible = show5; });
+        face6Meshes.forEach(m => { m.visible = show6; });
+        cBonds.forEach(b => {
+            if (b.is66) { b.mesh.material = show66 ? MAT.bond66 : MAT.bond; }
+        });
+        const b5 = document.getElementById('btn-mark5'); if (b5) b5.classList.toggle('active-filter', show5);
+        const b6 = document.getElementById('btn-mark6'); if (b6) b6.classList.toggle('active-filter', show6);
+        const b66 = document.getElementById('btn-mark66'); if (b66) b66.classList.toggle('active-filter', show66);
+        renderInfo();
+    }
+
+    const btnMark5 = document.getElementById('btn-mark5');
+    const btnMark6 = document.getElementById('btn-mark6');
+    const btnMark66 = document.getElementById('btn-mark66');
+    if (btnMark5) btnMark5.addEventListener('click', () => { show5 = !show5; applyMarks(); });
+    if (btnMark6) btnMark6.addEventListener('click', () => { show6 = !show6; applyMarks(); });
+    if (btnMark66) btnMark66.addEventListener('click', () => {
+        show66 = !show66; applyMarks();
+        setTeach(show66 ? TEACH_66 : TEACH_MAIN);
+    });
+
+    const btnBond = document.getElementById('btn-bond');
+    if (btnBond) btnBond.addEventListener('click', () => {
+        showAngle = !showAngle;
+        btnBond.classList.toggle('active-filter', showAngle);
+        angleGroup.visible = showAngle && (isSingle || isIntroMode);
+        setTeach(showAngle
+            ? '<strong>键角：五元环内 108° / 六元环内 120°</strong><br>' +
+              '正五边形内角 108°、正六边形内角 120°。C₆₀ 里<b>每个 C 的 3 个键角</b>分别是 ' +
+              '1 个 <span class="hl">108°</span>（在五元环里）+ 2 个 <span class="hl">120°</span>。<br>' +
+              '<span style="color:#aaa">正是五元环的 108° 让平面石墨层"收口"、弯成封闭的笼。' +
+              '画面上标出了 1 个五元环（5 个 108°）和与之共边的 1 个六元环（6 个 120°）。</span>'
+            : TEACH_MAIN);
+    });
+
+    const btnScaleSingle = document.getElementById('btn-scale-single');
+    const btnScaleMulti = document.getElementById('btn-scale-multi');
+    function setScaleMode(single) {
+        if (isIntroMode) return;
+        isSingle = single;
+        if (btnScaleSingle) btnScaleSingle.classList.toggle('active-filter', single);
+        if (btnScaleMulti) btnScaleMulti.classList.toggle('active-filter', !single);
+        clearSelection();
+        applyVisibility();
+        renderInfo();
+        setTeach(single ? TEACH_MAIN : TEACH_PACK);
+        setView('perspective');
+    }
+    if (btnScaleSingle) btnScaleSingle.addEventListener('click', () => setScaleMode(true));
+    if (btnScaleMulti) btnScaleMulti.addEventListener('click', () => setScaleMode(false));
+
+    /* ---------------------------------------------------------------------
+       七、组装动画（5 步）
+       --------------------------------------------------------------------- */
+    const btnIntro = document.getElementById('btn-intro');
+    const btnIntroReset = document.getElementById('btn-intro-reset');
+    const INTRO_ICON = '<svg class="btn-ico" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><path d="M8 5.14v13.72L19 12z"/></svg>';
+    const C60_STEPS = [
+        '① 60 个 C 原子就位（都在同一个球面上）',
+        '② 60 条 6:5 键长出：五元环与六元环连成骨架',
+        '③ 30 条 6:6 键补齐：球面闭合成笼',
+        '④ 填充 12 个五元环 + 20 个六元环',
+        '✅ 组装完成：一个足球'
+    ];
+    const C60_START = 2.6;
+
+    function setBondsVisible(list, vis, len) {
+        list.forEach(b => {
+            b.mesh.visible = vis;
+            b.mesh.scale.y = vis ? (len === undefined ? b.mesh.userData.fullLen : len) : 0.001;
+        });
+    }
+
+    function startIntro() {
+        isIntroMode = true; introStep = 0; isSingle = true;
+        clearSelection();
+        applyVisibility();
+        setUIEnabled(false);
+        showAngle = false; angleGroup.visible = false;
+        if (btnBond) btnBond.classList.remove('active-filter');
+        cAtoms.forEach(a => a.position.copy(a.userData.home).multiplyScalar(C60_START));
+        setBondsVisible(cBonds, false);
+        face5Meshes.forEach(m => { m.visible = false; });
+        face6Meshes.forEach(m => { m.visible = false; });
+        if (btnIntroReset) btnIntroReset.style.display = 'block';
+        doIntroStep();
+    }
+
+    function finishIntro() {
+        isIntroMode = false;
+        setUIEnabled(true);
+        if (btnIntro) btnIntro.innerHTML = INTRO_ICON + '重新播放';
+        applyVisibility();
+        setTeach(TEACH_MAIN);
+        setView('perspective');
+    }
+
+    function doIntroStep() {
+        introStep++;
+        if (introStep > C60_STEPS.length) { finishIntro(); return; }
+        if (btnIntro) btnIntro.innerHTML = INTRO_ICON + (introStep < C60_STEPS.length ? '下一步' : '完成');
+        setTeach('<strong>组装动画 · 第 ' + introStep + ' / ' + C60_STEPS.length + ' 步</strong><br>' + C60_STEPS[introStep - 1]);
+
+        if (introStep === 1) {
+            tween(1200, (e) => {
+                cAtoms.forEach(a => a.position.copy(a.userData.home).multiplyScalar(1 + (C60_START - 1) * (1 - e)));
+            });
+        } else if (introStep === 2) {
+            const b65 = cBonds.filter(b => !b.is66);
+            setBondsVisible(b65, true, 0.001);
+            tween(1100, (e) => {
+                b65.forEach((b, i) => {
+                    const t2 = Math.max(0, Math.min(1, (e * 1.6) - i * 0.012));
+                    b.mesh.scale.y = 0.001 + (b.mesh.userData.fullLen - 0.001) * easeOut(t2);
+                });
+            });
+        } else if (introStep === 3) {
+            const b66 = cBonds.filter(b => b.is66);
+            setBondsVisible(b66, true, 0.001);
+            tween(1100, (e) => {
+                b66.forEach((b, i) => {
+                    const t2 = Math.max(0, Math.min(1, (e * 1.6) - i * 0.02));
+                    b.mesh.scale.y = 0.001 + (b.mesh.userData.fullLen - 0.001) * easeOut(t2);
+                });
+            });
+        } else if (introStep === 4) {
+            show5 = true; show6 = true; applyMarks();
+            face5Meshes.forEach((m, i) => setTimeout(() => { m.visible = show5; }, i * 40));
+            face6Meshes.forEach((m, i) => setTimeout(() => { m.visible = show6; }, 500 + i * 25));
+        }
+    }
+
+    /* 首次点 = 开始；动画中再点 = 下一步（2026-09-20 的坑：别只绑 startIntro） */
+    function onIntroBtnClick() { if (!isIntroMode) { startIntro(); return; } doIntroStep(); }
+    if (btnIntro) btnIntro.addEventListener('click', onIntroBtnClick);
+    if (btnIntroReset) btnIntroReset.addEventListener('click', startIntro);
+
+    /* ---------------------------------------------------------------------
+       八、其它按钮 / 启动
+       --------------------------------------------------------------------- */
+    ['x', 'y', 'z', 'diag'].forEach(id => {
+        const b = document.getElementById('view-' + id);
+        if (b) b.addEventListener('click', () => animateView(id));
+    });
+    const perspBtn = document.getElementById('view-perspective');
+    if (perspBtn) perspBtn.addEventListener('click', () => { if (!isAnimating) setView('perspective'); });
+
+    if (pauseBtn) pauseBtn.addEventListener('click', () => {
+        if (isIntroMode) return;
+        controls.autoRotate = !controls.autoRotate;
+        if (controls.autoRotate) { pauseBtn.classList.remove('paused'); pauseBtn.innerText = '暂停模型自转'; }
+        else { pauseBtn.classList.add('paused'); pauseBtn.innerText = '恢复模型自转'; }
+    });
+
+    const btnResetView = document.getElementById('btn-reset-view');
+    if (btnResetView) btnResetView.addEventListener('click', () => {
+        if (isIntroMode) return;
+        clearSelection(); setTeach(isSingle ? TEACH_MAIN : TEACH_PACK); setView('perspective');
+    });
+
+    if (scaleSlider) scaleSlider.addEventListener('input', (e) => {
+        globalScale = parseFloat(e.target.value);
+        if (scaleValueEl) scaleValueEl.textContent = globalScale.toFixed(2);
+        applyScale();
+    });
+
+    const btnBg = document.getElementById('btn-bg-toggle');
+    if (btnBg) btnBg.addEventListener('click', () => {
+        const app = document.getElementById('app-container');
+        if (app) app.classList.toggle('light-bg');
+    });
+
+    const controlsPanel = document.getElementById('controls-panel');
+    if (controlsPanel) controlsPanel.addEventListener('click', (e) => {
+        const labelMap = {
+            'btn-mark5': '五元环标记', 'btn-mark6': '六元环标记', 'btn-mark66': '6:6 键标记',
+            'btn-intro': '组装动画', 'btn-intro-reset': '重播组装动画',
+            'btn-scale-single': '单个分子', 'btn-scale-multi': '面心立方堆积',
+            'btn-bond': '键角标注'
+        };
+        if (e.target && e.target.id && labelMap[e.target.id] && window.GlassUI) GlassUI.setCellFunction(labelMap[e.target.id]);
+    });
+
+    buildMolecule();
+    buildAngleMarks();
+    buildPack();
+    applyVisibility();
+    applyScale();
+    applyMarks();
+    setTeach(TEACH_MAIN);
+    setView('perspective');
+
+    window.addEventListener('resize', () => {
+        const w = canvasArea.clientWidth || 800;
+        const h = canvasArea.clientHeight || 600;
+        perspCamera.aspect = w / h; perspCamera.updateProjectionMatrix();
+        const r = fitRadius * 1.25;
+        orthoCamera.left = -r * (w / h); orthoCamera.right = r * (w / h);
+        orthoCamera.top = r; orthoCamera.bottom = -r;
+        orthoCamera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+    }, false);
+
+    setTimeout(() => {
+        const ls = document.getElementById('loading-screen');
+        if (ls) ls.style.display = 'none';
+    }, 150);
+
+    /* 供自检脚本读取 */
+    window.__C60 = {
+        get isIntroMode() { return isIntroMode; },
+        get introStep() { return introStep; },
+        get isSingle() { return isSingle; },
+        get atoms() { return cAtoms.length; },
+        get bonds() { return cBonds.length; },
+        get bonds66() { return cBonds.filter(b => b.is66).length; },
+        get faces5() { return face5Meshes.length; },
+        get faces6() { return face6Meshes.length; },
+        get packUnits() { return packUnits.length; },
+        get vdwPairs() { return vdwPairCount; },
+        get angleMarks() { return angleGroup.children.length; },
+        get angleVisible() { return angleGroup.visible; },
+        get show5() { return show5; }, get show6() { return show6; }, get show66() { return show66; },
+        bondLengths() { return cBonds.map(b => ({ now: Math.round(b.mesh.scale.y * 1000) / 1000,
+                                                  full: Math.round(b.mesh.userData.fullLen * 1000) / 1000 })); },
+        atomPositions() { return cAtoms.map(a => [a.position.x, a.position.y, a.position.z].map(v => Math.round(v * 1000) / 1000)); },
+        homePositions() { return C60_V.slice(); },
+        constants: { MOL_R: MOL_R, FCC_A: FCC_A }
+    };
+
+    </script>
+
+    <script>window.BACK_SUBNAV='subnav-valence';</script>
+    </body>
+</html>

@@ -1,0 +1,601 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>掌控图形化编程 · 个人学习版</title>
+  <link rel="stylesheet" href="css/style.css?v=20261102">
+</head>
+<body>
+  <div id="app">
+    <!-- ============ 顶部工具栏 ============ -->
+    <header id="topbar">
+      <div class="brand">
+        <svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true">
+          <rect x="2" y="5" width="28" height="22" rx="5" fill="#2b2f36"/>
+          <rect x="7" y="10" width="18" height="10" rx="1.5" fill="#0c1014"/>
+          <circle cx="10" cy="24" r="2" fill="#ff5d5d"/><circle cx="16" cy="24" r="2" fill="#3ddc84"/><circle cx="22" cy="24" r="2" fill="#4d9dff"/>
+        </svg>
+        <div class="brand-text">
+          <strong>掌控图形化编程</strong>
+          <span>个人学习版 · 掌控板 / 虚拟仿真</span>
+        </div>
+      </div>
+
+      <div class="tb-group">
+        <div class="menu-wrap">
+          <button class="tb-btn" id="btn-examples">示例 ▾</button>
+          <div class="menu" id="examples-menu"></div>
+        </div>
+        <!-- 第四十九轮：信息科技教材（湘科版）示例程序
+             第五十一轮：按需求隐藏该入口（只隐藏，DOM 与载入逻辑都保留）。
+             要恢复：把下面 class 里的 tb-off 去掉即可。 -->
+        <div class="menu-wrap tb-off">
+          <button class="tb-btn" id="btn-textbook" title="信息科技教材（湘科版）六年级上/下册配套示例程序，可一键载入并上传到掌控板">教材 ▾</button>
+          <div class="menu" id="textbook-menu"></div>
+        </div>
+        <button class="tb-btn" id="btn-new">新建</button>
+        <button class="tb-btn" id="btn-open">打开</button>
+        <button class="tb-btn" id="btn-save" title="保存为 .mxml 工程文件（带缩进，可直接用 mPython IDE 打开）">保存</button>
+        <input type="file" id="file-open" accept=".mxml,.xml,.zkb,.py,application/json,text/xml" hidden>
+        <button class="tb-btn" id="btn-ai-cfg" title="设置科大讯飞 AI 技能（语音识别/合成、人脸、文字、物体、场景）">⚙ AI 设置</button>
+      </div>
+
+      <div class="tb-spacer"></div>
+
+      <div class="tb-group">
+        <button class="tb-btn" id="btn-connect">
+          <span class="dot" id="conn-dot"></span><span id="conn-text">连接设备</span>
+        </button>
+        <button class="tb-btn primary" id="btn-run" title="在舞台/虚拟仿真中运行">▶ 运行</button>
+        <button class="tb-btn" id="btn-stop" disabled>■ 停止</button>
+        <div class="menu-wrap">
+          <button class="tb-btn success" id="btn-upload">⬆ 上传到硬件 ▾</button>
+          <div class="menu" id="upload-menu">
+            <button type="button" class="menu-item" data-act="upload-run">上传并运行（写入 main.py）</button>
+            <button type="button" class="menu-item" data-act="run-repl">临时运行（REPL，重启后失效）</button>
+            <div class="menu-sep"></div>
+            <button type="button" class="menu-item" data-act="download-py">下载 .py 文件</button>
+          </div>
+        </div>
+        <button class="tb-btn" id="btn-code" title="查看生成的 MicroPython 代码">&lt;/&gt; 代码</button>
+      </div>
+    </header>
+
+    <!-- ============ 主体三栏 ============ -->
+    <main id="main">
+      <!-- 左：积木工具箱 -->
+      <aside id="toolbox-pane">
+        <div id="blockly-toolbox" class="toolbox-host"></div>
+      </aside>
+
+      <!-- 中：编程工作区 -->
+      <section id="center-pane">
+        <div id="blockly-workspace"></div>
+        <!-- 代码预览抽屉 -->
+        <div id="code-drawer" class="closed">
+          <div class="drawer-head">
+            <span>生成的 MicroPython 代码（可直接上传到掌控板）</span>
+            <div>
+              <button class="mini-btn" id="btn-copy-code">复制</button>
+              <button class="mini-btn" id="btn-download-code">下载 .py</button>
+              <button class="mini-btn" id="btn-drawer-close">收起 ▾</button>
+            </div>
+          </div>
+          <pre id="code-preview"></pre>
+        </div>
+      </section>
+
+      <!-- 右：舞台 / 虚拟仿真 -->
+      <aside id="right-pane">
+        <div id="mode-tabs">
+          <button class="mode-tab active" data-mode="stage">
+            <svg viewBox="0 0 24 24" width="16" height="16"><path d="M3 5h18v12H3z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9 21h6M12 17v4" stroke="currentColor" stroke-width="2"/></svg>
+            舞台模式
+          </button>
+          <button class="mode-tab" data-mode="sim">
+            <svg viewBox="0 0 24 24" width="16" height="16"><rect x="5" y="5" width="14" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="10" r="1.4" fill="currentColor"/><circle cx="15" cy="10" r="1.4" fill="currentColor"/><path d="M9 15h6" stroke="currentColor" stroke-width="2"/></svg>
+            虚拟仿真
+          </button>
+          <span class="mode-hint" id="mode-hint">积木程序将在舞台中演示</span>
+        </div>
+
+        <!-- 舞台 -->
+        <div id="stage-view" class="right-view active">
+          <div id="stage-toolbar">
+            <div class="stg-group">
+              <span class="stg-label">情景</span>
+              <select id="stg-scene" title="一键布置常见教学场景"></select>
+              <!-- 第四十二轮：下拉框右侧原本重复显示一遍情景名
+                   （下拉框本身已经显示当前选中的情景），已隐藏。
+                   元素保留，syncSceneSelect 仍会写入内容，将来要用可随时显示。 -->
+              <span class="stg-scene-name hidden" id="stg-scene-name"></span>
+            </div>
+            <div class="stg-group">
+              <span class="stg-label">添加</span>
+              <select id="stg-add" title="点击添加到舞台，可拖动调整位置"></select>
+              <button class="mini-btn" id="stg-add-go" title="添加到舞台">＋</button>
+            </div>
+            <div class="stg-group stg-size">
+              <span class="stg-label">尺寸</span>
+              <input type="number" id="stg-w" min="400" max="1600" step="20" value="800" title="舞台逻辑宽度">
+              <span class="stg-x">×</span>
+              <input type="number" id="stg-h" min="400" max="1600" step="20" value="560" title="舞台逻辑高度">
+              <button class="mini-btn" id="stg-size-apply" title="应用尺寸">应用</button>
+              <button class="mini-btn" id="stg-size-reset" title="恢复默认 800×560">默认</button>
+            </div>
+            <div class="stg-spacer"></div>
+            <div class="stg-group">
+              <button class="mini-btn" id="stg-grid" title="显示/隐藏网格">网格</button>
+              <button class="mini-btn" id="stg-text" title="显示/隐藏所有元素的说明文字">文字</button>
+              <button class="mini-btn" id="stg-lock" title="锁定背景元素，只允许联动硬件移动">锁定</button>
+              <button class="mini-btn" id="stg-fit" title="适应窗口">适应</button>
+              <button class="mini-btn primary" id="stg-full" title="切换全屏显示，自适应放大所有元素">⛶ 全屏</button>
+              <button class="mini-btn warn" id="stg-clear" title="清空舞台所有元素">清空</button>
+            </div>
+          </div>
+          <div id="stage-host">
+            <!-- SVG 舞台由 stage.js 动态创建（全矢量，任意缩放清晰） -->
+          </div>
+          <div id="stage-bubble" class="hidden"></div>
+          <div id="zk-stage-info" class="hidden"></div>
+          <div id="stage-hint">💡 元素与小助手均可拖动；点击「红绿灯 / 开关」可切换状态</div>
+        </div>
+
+        <!-- 虚拟仿真 -->
+        <div id="sim-view" class="right-view">
+          <div id="sim-scroll">
+            <div id="sim-board-wrap"></div>
+            <div class="sim-section-title">已连接的拓展设备</div>
+            <div id="sim-devices"><div class="empty-hint">点击左下角「拓展库」添加传感器、执行器等设备</div></div>
+          </div>
+          <!-- 麦克风 / 光线 手动调节与随机仿真面板 -->
+          <div id="sensor-panel" class="hidden">
+            <div class="sp-head"><span>板载传感器调节</span><button id="sp-close" title="关闭">×</button></div>
+            <div class="sp-cols">
+              <div class="sp-col">
+                <div class="sp-title">🎤 麦克风</div>
+                <input type="range" id="sp-sound" min="0" max="4095" value="120" orient="vertical">
+                <input type="number" id="sp-sound-num" min="0" max="4095" value="120">
+                <button class="sp-dice" data-k="sound" title="随机仿真">🎲</button>
+              </div>
+              <div class="sp-col">
+                <div class="sp-title">☀️ 光线</div>
+                <input type="range" id="sp-light" min="0" max="4095" value="500">
+                <input type="number" id="sp-light-num" min="0" max="4095" value="500">
+                <button class="sp-dice" data-k="light" title="随机仿真">🎲</button>
+              </div>
+            </div>
+            <div class="sp-foot">
+              <button id="sp-mic-real" class="sp-real-btn" title="申请调用电脑麦克风，以真实音量作为麦克风读数">🎙️ 使用电脑麦克风</button>
+              <span id="sp-mic-real-st" class="sp-real-st">当前：模拟数据</span>
+            </div>
+            <!-- 第二十四轮的 AI 语音实操区已移出：改由掌控板屏幕下方的语音小圆点
+                 唤起悬浮小窗口（见 js/sim-board.js 的 voicePanelHTML） -->
+          </div>
+          <!-- 「+拓展」按钮已移除：拓展库入口统一在左下角工具条（与积木区同级、置顶） -->
+          <button id="btn-wire-lib" class="wire-btn" title="打开硬件连接：查看 3D 掌控板与扩展板，拖拽连接硬件">
+            <svg viewBox="0 0 24 24" width="16" height="16"><path d="M7 8h4a3 3 0 0 1 3 3v2a3 3 0 0 0 3 3h0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="5.5" cy="8" r="2.4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="18.5" cy="16" r="2.4" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+            硬件连接
+          </button>
+        </div>
+
+        <!-- 串口 / 控制台 -->
+        <div id="console-wrap">
+          <div class="console-head">
+            <span>控制台 / 串口输出</span>
+            <div>
+              <button class="mini-btn" id="btn-clear-log">清空</button>
+            </div>
+          </div>
+          <div id="console"></div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- ============ 左下角工具条（与积木区同级，置于最上层） ============ -->
+    <div id="bottom-tools">
+      <button id="btn-ext-lib" title="打开拓展库，添加传感器、执行器等设备">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+        拓展库
+      </button>
+      <button id="btn-mat-lib" title="打开素材库：上传图片、表情、元素素材，查看情景">
+        <svg viewBox="0 0 24 24" width="18" height="18"><rect x="3" y="4" width="18" height="16" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8.5" cy="9.5" r="2" fill="currentColor"/><path d="M4 17l5-5 4 4 3-3 5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        素材
+      </button>
+    </div>
+
+    <!-- ============ 底部状态栏 ============ -->
+    <footer id="statusbar">
+      <span id="status-left">就绪</span>
+      <span id="status-right" title="点击打开意见反馈网站">版权©心灵同学　微信公众号:i心灵空间　邮箱：2477938069@qq.com　Make+</span>
+    </footer>
+  </div>
+
+  <!-- 通用提示框 -->
+  <div id="toast" class="hidden"></div>
+
+  <!-- 拓展库模态框 -->
+  <div id="ext-lib-mask" class="hidden">
+    <div id="ext-lib">
+      <div class="ext-lib-head">
+        <button class="mini-btn" id="btn-ext-back">← 返回编程</button>
+        <h2>选择一个拓展设备</h2>
+        <div class="ext-lib-search">
+          <svg viewBox="0 0 24 24" width="16" height="16"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4-4" stroke="currentColor" stroke-width="2"/></svg>
+          <input type="text" id="ext-search" placeholder="搜索设备名称…">
+        </div>
+      </div>
+      <div class="ext-lib-tabs">
+        <button class="ext-tab active" data-cat="all">全部</button>
+        <button class="ext-tab" data-cat="sensor">传感器</button>
+        <button class="ext-tab" data-cat="actuator">执行器</button>
+        <button class="ext-tab" data-cat="network">通讯网络</button>
+        <button class="ext-tab" data-cat="other">其他</button>
+      </div>
+      <div class="ext-lib-body">
+        <div id="ext-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 新建变量 / 列表 弹窗 -->
+  <!-- 变量 / 列表管理面板（第三十轮）：集中重命名与删除 -->
+  <div id="varmgr-mask" class="hidden">
+    <div id="varmgr">
+      <h3>变量 / 列表管理</h3>
+      <p class="vm-tip">重命名会同步更新所有用到它的积木；删除会连同引用它的积木一起移除。</p>
+      <div id="vm-list"></div>
+      <div class="nd-actions">
+        <button class="tb-btn primary" id="vm-close">完成</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="name-dialog-mask" class="hidden">
+    <div id="name-dialog">
+      <div class="nd-icon" id="nd-icon">
+        <svg viewBox="0 0 24 24" width="34" height="34"><path d="M4 7a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3z" fill="#fff" opacity=".25"/><path d="M8 12h8M8 8h8M8 16h5" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </div>
+      <h3 id="nd-title">新建变量</h3>
+      <p class="nd-tip" id="nd-tip">输入变量名称，新建后会出现完整的变量积木</p>
+      <input type="text" id="nd-input" maxlength="20" placeholder="">
+      <div class="nd-actions">
+        <button class="tb-btn" id="nd-cancel">取消</button>
+        <button class="tb-btn primary" id="nd-ok">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 制作新的积木（自制积木）弹窗 -->
+  <div id="proc-dialog-mask" class="hidden">
+    <div id="proc-dialog">
+      <div class="pd-head">
+        <span id="pd-title">制作新的积木</span>
+        <button id="pd-close" title="关闭">×</button>
+      </div>
+      <div class="pd-preview">
+        <button type="button" id="pd-trash" title="清空所有内容">🗑</button>
+        <div id="pd-block" class="pd-block">
+          <input type="text" id="pd-name" class="pd-name-input" value="积木名称" maxlength="16">
+          <span id="pd-items"></span>
+        </div>
+      </div>
+      <div class="pd-options">
+        <button type="button" class="pd-opt" data-add="num">
+          <span class="pd-shape oval"></span>
+          <span class="pd-opt-t">添加输入项<br><b>数字或文本</b></span>
+        </button>
+        <button type="button" class="pd-opt" data-add="bool">
+          <span class="pd-shape hex"></span>
+          <span class="pd-opt-t">添加输入项<br><b>布尔值</b></span>
+        </button>
+        <button type="button" class="pd-opt" data-add="label">
+          <span class="pd-shape txt">text</span>
+          <span class="pd-opt-t">添加文本标签：</span>
+        </button>
+      </div>
+      <label class="pd-check"><input type="checkbox" id="pd-norefresh"> 运行时不刷新屏幕</label>
+      <div class="pd-actions">
+        <button class="tb-btn" id="pd-cancel">取消</button>
+        <button class="tb-btn primary" id="pd-ok">完成</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 硬件连接弹窗：3D 掌控板 + 扩展板 + 拖拽连线 -->
+  <div id="wire-lib-mask" class="hidden">
+    <div id="wire-lib">
+      <div class="wl-head">
+        <h2>硬件连接</h2>
+        <div class="wl-head-r">
+          <span id="wl-stat" class="wl-stat"></span>
+          <button class="mini-btn" id="wl-help-toggle" title="查看连接说明">? 说明</button>
+          <button class="mini-btn" id="wl-auto" title="把所有已添加的硬件一键接到推荐接口上">🔗 一键连接</button>
+          <button class="mini-btn" id="wl-clear" title="断开全部连接">清空连接</button>
+          <button class="mini-btn" id="wl-full" title="切换全屏，方便编辑与浏览">⛶ 全屏</button>
+          <button class="mini-btn" id="wl-close" title="关闭">✕</button>
+        </div>
+      </div>
+
+      <div id="wl-help" class="wl-help hidden">
+        <b>连接方法：</b>点击<b>设备（传感器/执行器）</b>→ 设备两侧出现<b>金色控点</b> →
+        点击（或按住）控点拖出连接线 → 点击扩展板上对应的<b>接口圆点</b>即完成连接。点击空白处取消并收起控点。
+        <br>
+        <span style="color:#8a939e">　左键拖动设备可移动位置；右键设备可删除 / 调尺寸 / 选接口；<b>右键连接线可直接断开</b>；
+          右上角「清空连接」可断开全部硬件（掌控板金手指连接保留）。</span>
+        <br>
+        <b>四类接口（按硬件引脚数自动匹配）：</b>
+        <span class="wl-tag io">IO 口 ×10（3Pin：GND/3V/P）—— P0 P1 P2 P8 P9 P12 P13 P14 P15 P16</span>
+        <span class="wl-tag i2c">I2C 口 ×3（4Pin：GND/3V3 或 5V/SCL/SDA）</span>
+        <span class="wl-tag motor">M 口 ×2 组（M1±/M2±，2Pin）</span>
+        <span class="wl-tag gold">金手指（中间：GND/3V/2/1/0，掌控板默认插在其上）</span>
+        <br>
+        <span style="color:#e0a04a">　注意：掌控板<b>不支持 P12 口</b>（图中已用 × 标注），该接口无法连接。</span>
+        <span style="color:#8a939e">　拉线时，引脚数匹配的接口会脉冲高亮引导点击。连接端口会同步到积木区。</span>
+        <br>
+        <!-- 第三十二轮：CP210x 驱动安装指引（参考资料/CP210x_Windows_Drivers掌控板驱动） -->
+        <div class="wl-driver">
+          <b>🔌 上传程序前先装串口驱动</b>
+          <span>掌控板用 CP210x（USB 转串口）。若「上传到掌控板」按钮点不动、或设备管理器里出现
+            带感叹号的「未知设备」，就是驱动没装或没装成功。</span>
+          <span class="wl-driver-steps">
+            ① 打开电脑上的 <code>参考资料\CP210x_Windows_Drivers掌控板驱动</code> 文件夹 →<br>
+            ② 64 位系统双击 <code>CP210xVCPInstaller_x64.exe</code>（32 位用 <code>_x86.exe</code>）→<br>
+            ③ 安装完成后<strong>拔掉再插上</strong>掌控板 →<br>
+            ④ 设备管理器里应出现「端口(COM 和 LPT) → Silicon Labs CP210x USB to UART Bridge」，
+               记下 COM 号（上传时选它）。
+          </span>
+          <button class="mini-btn" id="wl-driver-btn" title="查看串口端口与诊断">检测串口</button>
+          <span id="wl-driver-info" class="wl-driver-info"></span>
+        </div>
+      </div>
+
+      <div class="wl-body">
+        <!-- 硬件工作区：扩展板 + 掌控板 + 可自由摆放的硬件 3D 模型 -->
+        <div class="wl-right">
+          <div class="wl-right-title">
+            掌控板 + 掌控IO扩展板
+            <span class="wl-tip">点设备出控点 → 点控点拉线 → 点接口连接 · 右键连线断开 · 右键设备更多选项</span>
+          </div>
+          <div id="wl-stage" class="wl-stage">
+            <!-- 第三十八轮：整个硬件工作区放进缩放层。
+                 放大 / 缩小按钮缩放的是这一层 —— 扩展板 + 掌控板 +
+                 所有设备模型 + 连线整体一起缩放。 -->
+            <div id="wl-zoom-wrap" class="wl-zoom-wrap">
+              <div id="wl-dock" class="wl-dock"></div>
+              <div id="wl-board-box" class="wl-board-box">
+                <!-- viewBox 上移 112 让出空间展示插在金手指上的掌控板 -->
+                <svg viewBox="0 -112 400 347" id="wl-svg" class="wl-svg"></svg>
+              </div>
+            </div>
+            <!-- 第三十八轮：右下角缩放按钮，缩放整个硬件工作区 -->
+            <div id="wl-zoom" title="放大 / 缩小整个硬件工作区">
+              <button class="wl-zoom-btn" id="wl-zoom-out" title="缩小整个界面">－</button>
+              <span id="wl-zoom-val">100%</span>
+              <button class="wl-zoom-btn" id="wl-zoom-in" title="放大整个界面">＋</button>
+              <button class="wl-zoom-btn wide" id="wl-zoom-reset" title="恢复默认大小">复位</button>
+            </div>
+          </div>
+          <div class="wl-legend">
+            <span class="wl-tag io">IO 口（3Pin）</span>
+            <span class="wl-tag i2c">I2C 口（4Pin）</span>
+            <span class="wl-tag motor">M 口（2Pin）</span>
+            <span class="wl-tag gold">金手指</span>
+            <span class="wl-legend-tip">绿点 = 被硬件占用（点击可断开）· 金点 = 掌控板金手指常驻连接 · 灰点 = 空闲初始状态 · 拉线时脉冲高亮的是可连接的接口</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 意见反馈弹窗：点击右下角版权文字触发 -->
+  <div id="fb-mask" class="hidden">
+    <div class="fb-box" role="dialog" aria-modal="true" aria-labelledby="fb-title">
+      <div class="fb-ico">💬</div>
+      <h3 id="fb-title">意见反馈</h3>
+      <p class="fb-text">
+        您的意见和建议对我们非常重要。<br>
+        点击下方「去反馈」，将用<b>新窗口</b>打开问卷网站，收集您的使用体验与改进建议。
+      </p>
+      <div class="fb-url">
+        <span class="fb-url-l">问卷地址</span>
+        <span class="fb-url-v">txc.qq.com/products/802163</span>
+      </div>
+      <div class="fb-actions">
+        <button class="fb-btn ghost" id="fb-cancel">取消</button>
+        <button class="fb-btn primary" id="fb-ok">去反馈</button>
+      </div>
+      <button class="fb-x" id="fb-close" title="关闭">✕</button>
+    </div>
+  </div>
+
+  <!-- 素材库模态框（图片 / 表情 / 元素素材 / 情景） -->
+  <div id="mat-lib-mask" class="hidden">
+    <div id="mat-lib">
+      <div class="mat-head">
+        <h2>素材库</h2>
+        <div class="mat-tabs">
+          <button class="mat-tab active" data-mt="image">图片素材</button>
+          <button class="mat-tab" data-mt="face">表情</button>
+          <button class="mat-tab" data-mt="element">元素素材</button>
+          <button class="mat-tab" data-mt="music">音乐素材</button>
+          <button class="mat-tab" data-mt="scene">情景</button>
+        </div>
+        <button class="mini-btn" id="mat-close" title="关闭">✕</button>
+      </div>
+
+      <div class="mat-body">
+        <!-- 图片素材 -->
+        <div class="mat-pane active" data-mp="image">
+          <div class="mat-actions">
+            <label class="mat-btn primary" for="mat-file">
+              <input type="file" id="mat-file" accept="image/png,image/jpeg,image/gif,image/bmp,image/webp" hidden>
+              📤 上传图片
+            </label>
+            <span class="mat-hint" id="mat-img-tip">支持 PNG/JPG/GIF/BMP/WebP，≤3MB；自动等比缩小并像素化为 128×64 单色位图</span>
+          </div>
+          <div class="mat-preview-box">
+            <div class="mat-preview-title">预览（128×64 像素化效果）</div>
+            <div id="mat-preview" class="mat-preview"><span class="empty-hint">选择一张图片后在此预览</span></div>
+          </div>
+          <div class="mat-sub">已上传的图片（存于浏览器缓存）</div>
+          <div id="mat-img-list" class="mat-grid"></div>
+        </div>
+
+        <!-- 表情 -->
+        <div class="mat-pane" data-mp="face">
+          <div class="mat-sub">内置表情（点击即可显示到掌控板屏幕）</div>
+          <div id="mat-face-list" class="mat-grid faces"></div>
+        </div>
+
+        <!-- 元素素材 -->
+        <div class="mat-pane" data-mp="element">
+          <div class="mat-actions">
+            <label class="mat-btn primary" for="mat-ele-file">
+              <input type="file" id="mat-ele-file" accept="image/png,image/jpeg,image/gif,image/bmp,image/webp,image/svg+xml" hidden>
+              📤 上传元素素材
+            </label>
+            <span class="mat-hint" id="mat-ele-tip">支持 PNG/JPG/GIF/BMP/WebP/SVG，≤2MB；超过 400×400 会自动等比缩小</span>
+          </div>
+          <div class="mat-sub">我的元素素材（点击添加到舞台，可拖动）</div>
+          <div id="mat-ele-list" class="mat-grid"></div>
+          <div class="mat-sub">内置元素（点击添加到舞台）</div>
+          <div id="mat-ele-builtin" class="mat-grid"></div>
+        </div>
+
+        <!-- 音乐素材（第二十六轮） -->
+        <div class="mat-pane" data-mp="music">
+          <div class="mat-actions">
+            <label class="mat-btn primary" for="mat-mus-file">
+              <input type="file" id="mat-mus-file" accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/ogg,audio/mp4,audio/x-m4a" hidden>
+              📤 上传音乐
+            </label>
+            <span class="mat-hint" id="mat-mus-tip">支持 MP3 / WAV / OGG / M4A，单文件 ≤ 3MB；上传后存在浏览器缓存，刷新不丢</span>
+          </div>
+          <div class="mat-sub">内置曲目（点击试听；用积木「播放音乐」可播放）</div>
+          <div id="mat-mus-builtin" class="mat-grid"></div>
+          <div class="mat-sub">我上传的音乐（存于浏览器缓存）</div>
+          <div id="mat-mus-list" class="mat-grid"></div>
+        </div>
+
+        <!-- 情景 -->
+        <div class="mat-pane" data-mp="scene">
+          <div class="mat-actions">
+            <button class="mat-btn primary" id="mat-scene-new">＋ 新建情景</button>
+            <button class="mat-btn" id="mat-scene-save">💾 保存当前舞台为情景</button>
+            <span class="mat-hint">情景可包含任意元素组合，保存后可一键布置</span>
+          </div>
+          <div class="mat-sub">我的情景</div>
+          <div id="mat-scene-list" class="mat-grid"></div>
+          <div class="mat-sub">内置情景（点击查看元素并布置到舞台）</div>
+          <div id="mat-scene-builtin" class="mat-grid"></div>
+          <div id="mat-scene-detail" class="mat-scene-detail"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 新建情景对话框 -->
+  <div id="scene-dialog-mask" class="hidden">
+    <div id="scene-dialog">
+      <h3 id="sd-title">新建情景</h3>
+      <p class="nd-tip" id="sd-tip">给情景起个名字，并选择要包含的元素（可多选）</p>
+      <input type="text" id="sd-name" maxlength="16" placeholder="例如：交通路口">
+      <div class="sd-ele-list" id="sd-eles"></div>
+      <div class="nd-actions">
+        <button class="tb-btn" id="sd-cancel">取消</button>
+        <button class="tb-btn primary" id="sd-ok">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-mask" class="hidden">
+    <div id="modal">
+      <h3 id="modal-title"></h3>
+      <div id="modal-body"></div>
+      <div class="modal-actions">
+        <button class="tb-btn" id="modal-cancel">取消</button>
+        <button class="tb-btn primary" id="modal-ok">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Blockly（本地资源，无需联网） -->
+  <script src="vendor/blockly/blockly_compressed.js"></script>
+  <script src="vendor/blockly/blocks_compressed.js"></script>
+  <script src="vendor/blockly/javascript_compressed.js"></script>
+  <script src="vendor/blockly/python_compressed.js"></script>
+  <script src="vendor/blockly/msg/zh-hans.js"></script>
+  <!-- 应用脚本（版本号用于刷新浏览器缓存） -->
+  <script src="js/blocks-defs.js?v=20261102"></script>
+  <script src="js/device-blocks.js?v=20261102"></script>
+  <script src="js/store.js?v=20261102"></script>
+  <script src="js/project.js?v=20261102"></script>
+  <!-- 第四十五轮：py 源码 → 积木 的逆向转换器（打开六年级 .py 示例能还原成真积木） -->
+  <script src="js/py2blocks.js?v=20261102"></script>
+  <script src="js/xfyun.js?v=20261102"></script>
+  <script src="js/ai-config.js?v=20261102"></script>
+  <script src="js/toolbox.js?v=20261102"></script>
+  <script src="js/gen-python.js?v=20261102"></script>
+  <script src="js/gen-sim.js?v=20261102"></script>
+  <script src="js/devices.js?v=20261102"></script>
+  <!-- 第五十轮：拓展库的详细文字介绍 + 分镜动画「视频介绍」
+       要放在 devices.js 之后（依赖 ZKB.deviceMeta / ZKB.deviceIcon） -->
+  <script src="js/device-intro.js?v=20261102"></script>
+  <script src="js/sim-board.js?v=20261102"></script>
+  <script src="js/sim-engine.js?v=20261102"></script>
+  <script src="js/vision.js?v=20261102"></script>
+  <script src="js/vision-ai.js?v=20261102"></script>
+  <script src="js/speech.js?v=20261102"></script>
+  <script src="js/oled-image.js?v=20261102"></script>
+  <script src="js/stage-scene.js?v=20261102"></script>
+  <script src="js/stage.js?v=20261102"></script>
+  <script src="js/qrcode.js?v=20261102"></script>
+  <script src="js/matlib.js?v=20261102"></script>
+  <script src="js/music-lib.js?v=20261102"></script>
+  <script src="js/board3d.js?v=20261102"></script>
+  <script src="js/wirelib.js?v=20261102"></script>
+  <script src="js/serial-link.js?v=20261102"></script>
+  <script src="js/examples.js?v=20261102"></script>
+  <!-- 第四十九轮：信息科技教材（湘科版）示例程序 -->
+  <script src="js/textbook-examples.js?v=20261102"></script>
+  <script src="js/app.js?v=20261102"></script>
+
+  <!-- ============ AI 设置弹窗（科大讯飞凭据） ============ -->
+  <div id="ai-cfg-mask" class="cfg-mask hidden">
+    <div class="cfg-box">
+      <div class="cfg-head">
+        <span>⚙ 科大讯飞 AI 技能设置</span>
+        <button id="ai-cfg-close" title="关闭">×</button>
+      </div>
+      <div class="cfg-body">
+        <p class="cfg-tip">
+          语音识别、语音合成、人脸识别、印刷/手写文字识别、拍照速算、物体识别、场景识别
+          共 7 项能力走科大讯飞开放平台。<br>
+          讯飞按「应用 × 接口能力」分配不同 APIKey，所以下面分三组填写；
+          不改也能直接用——已内置一套可用凭据。
+        </p>
+        <label class="cfg-row">
+          <span>APPID</span>
+          <input type="text" id="cfg-appid" placeholder="讯飞控制台的应用 ID" spellcheck="false">
+        </label>
+        <div class="cfg-groups" id="cfg-groups"></div>
+        <div class="cfg-note">
+          ⚠ 讯飞图像类接口官方标注「不支持跨域」。用浏览器直接打开本文件（file://）时
+          请求会被拦截，请在项目目录起一个本地服务器再访问，例如
+          <code>python -m http.server 8000</code>，然后打开
+          <code>http://localhost:8000/</code>。语音合成/识别走 WebSocket，不受此限制。
+        </div>
+        <div class="cfg-state" id="cfg-state"></div>
+      </div>
+      <div class="cfg-foot">
+        <button id="cfg-reset" class="cfg-btn">恢复默认凭据</button>
+        <div class="cfg-spacer"></div>
+        <button id="cfg-cancel" class="cfg-btn">取消</button>
+        <button id="cfg-save" class="cfg-btn primary">保存</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

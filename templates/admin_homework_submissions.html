@@ -1,0 +1,144 @@
+{% extends 'base.html' %}
+{% block title %}{{ hw.title }} - 提交列表{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h3><i class="fas fa-list-check me-2"></i>{{ hw.title }} <small class="text-muted fs-6">提交列表</small></h3>
+    <div class="d-flex gap-2">
+      <a href="/admin/homework/{{ hw.id }}/export_excellent" class="btn btn-outline-warning rounded-pill btn-sm"><i class="fas fa-download me-1"></i>打包优秀作业</a>
+      <a href="/admin/homework" class="btn btn-outline-secondary rounded-pill btn-sm"><i class="fas fa-arrow-left"></i> 返回</a>
+    </div>
+  </div>
+
+  <!-- 筛选 -->
+  <div class="row g-2 mb-3">
+    <div class="col-auto">
+      <select class="form-select form-select-sm rounded-pill" onchange="location.href='?class_id='+this.value+'&status={{ status_filter }}'">
+        <option value="">全部班级</option>
+        {% for c in classes %}
+        <option value="{{ c.id }}" {% if class_filter == c.id|string %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-auto">
+      <select class="form-select form-select-sm rounded-pill" onchange="location.href='?class_id={{ class_filter }}&status='+this.value">
+        <option value="">全部状态</option>
+        <option value="submitted" {% if status_filter == 'submitted' %}selected{% endif %}>待批改</option>
+        <option value="graded" {% if status_filter == 'graded' %}selected{% endif %}>已批改</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead><tr><th style="width:30px;"><input type="checkbox" id="selectAll" onchange="toggleAll(this)"></th><th>学生</th><th>班级</th><th>提交时间</th><th>重交时间</th><th>等级</th><th>操作</th></tr></thead>
+      <tbody>
+        {% for s in submissions %}
+        <tr>
+          <td><input type="checkbox" name="sub_ids" value="{{ s.id }}" class="sub-check"></td>
+          <td>{{ s.student.name if s.student else '未知' }}</td>
+          <td>{{ s.student.class_.name if s.student and s.student.class_ else '-' }}</td>
+          <td class="small">{{ s.submit_time.strftime('%m-%d %H:%M') if s.submit_time else '-' }}</td>
+          <td class="small">{{ s.resubmit_time.strftime('%m-%d %H:%M') if s.resubmit_time else '-' }}</td>
+          <td>
+            {% if s.grade %}
+            <span class="badge bg-{{ 'success' if s.grade[0] in ('A','B') else 'warning' if s.grade[0]=='C' else 'danger' }}">{{ s.grade }}</span>
+            {% else %}<span class="badge bg-secondary">待批</span>{% endif %}
+          </td>
+          <td>
+            <a href="/admin/homework/{{ hw.id }}/grade/{{ s.id }}" class="btn btn-outline-primary btn-sm rounded-pill"><i class="fas fa-check me-1"></i>批改</a>
+            <button type="button" class="btn btn-outline-danger btn-sm rounded-pill" title="删除该提交记录"
+                    onclick="deleteSubmission({{ s.id }})">
+              <i class="fas fa-trash"></i>
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+        {% if not submissions %}
+        <tr><td colspan="7" class="text-center text-muted py-3">暂无提交</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+    {% if submissions %}
+    <div class="mt-2">
+      <button type="button" id="batchDeleteBtn" class="btn btn-outline-danger btn-sm rounded-pill"><i class="fas fa-trash me-1"></i>批量删除选中</button>
+    </div>
+    {% endif %}
+    {% if pagination and pagination.pages > 1 %}
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
+        <span class="text-muted small">共 {{ pagination.total }} 份提交，第 {{ pagination.page }} / {{ pagination.pages }} 页</span>
+        <nav aria-label="提交分页">
+            <ul class="pagination justify-content-center mb-0 flex-wrap">
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('homework.admin_homework_submissions', hw_id=hw.id, class_id=class_filter, status=status_filter, page=pagination.prev_num) if pagination.has_prev else '#' }}">上一页</a>
+                </li>
+                {% for p in range(1, pagination.pages + 1) %}
+                    {% if p == 1 or p == pagination.pages or (p >= pagination.page - 2 and p <= pagination.page + 2) %}
+                    <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                        <a class="page-link" href="{{ url_for('homework.admin_homework_submissions', hw_id=hw.id, class_id=class_filter, status=status_filter, page=p) }}">{{ p }}</a>
+                    </li>
+                    {% elif p == 2 or p == pagination.pages - 1 %}
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('homework.admin_homework_submissions', hw_id=hw.id, class_id=class_filter, status=status_filter, page=pagination.next_num) if pagination.has_next else '#' }}">下一页</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+  </div>
+</div>
+<script>
+function toggleAll(el) {
+  document.querySelectorAll('.sub-check').forEach(function(cb) { cb.checked = el.checked; });
+}
+
+// 统一的删除请求（携带 CSRF 头）
+function postDelete(url, ids, fieldName) {
+  var body = new URLSearchParams();
+  ids.forEach(function (id) { body.append(fieldName, id); });
+  fetch(url, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': window.CSRF_TOKEN || '' },
+    body: body,
+    credentials: 'same-origin'
+  })
+    .then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      // 删除接口成功后重定向回本页，可能返回 HTML；若返回 JSON 则检查 success
+      return r.json().catch(function () { return null; });
+    })
+    .then(function (j) {
+      if (j && j.success === false) {
+        alert(j.message || '删除失败');
+        return;
+      }
+      location.reload();
+    })
+    .catch(function () {
+      alert('操作失败，请重试');
+    });
+}
+
+// 单条提交记录删除（保留确认提示）
+function deleteSubmission(id) {
+  if (!confirm('确定删除此提交记录？')) return;
+  postDelete('/admin/homework/{{ hw.id }}/submissions/' + id + '/delete', [id], 'sub_ids');
+}
+
+// 批量删除选中
+document.addEventListener('DOMContentLoaded', function () {
+  var btn = document.getElementById('batchDeleteBtn');
+  if (!btn) return;
+  btn.addEventListener('click', function () {
+    var ids = [];
+    document.querySelectorAll('.sub-check:checked').forEach(function (cb) { ids.push(cb.value); });
+    if (!ids.length) { alert('请先勾选要删除的提交记录'); return; }
+    if (!confirm('确定删除选中的提交记录？此操作不可恢复。')) return;
+    postDelete('/admin/homework/{{ hw.id }}/submissions/batch_delete', ids, 'sub_ids');
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+    
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>苯 · 大 π 键（π₆⁶）三维模型</title>
+<link rel="icon" href="favicon.png">
+<link rel="stylesheet" href="ui-glass.css">
+<style>
+    :root { --side-width: 226px; --info-width: 268px; }
+    body, html {
+        margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+        background: #05070d; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; color: #e2e8f0;
+    }
+    #app-container {
+        position: fixed; inset: 0; display: flex; flex-direction: column;
+        background: radial-gradient(1100px 640px at 50% -8%, rgba(53, 208, 255, 0.10), rgba(255, 79, 216, 0.05) 55%, transparent 75%), #05070d;
+    }
+    #main-row { flex: 1; display: flex; min-height: 0; padding: 0 12px 12px; gap: 10px; align-items: stretch; }
+
+    /* 左右栏 */
+    #sidebar { width: var(--side-width); flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; }
+    #controls-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding: 2px 0; }
+    #controls-panel::-webkit-scrollbar, #info-sidebar::-webkit-scrollbar { width: 5px; }
+    #controls-panel::-webkit-scrollbar-thumb, #info-sidebar::-webkit-scrollbar-thumb { background: rgba(102,170,255,0.35); border-radius: 4px; }
+
+    #info-sidebar { width: var(--info-width); flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow-y: auto; padding: 2px 0; }
+
+    .glass-panel {
+        background: rgba(12, 19, 33, 0.82); border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 14px; padding: 12px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+        display: flex; flex-direction: column; gap: 8px;
+    }
+    .panel-title {
+        font-size: 12px; font-weight: 700; color: #9fc4ff; letter-spacing: 2px;
+        border-bottom: 1px solid rgba(102,170,255,0.18); padding-bottom: 6px;
+    }
+
+    .cbtn {
+        display: block; width: 100%; padding: 7px 8px; border-radius: 10px; cursor: pointer;
+        background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.14); color: #dbe4f2;
+        text-align: center; font-size: 12px; font-family: inherit; transition: all 0.2s;
+    }
+    .cbtn:hover { background: rgba(102, 170, 255, 0.14); border-color: rgba(102, 170, 255, 0.4); color: #fff; }
+    .cbtn.active { background: linear-gradient(135deg, rgba(53, 208, 255, 0.28), rgba(85, 224, 192, 0.18)); border-color: rgba(53, 208, 255, 0.6); color: #fff; font-weight: 600; }
+    .cbtn.primary { background: linear-gradient(135deg, rgba(102, 170, 255, 0.34), rgba(64, 128, 255, 0.22)); border-color: rgba(102, 170, 255, 0.7); color: #fff; font-weight: 600; }
+
+    .slider-label { display: flex; justify-content: space-between; font-size: 11px; color: #c7d3e8; }
+    input[type=range] { width: 100%; accent-color: #35d0ff; cursor: pointer; margin: 0; }
+
+    .info-list { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 6px; }
+    .info-list li { font-size: 12px; line-height: 1.7; color: #c7d3e8; }
+    .info-list li b { color: #66ccff; }
+
+    /* 画布区 */
+    #canvas-area {
+        position: relative; flex: 1; min-width: 0; border-radius: 18px; overflow: hidden;
+        border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 12px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06);
+    }
+    #canvas-container { position: absolute; inset: 0; cursor: grab; }
+    #canvas-container:active { cursor: grabbing; }
+
+    #canvas-legend {
+        position: absolute; top: 12px; right: 12px; z-index: 20; pointer-events: none;
+        background: rgba(10, 18, 32, 0.72); border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 10px; padding: 8px 11px; backdrop-filter: blur(6px);
+        box-shadow: 0 6px 18px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 5px; font-size: 11px; color: #dbe4f2;
+    }
+    .legend-item { display: flex; align-items: center; gap: 7px; }
+    .color-box { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.2); }
+
+    /* 左上角结构简式 */
+    #formula-overlay {
+        position: absolute; top: 12px; left: 12px; z-index: 20; pointer-events: none;
+        background: rgba(10, 18, 32, 0.74); border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 10px; padding: 7px 10px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4); user-select: none;
+        display: flex; flex-direction: column; align-items: center;
+    }
+    #formula-overlay .fo-title { font-size: 10px; color: #9fb4d8; letter-spacing: 1px; margin-bottom: 1px; }
+    #formula-overlay .fo-caption { font-size: 11px; color: #dbe4f2; margin-top: 2px; }
+    @media (max-width: 700px) {
+        #formula-overlay { transform: scale(0.82); transform-origin: top left; }
+    }
+
+    @media (max-width: 860px) {
+        :root { --side-width: 200px; --info-width: 220px; }
+    }
+    @media (max-width: 700px) {
+        #main-row { flex-direction: column; overflow-y: auto; }
+        #sidebar { width: auto; }
+        #controls-panel { flex-direction: row; flex-wrap: wrap; }
+        #controls-panel .glass-panel { flex: 1 1 180px; }
+        #canvas-area { min-height: 55vh; }
+        #info-sidebar { width: auto; flex-direction: row; flex-wrap: wrap; }
+        #info-sidebar .glass-panel { flex: 1 1 240px; }
+    }
+</style>
+
+<style id="chem-lab-embed-style">
+  /* ITstudy 化学仿真统一壳：隐藏原站顶栏/品牌/版权水印。
+     不强制页面高度与 overflow —— 各页面自有布局（周期表需要滚动，
+     3D 页需要全屏），统一覆盖会把周期表底部裁掉。 */
+  #topbar, #copyright, .wm-copyright, #btn-home,
+  .topbar-actions, .back-home-btn,
+  .brand, .brand-title, #brand-logo { display: none !important; }
+  canvas { max-width: 100%; }
+  /* 课堂 iframe 高度较小时：周期表隐藏趋势图、压缩行高，保证 118 元素可见 */
+  @media (max-height: 720px) {
+    #chart-panel { display: none !important; }
+    .ptable.size-s { grid-auto-rows: 32px !important; }
+    #info-sidebar { width: 220px; }
+  }
+</style>
+</head>
+<body>
+<div id="app-container">
+    <div id="topbar" class="glass">
+        <div class="brand">
+            <img id="brand-logo" src="favicon.png" alt="可视化化学">
+            <div class="brand-text">
+                <div class="brand-title">可视化化学<span class="brand-divider">·</span>可视化学</div>
+                <div class="brand-sub">让微观结构，触手可及！</div>
+            </div>
+        </div>
+        <div class="topbar-actions">
+            <a class="top-btn" id="btn-home" href="index.html" target="_top">主页</a>
+            <button class="top-btn" id="btn-back" onclick="goBackSubnav()">返回上一页</button>
+            <button class="top-btn pause-btn" id="btn-pause" onclick="toggleRotation()">暂停模型自转</button>
+            <button class="top-btn" id="btn-reset-view" onclick="resetView()">视角复原</button>
+        </div>
+    </div>
+
+    <div id="main-row">
+        <div id="sidebar">
+            <div id="controls-panel">
+                <div class="glass-panel">
+                    <div class="panel-title">分子形成</div>
+                    <button class="cbtn primary" id="btn-demo">▶ 分子形成动画</button>
+                    <label class="slider-label"><span>形成进度</span><span id="progress-val">100%</span></label>
+                    <input type="range" id="progress-slider" min="0" max="100" value="100">
+                </div>
+                <div class="glass-panel">
+                    <div class="panel-title">模型状态</div>
+                    <button class="cbtn active" id="btn-cloud">大π键</button>
+                    <button class="cbtn" id="btn-bare">分子骨架</button>
+                </div>
+                <div class="glass-panel">
+                    <div class="panel-title">显示控制</div>
+                    <button class="cbtn" id="btn-phase">相位着色</button>
+                    <button class="cbtn active" id="btn-elec">显示电子</button>
+                    <label class="slider-label"><span>云透明度</span><span id="opacity-val">38%</span></label>
+                    <input type="range" id="opacity-slider" min="0" max="100" value="38">
+                </div>
+            </div>
+        </div>
+
+        <div id="canvas-area">
+            <div id="canvas-container"></div>
+            <div id="canvas-legend">
+                <div class="legend-item"><span class="color-box" style="background:#1a1d22;box-shadow:0 0 0 1px rgba(255,255,255,0.28) inset"></span>碳 C</div>
+                <div class="legend-item"><span class="color-box" style="background:#ffffff"></span>氢 H</div>
+                <div class="legend-item"><span class="color-box" style="background:#35d0ff"></span>2p 轨道 · 上瓣</div>
+                <div class="legend-item"><span class="color-box" style="background:#ff4fd8"></span>2p 轨道 · 下瓣</div>
+                <div class="legend-item"><span class="color-box" style="background:rgba(53,208,255,0.55)"></span>π 电子云（环状离域）</div>
+                <div class="legend-item"><span class="color-box" style="background:#ffd400;box-shadow:0 0 5px #ffd400"></span>π 电子 (e⁻)</div>
+            </div>
+        </div>
+
+        <div id="info-sidebar">
+            <div class="glass-panel">
+                <div class="panel-title">苯 C₆H₆ · 结构</div>
+                <ul class="info-list">
+                    <li>6 个碳均为 <b>sp² 杂化</b>，平面正六边形，键角 120°。</li>
+                    <li>每个碳各余 1 个未杂化的 <b>2p 轨道</b>，垂直于环平面。</li>
+                    <li>C–C 键长均等（约 1.40 Å），介于单键与双键之间。</li>
+                </ul>
+            </div>
+            <div class="glass-panel">
+                <div class="panel-title">大 π 键 π₆⁶</div>
+                <ul class="info-list">
+                    <li>6 个 2p 轨道相互平行，相邻轨道<b>肩并肩重叠</b>。</li>
+                    <li>上瓣连成环平面上方的环状电子云，下瓣连成下方的环状电子云。</li>
+                    <li>π 电子在 6 个碳间<b>离域</b>，形成 6 中心 6 电子的大 π 键。</li>
+                    <li>离域使体系能量降低、结构稳定，这是苯的芳香性来源。</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>window.BACK_SUBNAV = 'subnav-organic';</script>
+<script src="three.min.js"></script>
+<script src="OrbitControls-umd.js"></script>
+<script>
+(function () {
+    const container = document.getElementById('canvas-container');
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    container.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x070b12);
+    const camera = new THREE.PerspectiveCamera(42, container.clientWidth / container.clientHeight, 0.1, 80);
+    camera.position.set(5.6, 3.8, 5.9);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.07;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 1.8;
+    controls.target.set(0, 0, 0);
+    controls.minDistance = 3.2;
+    controls.maxDistance = 15;
+    controls.enablePan = false;
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+    const keyLight = new THREE.DirectionalLight(0xffffff, 0.9);
+    keyLight.position.set(4, 8, 6);
+    scene.add(keyLight);
+    const fillLight = new THREE.DirectionalLight(0x66aaff, 0.35);
+    fillLight.position.set(-5, -3, -5);
+    scene.add(fillLight);
+
+    /* ---------- 苯环几何（XZ 平面） ---------- */
+    const R = 1.42, HR = 2.38;
+    const C_POS = [], H_POS = [];
+    for (let i = 0; i < 6; i++) {
+        const a = (i * 60 - 90) * Math.PI / 180;
+        C_POS.push(new THREE.Vector3(R * Math.cos(a), 0, R * Math.sin(a)));
+        H_POS.push(new THREE.Vector3(HR * Math.cos(a), 0, HR * Math.sin(a)));
+    }
+
+    const atomMat = new THREE.MeshStandardMaterial({ color: 0x16181c, roughness: 0.35, metalness: 0.2 });
+    const hMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35, metalness: 0.08 });
+    const bondMat = new THREE.MeshStandardMaterial({ color: 0xc9d7ea, roughness: 0.5, metalness: 0.1 });
+    const carbonGeo = new THREE.SphereGeometry(0.30, 28, 22);
+    const hGeo = new THREE.SphereGeometry(0.17, 22, 16);
+
+    C_POS.forEach(pos => { const m = new THREE.Mesh(carbonGeo, atomMat); m.position.copy(pos); scene.add(m); });
+    H_POS.forEach(pos => { const m = new THREE.Mesh(hGeo, hMat); m.position.copy(pos); scene.add(m); });
+
+    function bond(a, b, r) {
+        const dir = new THREE.Vector3().subVectors(b, a);
+        const len = dir.length();
+        const geo = new THREE.CylinderGeometry(r, r, len, 10);
+        const mesh = new THREE.Mesh(geo, bondMat);
+        mesh.position.copy(a).add(b).multiplyScalar(0.5);
+        mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+        scene.add(mesh);
+    }
+    for (let i = 0; i < 6; i++) {
+        bond(C_POS[i], C_POS[(i + 1) % 6], 0.07);
+        bond(C_POS[i], H_POS[i], 0.05);
+    }
+
+    /* ---------- π 电子云：上下两个压扁环状电子云 ---------- */
+    const COLOR_UP = 0x35d0ff;
+    const COLOR_DOWN = 0xff4fd8;
+    const LOBE_GAP = 0.30;
+    const ELECTRON_Y = 0.62;
+    const ringUpMat = new THREE.MeshBasicMaterial({
+        color: COLOR_UP, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending,
+        depthWrite: false, side: THREE.DoubleSide
+    });
+    const ringDownMat = new THREE.MeshBasicMaterial({
+        color: COLOR_UP, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending,
+        depthWrite: false, side: THREE.DoubleSide
+    });
+    function flatTorusGeo(radius, tube) {
+        const g = new THREE.TorusGeometry(radius, tube, 28, 110);
+        g.rotateX(Math.PI / 2);
+        return g;
+    }
+    const ringUp = new THREE.Mesh(flatTorusGeo(1.30, 0.46), ringUpMat);
+    ringUp.position.y = 0.62; ringUp.scale.set(1, 0.72, 1); ringUp.userData.kind = 'ring'; scene.add(ringUp);
+    const ringDown = new THREE.Mesh(flatTorusGeo(1.30, 0.46), ringDownMat);
+    ringDown.position.y = -0.62; ringDown.scale.set(1, 0.72, 1); ringDown.userData.kind = 'ring'; scene.add(ringDown);
+
+    const circleMat = new THREE.MeshBasicMaterial({
+        color: COLOR_UP, transparent: true, opacity: 0.40, blending: THREE.AdditiveBlending, depthWrite: false
+    });
+    const circleMesh = new THREE.Mesh(flatTorusGeo(0.86, 0.028), circleMat);
+    circleMesh.userData.kind = 'ring'; scene.add(circleMesh);
+
+    /* ---------- p 轨道：与 sigma.html 一致的 2p 等值面形状 ---------- */
+    const ISOVALUE = 0.005;
+    const maxK = 4 * Math.exp(-2);
+    const maxTheta = Math.acos(Math.sqrt(ISOVALUE));
+    const visualScale = 4.8 / 8.88;
+    function solveROuter(K) {
+        let left = 2, right = 20;
+        for (let i = 0; i < 40; i++) {
+            const mid = (left + right) / 2;
+            if (mid * mid * Math.exp(-mid) < K) right = mid; else left = mid;
+        }
+        return (left + right) / 2;
+    }
+    const pOuterPoints = [];
+    for (let i = 0; i <= 150; i++) {
+        const t = i / 150;
+        const theta = maxTheta * t;
+        const cosT = Math.cos(theta);
+        const K = (ISOVALUE * maxK) / (cosT * cosT);
+        const r = (K >= maxK) ? 2.0 : solveROuter(K);
+        const y = r * Math.cos(theta) * visualScale;
+        const x = r * Math.sin(theta) * visualScale;
+        pOuterPoints.push(new THREE.Vector2(x, y));
+    }
+    pOuterPoints.push(new THREE.Vector2(0, 0));
+    pOuterPoints.reverse();
+    const lobeGeo = new THREE.LatheGeometry(pOuterPoints, 64);
+    lobeGeo.computeBoundingBox();
+    const lobeTip = lobeGeo.boundingBox.max.y;
+    const BASE = 1 / lobeTip;
+
+    const upMat = new THREE.MeshBasicMaterial({
+        color: COLOR_UP, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending,
+        depthWrite: false, side: THREE.DoubleSide
+    });
+    const downMat = new THREE.MeshBasicMaterial({
+        color: COLOR_DOWN, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending,
+        depthWrite: false, side: THREE.DoubleSide
+    });
+    const lobes = [];
+    for (let i = 0; i < 6; i++) {
+        const up = new THREE.Mesh(lobeGeo, upMat);
+        up.position.copy(C_POS[i]);
+        up.position.y += LOBE_GAP;
+        up.userData.kind = 'lobe';
+        scene.add(up);
+        lobes.push(up);
+        const down = new THREE.Mesh(lobeGeo, downMat);
+        down.rotation.x = Math.PI;
+        down.position.copy(C_POS[i]);
+        down.position.y -= LOBE_GAP;
+        down.userData.kind = 'lobe';
+        scene.add(down);
+        lobes.push(down);
+    }
+
+    /* ---------- π 电子：黄色小球，固定在各个原子上方 ---------- */
+    const electronGeo = new THREE.SphereGeometry(0.09, 14, 12);
+    const electronMat = new THREE.MeshBasicMaterial({ color: 0xffd400 });
+    const electrons = [];
+    for (let i = 0; i < 6; i++) {
+        const e = new THREE.Mesh(electronGeo, electronMat);
+        e.position.set(C_POS[i].x, ELECTRON_Y, C_POS[i].z);
+        e.visible = false;
+        scene.add(e);
+        electrons.push(e);
+    }
+
+    /* ---------- 状态与动画 ---------- */
+    const smoothstep = (a, b, x) => {
+        x = Math.max(0, Math.min(1, (x - a) / (b - a)));
+        return x * x * (3 - 2 * x);
+    };
+    let p = 1;               // 1 = π 电子云态，0 = p 轨道态
+    let animTarget = null;   // null / 0 / 1
+    let animCycle = false;   // 循环：先回 0 再进 1
+    const RATE = 0.30;
+
+    let phaseOn = false;
+    let opacityMult = 1;
+    let bareMode = false;    // 纯苯环骨架（无任何电子云）
+    let elecOn = true;
+
+    function applyPhase() {
+        downMat.color.setHex(phaseOn ? COLOR_DOWN : COLOR_UP);
+        ringDownMat.color.setHex(phaseOn ? COLOR_DOWN : COLOR_UP);
+    }
+
+    function applyState() {
+        const s = 0.78 + 0.42 * smoothstep(0, 0.65, p);
+        const sw = BASE * s;
+        const sh = sw * 0.90;
+        const lobeOp = (1 - smoothstep(0.55, 0.92, p)) * 0.32 * opacityMult;
+        const ringOp = smoothstep(0.45, 0.95, p) * 0.32 * opacityMult;
+        const circleOp = smoothstep(0.55, 0.98, p) * 0.40 * opacityMult;
+
+        const showCloud = !bareMode;
+        lobes.forEach(l => {
+            l.visible = showCloud && lobeOp > 0.004;
+            l.scale.set(sw, sh, sw);
+        });
+        upMat.opacity = lobeOp;
+        downMat.opacity = lobeOp;
+        ringUp.visible = ringDown.visible = showCloud && ringOp > 0.004;
+        ringUpMat.opacity = ringOp;
+        ringDownMat.opacity = ringOp;
+        circleMesh.visible = showCloud && circleOp > 0.004;
+        circleMat.opacity = circleOp;
+    }
+
+    function playForward() { animTarget = 1; animCycle = false; }
+    function playBack() { animTarget = 0; animCycle = false; }
+    function playCycle() { animTarget = 0; animCycle = true; }
+    function busy() { return animTarget !== null; }
+
+    /* ---------- 点击模型触发 ---------- */
+    const clickTargets = [ringUp, ringDown, circleMesh].concat(lobes);
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    renderer.domElement.addEventListener('click', function (e) {
+        pointer.x = (e.clientX / renderer.domElement.clientWidth) * 2 - 1;
+        pointer.y = -(e.clientY / renderer.domElement.clientHeight) * 2 + 1;
+        raycaster.setFromCamera(pointer, camera);
+        const hits = raycaster.intersectObjects(clickTargets);
+        if (!hits.length || busy()) return;
+        const kind = hits[0].object.userData.kind;
+        if (kind === 'ring') {
+            if (p > 0.98) playCycle(); else playForward();
+        } else {
+            if (p < 0.02) playForward(); else playBack();
+        }
+    });
+
+    /* ---------- 控件 ---------- */
+    const btnCloud = document.getElementById('btn-cloud');
+    const btnBare = document.getElementById('btn-bare');
+    const btnDemo = document.getElementById('btn-demo');
+    const btnPhase = document.getElementById('btn-phase');
+    const btnElec = document.getElementById('btn-elec');
+    const progressSlider = document.getElementById('progress-slider');
+    const progressVal = document.getElementById('progress-val');
+    const opacitySlider = document.getElementById('opacity-slider');
+    const opacityVal = document.getElementById('opacity-val');
+
+    function refreshStateBtns() {
+        btnCloud.classList.toggle('active', !bareMode && p > 0.5);
+        btnBare.classList.toggle('active', bareMode);
+    }
+    btnCloud.addEventListener('click', () => {
+        if (busy()) return;
+        bareMode = false;
+        playForward();
+    });
+    btnBare.addEventListener('click', () => {
+        if (busy()) return;
+        bareMode = true;
+        animTarget = null;
+        animCycle = false;
+        applyState();
+        refreshStateBtns();
+    });
+    btnDemo.addEventListener('click', () => {
+        bareMode = false;
+        if (animTarget !== null) {          // 播放中 → 暂停
+            animTarget = null;
+            animCycle = false;
+            return;
+        }
+        if (p >= 0.98) {                    // 已到 π 云态 → 从头再播
+            p = 0;
+            animTarget = 1;
+            animCycle = false;
+            applyState();
+            refreshStateBtns();
+        } else {
+            animTarget = 1;
+            animCycle = false;
+        }
+    });
+    progressSlider.addEventListener('input', () => {
+        animTarget = null;
+        animCycle = false;
+        bareMode = false;
+        p = parseFloat(progressSlider.value) / 100;
+        refreshStateBtns();
+        applyState();
+    });
+    btnPhase.addEventListener('click', () => {
+        phaseOn = !phaseOn;
+        btnPhase.classList.toggle('active', phaseOn);
+        applyPhase();
+    });
+    btnElec.addEventListener('click', () => {
+        elecOn = !elecOn;
+        btnElec.classList.toggle('active', elecOn);
+    });
+    opacitySlider.addEventListener('input', () => {
+        opacityMult = parseFloat(opacitySlider.value) / 38;
+        opacityVal.textContent = opacitySlider.value + '%';
+    });
+
+    window.toggleRotation = function () {
+        controls.autoRotate = !controls.autoRotate;
+        const btn = document.getElementById('btn-pause');
+        btn.textContent = controls.autoRotate ? '暂停模型自转' : '继续模型自转';
+        btn.classList.toggle('paused', !controls.autoRotate);
+    };
+    window.resetView = function () {
+        camera.position.set(5.6, 3.8, 5.9);
+        controls.target.set(0, 0, 0);
+        controls.update();
+    };
+
+    window.addEventListener('resize', () => {
+        const w = container.clientWidth, h = container.clientHeight;
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+    });
+
+    applyPhase();
+    applyState();
+    refreshStateBtns();
+    function syncProgress() {
+        progressSlider.value = Math.round(p * 100);
+        progressVal.textContent = Math.round(p * 100) + '%';
+    }
+    syncProgress();
+
+    const clock = new THREE.Clock();
+    function animate() {
+        requestAnimationFrame(animate);
+        const dt = Math.min(clock.getDelta(), 0.1);
+        const t = clock.elapsedTime;
+
+        if (animTarget !== null) {
+            const step = RATE * dt;
+            const dir = animTarget > p ? 1 : -1;
+            if (Math.abs(animTarget - p) <= step) {
+                p = animTarget;
+                if (animCycle && animTarget === 0) { animTarget = 1; }
+                else { animTarget = null; animCycle = false; }
+            } else {
+                p += dir * step;
+            }
+            refreshStateBtns();
+            syncProgress();
+        }
+        applyState();
+        syncProgress();
+
+        const pulse = 0.92 + 0.08 * Math.sin(t * 1.6);
+        if (!bareMode) {
+            const ringBase = smoothstep(0.45, 0.95, p) * 0.32 * opacityMult * pulse;
+            ringUpMat.opacity = ringBase;
+            ringDownMat.opacity = ringBase;
+            const lobeBase = (1 - smoothstep(0.55, 0.92, p)) * 0.32 * opacityMult * pulse;
+            upMat.opacity = lobeBase;
+            downMat.opacity = lobeBase;
+        }
+        electrons.forEach(e => { e.visible = elecOn && !bareMode; });
+
+        controls.update();
+        renderer.render(scene, camera);
+    }
+    animate();
+})();
+</script>
+<script>
+/* 左上角结构简式（矢量闭合环画法）——苯 */
+(function () {
+    const area = document.getElementById('canvas-area');
+    if (!area || document.getElementById('formula-overlay')) return;
+    const NS = 'http://www.w3.org/2000/svg';
+    const cfg = {
+        caption: '苯 C₆H₆', count: 6, radius: 31, cx: 60, cy: 62,
+        hetero: {},
+        doubleEdges: [0, 2, 4]
+    };
+    const box = document.createElement('div');
+    box.id = 'formula-overlay';
+    box.innerHTML = '<div class="fo-title">结构简式</div>' +
+        '<svg id="fo-svg" width="122" height="118"></svg>' +
+        '<div class="fo-caption">' + cfg.caption + '</div>';
+    area.appendChild(box);
+    const svg = box.querySelector('svg');
+    const pts = [];
+    for (let i = 0; i < cfg.count; i++) {
+        const a = Math.PI / 2 - i * 2 * Math.PI / cfg.count;
+        pts.push({ x: cfg.cx + cfg.radius * Math.cos(a), y: cfg.cy - cfg.radius * Math.sin(a) });
+    }
+    const W = 2.2, LINE = '#e2edfb';
+    const d = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p.x.toFixed(2) + ' ' + p.y.toFixed(2)).join(' ') + ' Z';
+    const ring = document.createElementNS(NS, 'path');
+    ring.setAttribute('d', d); ring.setAttribute('fill', 'none');
+    ring.setAttribute('stroke', LINE); ring.setAttribute('stroke-width', W);
+    ring.setAttribute('stroke-linejoin', 'miter'); ring.setAttribute('stroke-linecap', 'butt');
+    svg.appendChild(ring);
+    for (let i = 0; i < cfg.count; i++) {
+        if (cfg.doubleEdges.indexOf(i) < 0) continue;
+        const A = pts[i], B = pts[(i + 1) % cfg.count];
+        const dx = B.x - A.x, dy = B.y - A.y;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        const dir = { x: dx / len, y: dy / len };
+        const mid = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
+        const inl = Math.sqrt((cfg.cx - mid.x) * (cfg.cx - mid.x) + (cfg.cy - mid.y) * (cfg.cy - mid.y));
+        const nin = { x: (cfg.cx - mid.x) / inl, y: (cfg.cy - mid.y) / inl };
+        const inset = 5.5, off = 3.2;
+        const p1 = { x: A.x + dir.x * inset + nin.x * off, y: A.y + dir.y * inset + nin.y * off };
+        const p2 = { x: B.x - dir.x * inset + nin.x * off, y: B.y - dir.y * inset + nin.y * off };
+        const el = document.createElementNS(NS, 'line');
+        el.setAttribute('x1', p1.x.toFixed(2)); el.setAttribute('y1', p1.y.toFixed(2));
+        el.setAttribute('x2', p2.x.toFixed(2)); el.setAttribute('y2', p2.y.toFixed(2));
+        el.setAttribute('stroke', LINE); el.setAttribute('stroke-width', W);
+        el.setAttribute('stroke-linecap', 'butt');
+        svg.appendChild(el);
+    }
+})();
+</script>
+
+</body>
+</html>

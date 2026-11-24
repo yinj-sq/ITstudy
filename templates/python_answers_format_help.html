@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Python填空题答案格式说明</title>
+    <link href="{{ versioned_static('bootstrap/css/bootstrap.min.css') }}" rel="stylesheet">
+    <script>
+    // bootstrap CSS 已由上方 versioned_static link 加载，不重复 push；
+    // bootstrap_js 按需延迟加载（页面需要交互脚本）
+    window.DEFERRED_STYLES = [];
+    window.DEFERRED_SCRIPTS = [];
+    if (navigator.onLine) {
+        window.DEFERRED_SCRIPTS.push('bootstrap_js');
+    }
+    </script>
+    <script src="{{ versioned_static('js/resource-loader.js') }}" defer></script>
+</head>
+<body>
+    <div class="container my-5">
+        <h1 class="mb-4">Python填空题标准答案设置格式</h1>
+        
+        <div class="alert alert-info">
+            <h4 class="alert-heading">概述</h4>
+            <p>本文档介绍如何为Python填空题设置标准答案，特别是如何设置多个可接受的答案选项。</p>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h2 class="h5 mb-0">基本格式</h2>
+            </div>
+            <div class="card-body">
+                <p>每个填空需要设置一个标准答案。在设置标准答案时可以使用以下格式：</p>
+                <ul>
+                    <li><strong>单一答案</strong>：直接填写一个答案，如 <code>0</code></li>
+                    <li><strong>多个选择</strong>：使用竖线 <code>|</code> 分隔多个完全不同的答案，如 <code>True|False</code></li>
+                    <li><strong>多个可接受答案</strong>：使用双斜杠 <code>//</code> 分隔多个等价的答案，如 <code>s+=1//s=s+1</code></li>
+                    <li><strong>组合使用</strong>：可以组合使用上述分隔符，如 <code>s+=1//s=s+1|sum+=1</code></li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header bg-success text-white">
+                <h2 class="h5 mb-0">多个可接受答案示例</h2>
+            </div>
+            <div class="card-body">
+                <p>在Python中，同一操作可能有多种等价的写法。例如以下几种情况：</p>
+                
+                <h3 class="h6">1. 变量递增操作</h3>
+                <div class="bg-light p-3 mb-3">
+                    <p>以下两种写法是等价的：</p>
+                    <pre><code>s += 1</code></pre>
+                    <pre><code>s = s + 1</code></pre>
+                    <p>设置答案时可以写为：<code>s+=1//s=s+1</code></p>
+                </div>
+                
+                <h3 class="h6">2. 字符串拼接</h3>
+                <div class="bg-light p-3 mb-3">
+                    <p>以下三种写法是等价的：</p>
+                    <pre><code>result = "Hello " + name</code></pre>
+                    <pre><code>result = f"Hello {name}"</code></pre>
+                    <pre><code>result = "Hello {}".format(name)</code></pre>
+                    <p>设置答案时可以写为：<code>result = "Hello " + name//result = f"Hello {name}"//result = "Hello {}".format(name)</code></p>
+                </div>
+                
+                <h3 class="h6">3. 导入模块</h3>
+                <div class="bg-light p-3">
+                    <p>以下两种写法在某些情况下可能是等价的：</p>
+                    <pre><code>import numpy as np</code></pre>
+                    <pre><code>from numpy import *</code></pre>
+                    <p>设置答案时可以写为：<code>import numpy as np//from numpy import *</code></p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header bg-warning text-dark">
+                <h2 class="h5 mb-0">注意事项</h2>
+            </div>
+            <div class="card-body">
+                <ul>
+                    <li>设置多个可接受答案时，每个答案都应该是完整和正确的</li>
+                    <li>系统会去除答案前后的空格后再比较，但不会去除答案中间的空格</li>
+                    <li>如果需要精确匹配包括格式在内的答案，请只设置一个标准答案</li>
+                    <li>建议不要设置过多的可接受答案，以免影响系统判断效率</li>
+                    <li>对于需要严格遵循编码规范的练习，可以只接受一种标准写法</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="alert alert-secondary">
+            <h4 class="alert-heading">总结</h4>
+            <p>通过使用<code>|</code>和<code>//</code>分隔符，可以灵活设置Python填空题的标准答案，使评分更加合理灵活。</p>
+            <p>竖线<code>|</code>表示"或"关系，用于完全不同的答案；双斜杠<code>//</code>表示"等价"关系，用于功能相同但写法不同的答案。</p>
+        </div>
+    </div>
+    
+    <footer class="text-center text-muted py-2" style="font-size:11px;">
+  ITstudy V{{ app_version }} &copy; {{ app_copyright }} &mdash; {{ app_license }}
+</footer>
+</body>
+</html>

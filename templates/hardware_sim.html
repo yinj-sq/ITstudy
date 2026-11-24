@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+{% block title %}硬件仿真{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ versioned_static('css/hardware_sim.css') }}">
+{% endblock %}
+{% block content %}
+<script>document.body.classList.add('hw-sim-active');</script>
+{% set mmake_base = versioned_static('hardware-sim/mmake/index.html') %}
+{% set mmake_url = mmake_base ~ ('&' if '?' in mmake_base else '?') ~ 'uid=' ~ hw_uid %}
+{% set esp32_base = versioned_static('hardware-sim/esp32-s3/index.html') %}
+{% set esp32_url = esp32_base ~ ('&' if '?' in esp32_base else '?') ~ 'uid=' ~ hw_uid %}
+
+<div class="hw-sim-page">
+  <div class="hw-sim-head">
+    <div class="hw-sim-title">
+      <h1><i class="fas fa-microchip"></i> 硬件仿真</h1>
+      <span class="hw-sim-subtitle">图形编程与 ESP32-S3 虚拟实验</span>
+    </div>
+    <div class="hw-sim-tabs" role="tablist" aria-label="仿真类型">
+      <button type="button" class="hw-sim-tab active" id="hwTabMmake"
+              data-sim="mmake" role="tab" aria-selected="true" aria-controls="hwFrameMmake">
+        <i class="fas fa-puzzle-piece"></i> 图形编程仿真
+      </button>
+      <button type="button" class="hw-sim-tab" id="hwTabEsp32"
+              data-sim="esp32" role="tab" aria-selected="false" aria-controls="hwFrameEsp32">
+        <i class="fas fa-microchip"></i> ESP32-S3 仿真
+      </button>
+    </div>
+    <div class="hw-sim-actions">
+      <span class="hw-sim-hint" id="hwSimSecureHint">
+        <i class="fas fa-shield-alt"></i>
+        Web Serial 上传与摄像头/麦克风需 HTTPS 或 localhost
+      </span>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="hwSimTipsBtn"
+              aria-expanded="false" aria-controls="hwSimTips">
+        <i class="fas fa-lightbulb"></i> 使用提示
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="hwSimImmersiveBtn"
+              aria-pressed="false">
+        <i class="fas fa-expand"></i> 沉浸模式
+      </button>
+      <a class="btn btn-sm btn-outline-secondary" id="hwSimOpen" href="{{ mmake_url }}"
+         target="_blank" rel="noopener">
+        <i class="fas fa-external-link-alt"></i> 新窗口打开
+      </a>
+    </div>
+  </div>
+
+  <p class="hw-sim-desc" id="hwSimDesc">
+    拖拽积木生成 MicroPython 代码，配合虚拟掌控板运行 2D 仿真；支持 Web Serial 上传真机。
+  </p>
+  <p class="hw-sim-mobile-note">
+    图形编程仿真建议在桌面或横屏使用；手机可查看，但积木区与舞台较窄。
+  </p>
+
+  <div class="hw-sim-tips" id="hwSimTips" hidden>
+    <div class="hw-sim-tips-grid">
+      <section>
+        <h3><i class="fas fa-route"></i> 建议流程</h3>
+        <ol>
+          <li>先明确要解决的问题和成功标准，再动手。</li>
+          <li>运行前先写下预测：灯会怎么亮、屏幕会显示什么。</li>
+          <li>积木/接线一次只改一个条件，改完立刻运行对照。</li>
+          <li>把“现象—原因—结论”记录到学习单，再进入下一步。</li>
+        </ol>
+      </section>
+      <section>
+        <h3><i class="fas fa-brain"></i> 认知支持</h3>
+        <ul>
+          <li>先看积木，再切到代码视图，建立“积木 ↔ MicroPython/固件”的对应关系。</li>
+          <li>复杂任务拆成 3–5 个小步骤，每步运行一次，避免工作记忆过载。</li>
+          <li>用“预测—观察—解释”三栏记录，比只看运行结果更能形成概念。</li>
+        </ul>
+      </section>
+      <section>
+        <h3><i class="fas fa-info-circle"></i> 课程与边界</h3>
+        <ul>
+          <li>适用于信息科技“物联网实践与探索”“人工智能”等项目学习中的开源硬件实验。</li>
+          <li>虚拟仿真不能替代真实硬件测量；结论要注明“仿真条件”。</li>
+          <li>上传真机、摄像头、麦克风、定位需 HTTPS 或 localhost；局域网 HTTP 下仅仿真可用。</li>
+          <li>本地工程按登录账号隔离，不跨设备同步；重要作品请导出/另存。</li>
+        </ul>
+      </section>
+    </div>
+  </div>
+
+  <div class="hw-sim-stage" id="hwSimStage">
+    <div class="hw-sim-loading" id="hwSimLoading" aria-live="polite">
+      <div class="spinner-border text-primary" role="status" aria-hidden="true"></div>
+      <span id="hwSimLoadingText">正在加载图形编程仿真…</span>
+    </div>
+    <iframe id="hwFrameMmake" class="hw-sim-frame active" title="图形编程仿真"
+            data-sim="mmake" data-src="{{ mmake_url }}" role="tabpanel"
+            aria-labelledby="hwTabMmake"
+            allow="serial; camera; microphone; geolocation; fullscreen" allowfullscreen></iframe>
+    <iframe id="hwFrameEsp32" class="hw-sim-frame" title="ESP32-S3 仿真"
+            data-sim="esp32" data-src="{{ esp32_url }}" role="tabpanel"
+            aria-labelledby="hwTabEsp32"
+            allow="camera; microphone; geolocation; fullscreen" allowfullscreen></iframe>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ versioned_static('js/hardware_sim.js') }}"></script>
+{% endblock %}

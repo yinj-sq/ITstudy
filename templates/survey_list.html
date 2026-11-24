@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block title %}调查问卷 - {{ resource.title }}{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2 class="mb-1"><i class="fas fa-poll me-2"></i>调查问卷</h2>
+      <div class="text-muted">{{ resource.title }}</div>
+    </div>
+    <div class="d-flex gap-2">
+      {% if can_manage %}
+      <a href="{{ url_for('surveys.survey_new', res_id=resource.id) }}" class="btn btn-primary rounded-pill"><i class="fas fa-plus me-1"></i>新增问卷</a>
+      {% endif %}
+      <a href="{{ back_url }}" class="btn btn-outline-secondary rounded-pill"><i class="fas fa-arrow-left me-1"></i>资源管理</a>
+    </div>
+  </div>
+
+  {% if can_manage and not resource.show_in_student %}
+  <div class="alert alert-warning py-2">
+    <i class="fas fa-exclamation-triangle me-1"></i>
+    该资源未勾选「学生端可见」，发布后学生也无法填写；可在
+    <a href="{{ url_for('resources.edit_resource', res_id=resource.id) }}">资源编辑页</a>开启。
+  </div>
+  {% endif %}
+
+  <div class="card shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light"><tr><th>问卷</th><th>题目数</th><th>答卷</th><th>状态</th><th style="width:340px;">操作</th></tr></thead>
+        <tbody>
+          {% for s in surveys %}
+          <tr>
+            <td>
+              <strong>{{ s.title }}</strong>
+              {% if s.description %}<div class="small text-muted">{{ s.description[:80] }}</div>{% endif %}
+              {% if s.is_anonymous %}<span class="badge bg-info ms-1" title="结果不显示答题人">匿名</span>{% endif %}
+            </td>
+            <td>{{ s.questions|length }}</td>
+            <td><span class="badge bg-light text-dark border">{{ answer_counts.get(s.id, 0) }} 份</span></td>
+            <td>
+              {% set badge = {'draft': 'secondary', 'published': 'success', 'closed': 'dark'}[s.status] %}
+              <span class="badge bg-{{ badge }}">{{ status_names[s.status] }}</span>
+            </td>
+            <td>
+              <div class="d-flex flex-wrap gap-1">
+                {% if can_manage %}
+                <a href="{{ url_for('surveys.survey_results', sid=s.id) }}" class="btn btn-outline-success btn-sm rounded-pill"><i class="fas fa-chart-bar me-1"></i>结果</a>
+                {% endif %}
+                <a href="{{ url_for('surveys.student_survey', sid=s.id) }}" target="_blank" class="btn btn-outline-secondary btn-sm rounded-pill" title="学生填写视角"><i class="fas fa-eye me-1"></i>预览</a>
+                {% if can_manage %}
+                <a href="{{ url_for('surveys.survey_edit', sid=s.id) }}" class="btn btn-outline-primary btn-sm rounded-pill"><i class="fas fa-edit me-1"></i>编辑</a>
+                <form method="post" action="{{ url_for('surveys.survey_toggle', sid=s.id) }}">
+                  <button class="btn btn-outline-{{ 'dark' if s.status == 'published' else 'success' }} btn-sm rounded-pill">
+                    <i class="fas fa-{{ 'ban' if s.status == 'published' else 'paper-plane' }} me-1"></i>{{ '关闭' if s.status == 'published' else '发布' }}
+                  </button>
+                </form>
+                <form method="post" action="{{ url_for('surveys.survey_delete', sid=s.id) }}" onsubmit="return confirm('确定删除该问卷及其全部答卷？')">
+                  <button class="btn btn-outline-danger btn-sm rounded-pill"><i class="fas fa-trash me-1"></i>删除</button>
+                </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="text-center text-muted py-4">暂无调查问卷</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

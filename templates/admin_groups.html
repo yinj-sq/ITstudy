@@ -1,0 +1,370 @@
+{% extends 'base.html' %}
+{% block title %}学习小组管理 - 管理员{% endblock %}
+{% block content %}
+<div class="container py-4">
+    <h2 class="mb-4"><i class="fas fa-layer-group me-2"></i>学习小组管理</h2>
+
+    <!-- 班级选择 -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label">选择班级</label>
+                    <select class="form-select" onchange="switchClass(this.value)">
+                        <option value="">-- 请选择班级 --</option>
+                        {% for c in classes %}
+                        <option value="{{ c.id }}" {% if class_id == c.id|string %}selected{% endif %}>{{ c.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% if selected_class %}
+                <div class="col-md-4">
+                    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addGroupModal">
+                        <i class="fas fa-plus me-1"></i>添加小组
+                    </button>
+                </div>
+                <div class="col-md-4 text-end">
+                    <span class="text-muted">{{ selected_class.name }} — 共 {{ groups|length }} 个小组</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {% if selected_class and groups %}
+    <div class="row">
+        {% for g in groups %}
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center
+                            {% if g.leader_id %}bg-success text-white{% else %}bg-secondary text-white{% endif %}">
+                    <h5 class="mb-0">
+                        <i class="fas fa-users me-1"></i>{{ g.name }}组
+                    </h5>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-sm btn-outline-light"
+                                onclick='editGroup({{ g.id }}, {{ g.name|tojson }}, {{ g.leader_id or "null" }}, {{ (g.slogan or "")|tojson }}, {{ g.max_space_mb or 50 }}, {{ "true" if g.upload_enabled else "false" }}, {{ "true" if g.drive_enabled else "false" }})'
+                                data-bs-toggle="modal" data-bs-target="#editGroupModal"
+                                title="编辑小组设置">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-light" aria-label="管理小组成员"
+                                onclick="manageMembers({{ g.id }})"
+                                data-bs-toggle="modal" data-bs-target="#membersModal">
+                            <i class="fas fa-user-cog"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-light" aria-label="删除小组"
+                                onclick='deleteGroup({{ g.id }}, {{ g.name|tojson }})'>
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <p class="mb-2">
+                        <strong>组长：</strong>
+                        {% if g.leader %}
+                        <span class="badge bg-warning text-dark">{{ g.leader.name }} ({{ g.leader.student_number }})</span>
+                        {% else %}
+                        <span class="text-muted">未指定</span>
+                        {% endif %}
+                    </p>
+                    <p class="mb-0">
+                        <strong>组员 ({{ g.members|length }}人)：</strong>
+                    </p>
+                    <ul class="list-unstyled mt-1 mb-0 small">
+                        {% for m in g.members[:10] %}
+                        <li>
+                            <i class="fas fa-user text-muted me-1"></i>
+                            {{ m.name }} ({{ m.student_number }})
+                            {% if g.leader_id == m.id %}<span class="badge bg-warning text-dark">组长</span>{% endif %}
+                        </li>
+                        {% endfor %}
+                        {% if g.members|length > 10 %}
+                        <li class="text-muted">...还有 {{ g.members|length - 10 }} 名组员</li>
+                        {% endif %}
+                        {% if not g.members %}
+                        <li class="text-muted">暂无组员</li>
+                        {% endif %}
+                    </ul>
+                </div>
+                <div class="card-footer">
+                    <button class="btn btn-outline-primary btn-sm w-100 mb-1"
+                            onclick="viewGroupDetail({{ g.id }})"
+                            data-bs-toggle="modal" data-bs-target="#detailModal">
+                        <i class="fas fa-info-circle me-1"></i>查看详情
+                    </button>
+                    {% set gfiles = g.files|list %}
+                    {% set used = namespace(s=0) %}{% for f in gfiles %}{% set used.s = used.s + f.file_size %}{% endfor %}
+                    <small class="text-muted d-block text-center mt-1">
+                        网盘: {{ gfiles|length }}文件 / {{ "%.1f"|format(used.s/1024/1024) }}MB / {{ g.max_space_mb }}MB
+                        {% if not g.drive_enabled %}<span class="badge bg-danger">已关闭</span>{% endif %}
+                        {% if gfiles %}
+                        <form method="post" action="{{ url_for('student_groups.admin_drive_clear', group_id=g.id) }}" class="d-inline" onsubmit="return confirm('确定清空该组网盘？')">
+                            <button class="btn btn-link btn-sm text-danger p-0 ms-1">清空</button>
+                        </form>
+                        {% endif %}
+                    </small>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% elif selected_class %}
+    <div class="text-center py-5 text-muted">
+        <i class="fas fa-layer-group fa-3x mb-3"></i>
+        <p>该班级暂无学习小组，请点击"添加小组"按钮创建</p>
+    </div>
+    {% else %}
+    <div class="text-center py-5 text-muted">
+        <i class="fas fa-hand-pointer fa-3x mb-3"></i>
+        <p>请先选择一个班级查看其学习小组</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- 添加小组模态框 -->
+<div class="modal fade" id="addGroupModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{{ url_for('class_management.add_group') }}">
+                <input type="hidden" name="class_id" value="{{ class_id }}">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title">添加学习小组</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="关闭"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">小组名称 <span class="text-danger">*</span></label>
+                        <select class="form-select" name="name" required>
+                            <option value="">请选择组号</option>
+                            <option value="A">A组</option><option value="B">B组</option>
+                            <option value="C">C组</option><option value="D">D组</option>
+                            <option value="E">E组</option><option value="F">F组</option>
+                            <option value="G">G组</option><option value="H">H组</option>
+                            <option value="I">I组</option><option value="J">J组</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">组长</label>
+                        <select class="form-select" name="leader_id">
+                            <option value="">暂不指定</option>
+                            {% if selected_class %}
+                                {% for s in selected_class.students|sort(attribute='student_number') %}
+                                <option value="{{ s.id }}">{{ s.name }} ({{ s.student_number or '无学号' }})</option>
+                                {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-success">创建</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 编辑小组模态框 -->
+<div class="modal fade" id="editGroupModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="editGroupForm" method="post" action="{{ url_for('student_groups.admin_drive_settings', group_id=0) }}">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">编辑小组设置</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="关闭"></button>
+                </div>
+                <div class="modal-body" style="max-height:60vh;overflow-y:auto;">
+                    <div class="mb-3">
+                        <label class="form-label">小组名称</label>
+                        <select class="form-select" name="name" id="editGroupName">
+                            <option value="">请选择组号</option>
+                            <option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option><option value="E">E</option>
+                            <option value="F">F</option><option value="G">G</option><option value="H">H</option><option value="I">I</option><option value="J">J</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">组长</label>
+                        <select class="form-select" name="leader_id" id="editGroupLeader">
+                            <option value="">暂不指定</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">小组口号</label>
+                        <input type="text" class="form-control" name="slogan" id="editSlogan" placeholder="例如：团结协作，勇攀高峰">
+                    </div>
+                    <hr>
+                    <h6><i class="fas fa-hdd me-1"></i>网盘设置</h6>
+                    <div class="row g-2">
+                        <div class="col-4">
+                            <label class="form-label small">容量上限 (MB)</label>
+                            <input type="number" class="form-control" name="max_space_mb" id="editMaxSpace" min="10" max="500" value="50">
+                        </div>
+                        <div class="col-4 d-flex align-items-end">
+                            <div class="form-check form-switch w-100">
+                                <input class="form-check-input" type="checkbox" name="drive_enabled" id="editDriveEnabled" value="true">
+                                <label class="form-check-label">开启网盘</label>
+                            </div>
+                        </div>
+                        <div class="col-4 d-flex align-items-end">
+                            <div class="form-check form-switch w-100">
+                                <input class="form-check-input" type="checkbox" name="upload_enabled" id="editUploadEnabled" value="true">
+                                <label class="form-check-label">允许上传</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">保存设置</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 管理成员模态框 -->
+<div class="modal fade" id="membersModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form id="membersForm" method="post" onsubmit="return submitMembers()">
+                <input type="hidden" name="member_ids" id="membersHiddenInput">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title">管理小组成员 — <span id="membersGroupName"></span></h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="关闭"></button>
+                </div>
+                <div class="modal-body" id="membersList" style="max-height:400px;overflow-y:auto;">
+                    <p class="text-muted">加载中...</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-info">保存成员</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 查看详情模态框 -->
+<div class="modal fade" id="detailModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title" id="detailTitle">小组详情</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body" id="detailBody">
+                <p class="text-muted">加载中...</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function switchClass(val) {
+    if (val) window.location = '/admin/groups?class_id=' + encodeURIComponent(val);
+    else window.location = '/admin/groups';
+}
+function escapeHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s == null ? '' : String(s);
+    return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+function editGroup(id, name, leaderId, slogan, maxSpace, uploadEnabled, driveEnabled) {
+    document.getElementById('editGroupForm').action = '/admin/groups/' + id + '/drive-settings';
+    document.getElementById('editGroupName').value = name;
+    document.getElementById('editSlogan').value = slogan || '';
+    document.getElementById('editMaxSpace').value = maxSpace || 50;
+    document.getElementById('editDriveEnabled').checked = driveEnabled !== false;
+    document.getElementById('editUploadEnabled').checked = uploadEnabled !== false;
+    var classId = {{ class_id|tojson }};
+    if (classId) loadLeaderOptions(classId, leaderId);
+}
+function loadLeaderOptions(classId, selectedId) {
+    fetch('/api/classes/' + encodeURIComponent(classId) + '/students')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (!d.success) return;
+            var sel = document.getElementById('editGroupLeader');
+            sel.innerHTML = '<option value="">暂不指定</option>';
+            d.data.forEach(function(s) {
+                var opt = document.createElement('option');
+                opt.value = s.id;
+                opt.textContent = s.name + ' (' + (s.student_number || '无学号') + ')';
+                if (s.id == selectedId) opt.selected = true;
+                sel.appendChild(opt);
+            });
+        });
+}
+function manageMembers(groupId) {
+    document.getElementById('membersForm').action = '/admin/groups/' + encodeURIComponent(groupId) + '/members';
+    var classId = {{ class_id|tojson }};
+    Promise.all([
+        fetch('/api/groups/' + encodeURIComponent(groupId) + '/detail').then(function(r) { return r.json(); }),
+        fetch('/api/classes/' + encodeURIComponent(classId) + '/students').then(function(r) { return r.json(); })
+    ]).then(function(results) {
+        var group = results[0];
+        var students = results[1];
+        if (!group.success) return;
+        document.getElementById('membersGroupName').textContent = group.data.name + '组';
+        var memberIds = group.data.members.map(function(m) { return m.id; });
+        var leaderId = group.data.leader ? group.data.leader.id : null;
+        var html = '<div class="row">';
+        students.data.forEach(function(s) {
+            var isLeader = (leaderId === s.id);
+            var checked = memberIds.includes(s.id) ? ' checked' : '';
+            var disabled = isLeader ? ' disabled' : '';
+            var safeName = escapeHtml(s.name);
+            var safeNumber = escapeHtml(s.student_number || '无学号');
+            var label = isLeader ? safeName + ' <span class=\"badge bg-warning text-dark\">组长(默认组员)</span>' : safeName + ' (' + safeNumber + ')';
+            html += '<div class="col-md-6"><div class="form-check mb-2">';
+            html += '<input class="form-check-input member-check" type="checkbox" value="' + escapeHtml(s.id) + '"' + checked + disabled + '>';
+            html += '<label class="form-check-label">' + label + '</label>';
+            html += '</div></div>';
+        });
+        html += '</div>';
+        html += '<small class=\"text-muted\">组长默认为组员，不可移除。需先转让组长再移除。</small>';
+        document.getElementById('membersList').innerHTML = html;
+    });
+}
+function viewGroupDetail(groupId) {
+    fetch('/api/groups/' + encodeURIComponent(groupId) + '/detail')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (!d.success) return;
+            var g = d.data;
+            document.getElementById('detailTitle').textContent = g.name + '组 — 详情';
+            var leaderText = g.leader ? escapeHtml(g.leader.name) + ' (' + escapeHtml(g.leader.student_number || '-') + ')' : '未指定';
+            var html = '<p><strong>组长：</strong>' + leaderText + '</p>';
+            html += '<p><strong>组员数量：</strong>' + escapeHtml(g.member_count) + ' 人</p>';
+            html += '<hr><h6>组员列表：</h6><ul class="list-group">';
+            g.members.forEach(function(m) {
+                html += '<li class="list-group-item d-flex justify-content-between">';
+                html += '<span>' + escapeHtml(m.name) + ' (' + escapeHtml(m.student_number || '无学号') + ')</span>';
+                if (m.is_leader) html += '<span class="badge bg-warning text-dark">组长</span>';
+                html += '</li>';
+            });
+            html += '</ul>';
+            document.getElementById('detailBody').innerHTML = html;
+        });
+}
+function submitMembers() {
+    var checked = document.querySelectorAll('#membersList .member-check:checked');
+    var ids = [];
+    checked.forEach(function(cb) { ids.push(cb.value); });
+    document.getElementById('membersHiddenInput').value = ids.join(',');
+    return true;
+}
+function deleteGroup(id, name) {
+    if (!confirm('确定要删除 "' + name + '组" 吗？组员将变为未分组状态。')) return;
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/admin/groups/' + id + '/delete';
+    document.body.appendChild(form);
+    form.submit();
+}
+</script>
+{% endblock %}

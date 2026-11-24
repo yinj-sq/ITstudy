@@ -1,0 +1,163 @@
+{
+  "_comment": "CDN 多源回退配置 - 加载顺序：本地 → 国内镜像源（多源）→ 原始CDN",
+  "bootstrap-css": {
+    "type": "bootstrap_css",
+    "cdn": "https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css",
+    "local": "/static/bootstrap/css/bootstrap.min.css",
+    "mirrors": [
+      "https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.2/css/bootstrap.min.css",
+      "https://cdn.staticfile.org/twitter-bootstrap/5.3.2/css/bootstrap.min.css",
+      "https://lib.baomitu.com/twitter-bootstrap/5.3.2/css/bootstrap.min.css",
+      "https://npm.elemecdn.com/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+    ],
+    "integrity": "sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN",
+    "priority": "local"
+  },
+  "bootstrap-js": {
+    "type": "bootstrap_js",
+    "cdn": "https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js",
+    "local": "/static/bootstrap/js/bootstrap.bundle.min.js",
+    "mirrors": [
+      "https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.3.2/js/bootstrap.bundle.min.js",
+      "https://cdn.staticfile.org/twitter-bootstrap/5.3.2/js/bootstrap.bundle.min.js",
+      "https://lib.baomitu.com/twitter-bootstrap/5.3.2/js/bootstrap.bundle.min.js",
+      "https://npm.elemecdn.com/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+    ],
+    "integrity": "sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL",
+    "priority": "local"
+  },
+  "fontawesome": {
+    "type": "fontawesome_css",
+    "cdn": "https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.2/css/all.min.css",
+    "local": "/static/fontawesome/css/all.min.css",
+    "mirrors": [
+      "https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.2/css/all.min.css",
+      "https://cdn.staticfile.org/font-awesome/6.4.2/css/all.min.css",
+      "https://lib.baomitu.com/font-awesome/6.4.2/css/all.min.css",
+      "https://npm.elemecdn.com/@fortawesome/fontawesome-free@6.4.2/css/all.min.css"
+    ],
+    "integrity": "sha384-blOohCVdhjmtROpu8+CfTnUWham9nkX7P7OZQMst+RUnhtoY/9qemFAkIKOYxDI3",
+    "priority": "local"
+  },
+  "jquery": {
+    "type": "jquery",
+    "cdn": "https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js",
+    "local": "/static/jquery/jquery-3.7.1.min.js",
+    "mirrors": [
+      "https://cdn.bootcdn.net/ajax/libs/jquery/3.7.1/jquery.min.js",
+      "https://cdn.staticfile.org/jquery/3.7.1/jquery.min.js",
+      "https://lib.baomitu.com/jquery/3.7.1/jquery.min.js",
+      "https://npm.elemecdn.com/jquery@3.7.1/dist/jquery.min.js"
+    ],
+    "integrity": "sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=",
+    "priority": "local"
+  },
+  "bootstrap-icons": {
+    "type": "bootstrap_icons",
+    "cdn": "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css",
+    "local": "/static/bootstrap-icons/bootstrap-icons.min.css",
+    "mirrors": [
+      "https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css",
+      "https://cdn.staticfile.org/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css",
+      "https://lib.baomitu.com/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css",
+      "https://npm.elemecdn.com/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
+    ],
+    "priority": "local"
+  },
+  "chart.js": {
+    "type": "chart_js",
+    "cdn": "https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js",
+    "local": "/static/chart.js/chart.umd.min.js",
+    "mirrors": [
+      "https://cdn.bootcdn.net/ajax/libs/Chart.js/4.4.0/chart.umd.min.js",
+      "https://cdn.staticfile.org/Chart.js/4.4.0/chart.umd.min.js",
+      "https://lib.baomitu.com/Chart.js/4.4.0/chart.umd.min.js",
+      "https://npm.elemecdn.com/chart.js@4.4.0/dist/chart.umd.min.js"
+    ],
+    "integrity": "sha384-DhxhYObIMeMNGyAG7iK11OHzBIKyEIeRL0ad1iFPAOwZB8iirUlTT0O/WJJUk8+o",
+    "priority": "local"
+  },
+  "xlsx": {
+    "type": "xlsx",
+    "cdn": "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js",
+    "local": "/static/xlsx/xlsx.full.min.js",
+    "mirrors": [
+      "https://cdn.bootcdn.net/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
+      "https://cdn.staticfile.org/xlsx/0.18.5/xlsx.full.min.js",
+      "https://lib.baomitu.com/xlsx/0.18.5/xlsx.full.min.js",
+      "https://npm.elemecdn.com/xlsx@0.18.5/dist/xlsx.full.min.js"
+    ],
+    "priority": "local"
+  },
+  "tailwind": {
+    "type": "tailwind",
+    "cdn": "https://cdn.tailwindcss.com",
+    "local": "/static/tailwind/tailwind.min.js",
+    "mirrors": [
+      "https://cdn.bootcdn.net/ajax/libs/tailwindcss/2.2.19/tailwind.min.js",
+      "https://cdn.staticfile.org/tailwindcss/2.2.19/tailwind.min.js",
+      "https://lib.baomitu.com/tailwindcss/2.2.19/tailwind.min.js"
+    ],
+    "priority": "local"
+  },
+  "vue": {
+    "type": "vue",
+    "cdn": "https://unpkg.com/vue@3.4.0/dist/vue.global.prod.js",
+    "local": "/static/vue/vue.global.prod.js",
+    "mirrors": [
+      "https://cdn.bootcdn.net/ajax/libs/vue/3.4.0/vue.global.prod.js",
+      "https://cdn.staticfile.org/vue/3.4.0/vue.global.prod.js",
+      "https://lib.baomitu.com/vue/3.4.0/vue.global.prod.js",
+      "https://npm.elemecdn.com/vue@3.4.0/dist/vue.global.prod.js"
+    ],
+    "priority": "local"
+  },
+  "vue-router": {
+    "type": "vue_router",
+    "cdn": "https://unpkg.com/vue-router@4.2.0/dist/vue-router.global.prod.js",
+    "local": "/static/vue-router/vue-router.global.prod.js",
+    "mirrors": [
+      "https://cdn.bootcdn.net/ajax/libs/vue-router/4.2.0/vue-router.global.prod.js",
+      "https://cdn.staticfile.org/vue-router/4.2.0/vue-router.global.prod.js",
+      "https://lib.baomitu.com/vue-router/4.2.0/vue-router.global.prod.js",
+      "https://npm.elemecdn.com/vue-router@4.2.0/dist/vue-router.global.prod.js"
+    ],
+    "priority": "local"
+  },
+  "axios": {
+    "type": "axios",
+    "cdn": "https://unpkg.com/axios@1.4.0/dist/axios.min.js",
+    "local": "/static/axios/axios.min.js",
+    "mirrors": [
+      "https://cdn.bootcdn.net/ajax/libs/axios/1.4.0/axios.min.js",
+      "https://cdn.staticfile.org/axios/1.4.0/axios.min.js",
+      "https://lib.baomitu.com/axios/1.4.0/axios.min.js",
+      "https://npm.elemecdn.com/axios@1.4.0/dist/axios.min.js"
+    ],
+    "priority": "local"
+  },
+  "marked": {
+    "type": "marked",
+    "cdn": "https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js",
+    "local": "/static/marked/marked.min.js",
+    "mirrors": [
+      "https://cdn.bootcdn.net/ajax/libs/marked/12.0.2/marked.min.js",
+      "https://cdn.staticfile.org/marked/12.0.2/marked.min.js",
+      "https://lib.baomitu.com/marked/12.0.2/marked.min.js",
+      "https://npm.elemecdn.com/marked@12.0.2/marked.min.js"
+    ],
+    "priority": "local"
+  },
+  "hljs": {
+    "type": "hljs",
+    "cdn": "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.9.0/highlight.min.js",
+    "local": "/static/highlight/highlight.min.js",
+    "mirrors": [
+      "https://cdn.bootcdn.net/ajax/libs/highlight.js/11.9.0/highlight.min.js",
+      "https://cdn.staticfile.org/highlight.js/11.9.0/highlight.min.js",
+      "https://lib.baomitu.com/highlight.js/11.9.0/highlight.min.js",
+      "https://npm.elemecdn.com/@highlightjs/cdn-assets@11.9.0/highlight.min.js"
+    ],
+    "priority": "local"
+  }
+}

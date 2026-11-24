@@ -1,0 +1,376 @@
+{% extends 'base.html' %}
+{% block title %}测验成绩 - {{ resource.title }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ versioned_static('css/quiz-analysis.css') }}">
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-chart-bar me-2"></i>测验成绩 — {{ resource.title }}</h2>
+    <a href="{{ url_for('resources.admin_resources') if session.get('is_admin') else url_for('resources.teacher_resource_library') }}" class="btn btn-outline-secondary rounded-pill">
+      <i class="fas fa-arrow-left me-1"></i>返回资源管理
+    </a>
+  </div>
+
+  {% if client_reported %}
+  <div class="alert alert-warning py-2">
+    <i class="fas fa-triangle-exclamation me-2"></i>
+    <strong>提示：</strong>测验分数由学生端提交时自报（判分逻辑在资源文件内），
+    服务端仅做范围校验、无法重判，分数可能被伪造，请勿作为可信统计依据。
+  </div>
+  {% endif %}
+
+  <div class="card mb-4">
+    <div class="card-header bg-info bg-opacity-10 py-2">
+      <strong><i class="fas fa-info-circle text-info me-2"></i>资源信息</strong>
+    </div>
+    <div class="card-body py-2">
+      <div class="row">
+        <div class="col-md-4"><strong>资源名称：</strong>{{ resource.title }}</div>
+        <div class="col-md-4"><strong>采集模式：</strong>
+          {% if resource.quiz_mode == 'inject' %}<span class="badge bg-success">注入采集</span>
+          {% elif resource.quiz_mode == 'runtime' %}<span class="badge bg-warning text-dark">运行时注入</span>
+          {% else %}<span class="badge bg-secondary">不采集</span>{% endif %}
+        </div>
+        <div class="col-md-4"><strong>成绩记录数：</strong>{{ pagination.total if pagination else results|length }} 条</div>
+      </div>
+    </div>
+  </div>
+
+  <section class="card quiz-analysis mb-4" id="quizAnalysis"
+           data-url="{{ url_for('resources.resource_quiz_analysis', res_id=resource.id) }}" aria-labelledby="quizAnalysisTitle">
+    <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <h3 class="h5 mb-0" id="quizAnalysisTitle"><i class="fas fa-chart-bar me-2"></i>逐题分析</h3>
+      <button class="btn btn-sm btn-outline-primary" type="button" id="quizAnalysisReload">刷新统计</button>
+    </div>
+    <div class="card-body">
+      <div class="row g-3 mb-3 qa-controls">
+        <div class="col-md-4">
+          <label for="quizAnalysisFile" class="form-label">资源页</label>
+          <select class="form-select" id="quizAnalysisFile" aria-label="选择要分析的资源页"></select>
+        </div>
+        <div class="col-md-5">
+          <label for="quizAnalysisQuestion" class="form-label">选项分析题目</label>
+          <select class="form-select" id="quizAnalysisQuestion" aria-label="选择题目查看选项人数"></select>
+        </div>
+        <div class="col-md-3 d-flex align-items-end">
+          <label class="form-check mb-2"><input class="form-check-input" id="quizAnalysisTexture" type="checkbox">
+            <span class="form-check-label">纹理显示（黑白打印）</span></label>
+        </div>
+      </div>
+      <p id="quizAnalysisSummary" role="status" aria-live="polite">正在汇总逐题数据…</p>
+      <p class="small text-muted mb-3">
+        每位学生在同一页只统计最新一次提交，不受下方记录分页影响。正确率 = 答对人数 ÷ 已判定人数；
+        无可靠判定的题目不计入正确率。每题人数只包含采集到该题的记录，题干或选项变化时分开统计。
+        数据来自客户端采集，适合课堂诊断，不能替代正式考试判分。
+      </p>
+      <div class="row g-4">
+        <div class="col-lg-6">
+          <h4 class="h6">逐题正确率（%）</h4>
+          <div class="qa-chart-scroll"><div class="qa-chart">
+            <canvas id="quizAccuracyChart" role="img" aria-label="逐题正确率条形图，完整数据见下方逐题统计表">
+              请查看下方逐题统计表。
+            </canvas>
+          </div></div>
+        </div>
+        <div class="col-lg-6">
+          <h4 class="h6">选项选择人数 / 作答分布</h4>
+          <div class="qa-chart-scroll"><div class="qa-chart">
+            <canvas id="quizOptionChart" role="img" aria-label="所选题目的选项人数，完整数据见下方选项统计表">
+              请查看下方选项统计表。
+            </canvas>
+          </div></div>
+        </div>
+      </div>
+      <div class="table-responsive mt-3">
+        <table class="table table-sm align-middle">
+          <caption>逐题统计。点击题目或使用上方下拉框查看完整选项。</caption>
+          <thead><tr><th scope="col">题目</th><th scope="col">已答</th><th scope="col">未答</th>
+            <th scope="col">答对</th><th scope="col">答错</th><th scope="col">未判定</th><th scope="col">正确率</th></tr></thead>
+          <tbody id="quizQuestionTableBody"></tbody>
+        </table>
+      </div>
+      <p class="small text-muted" id="quizOptionNote"></p>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <caption>所选题目的完整选项或作答内容。</caption>
+          <thead><tr><th scope="col">选项 / 作答内容</th><th scope="col">选择人数</th><th scope="col">占该题提交人数</th></tr></thead>
+          <tbody id="quizOptionTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  {% if grade_dist and (grade_dist['优秀'] + grade_dist['良好'] + grade_dist['合格'] + grade_dist['不合格']) > 0 %}
+  <div class="card mb-4">
+    <div class="card-header bg-info bg-opacity-10 py-2">
+      <strong><i class="fas fa-chart-bar text-info me-2"></i>等级分布（全部页面的成绩记录）</strong>
+      <span class="text-muted small ms-2">优秀 {{ grade_dist['优秀'] }} · 良好 {{ grade_dist['良好'] }} · 合格 {{ grade_dist['合格'] }} · 不合格 {{ grade_dist['不合格'] }}</span>
+    </div>
+    <div class="card-body">
+      <canvas id="gradeChart" height="80"></canvas>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if results %}
+  <div class="card">
+    <div class="card-header bg-success bg-opacity-10 py-2 d-flex justify-content-between align-items-center">
+      <strong><i class="fas fa-list text-success me-2"></i>答题记录</strong>
+      <button class="btn btn-sm btn-outline-success rounded-pill" onclick="exportCSV()">
+        <i class="fas fa-download me-1"></i>导出CSV
+      </button>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover table-striped mb-0" id="resultsTable">
+          <thead class="table-light">
+            <tr>
+              <th>#</th>
+              <th>学生姓名</th>
+              <th>学号</th>
+              <th>文件</th>
+              <th>测验名称</th>
+              <th>得分</th>
+              <th>满分</th>
+              <th>得分率</th>
+              <th>等级</th>
+              <th>答对/总题</th>
+              <th>用时</th>
+              <th>提交时间</th>
+              <th>答题详情</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in results %}
+            {% set s = students.get(r.student_id) %}
+            {% set grade = grade_by_id.get(r.id) %}
+            <tr>
+              <td>{{ loop.index }}</td>
+              <td>{{ s.name if s else '未知' }}</td>
+              <td>{{ s.student_number if s and s.student_number else '-' }}</td>
+              <td><code class="small">{{ r.source_file or '默认' }}</code></td>
+              <td>{{ r.quiz_name or '-' }}</td>
+              <td>
+                {% if r.total_score is not none %}
+                  <strong>{{ r.total_score }}</strong>
+                {% else %}-{% endif %}
+              </td>
+              <td>{{ r.max_score if r.max_score is not none else '-' }}</td>
+              <td>
+                {% if r.total_score is not none and r.max_score and r.max_score > 0 %}
+                  {% set pct = (r.total_score / r.max_score * 100)|round(1) %}
+                  {% if pct >= 80 %}
+                    <span class="badge bg-success">{{ pct }}%</span>
+                  {% elif pct >= 60 %}
+                    <span class="badge bg-warning text-dark">{{ pct }}%</span>
+                  {% else %}
+                    <span class="badge bg-danger">{{ pct }}%</span>
+                  {% endif %}
+                {% else %}-{% endif %}
+              </td>
+              <td>
+                {% if grade %}
+                  {% if grade == '优秀' %}<span class="badge bg-success">{{ grade }}</span>
+                  {% elif grade == '良好' %}<span class="badge bg-info text-dark">{{ grade }}</span>
+                  {% elif grade == '合格' %}<span class="badge bg-warning text-dark">{{ grade }}</span>
+                  {% else %}<span class="badge bg-danger">{{ grade }}</span>{% endif %}
+                {% else %}-{% endif %}
+              </td>
+              <td>
+                {% if r.correct_count is not none %}
+                  {{ r.correct_count }} / {{ r.question_count if r.question_count is not none else '-' }}
+                {% else %}-{% endif %}
+              </td>
+              <td>
+                {% if r.duration is not none %}
+                  {% if r.duration >= 60 %}
+                    {{ r.duration // 60 }}分{{ r.duration % 60 }}秒
+                  {% else %}
+                    {{ r.duration }}秒
+                  {% endif %}
+                {% else %}-{% endif %}
+              </td>
+              <td>{{ r.submit_time.strftime('%m-%d %H:%M') if r.submit_time else '-' }}</td>
+              <td>
+                <button class="btn btn-sm btn-outline-primary" onclick="showDetail({{ r.id }})">
+                  <i class="fas fa-eye"></i>
+                </button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% if pagination and pagination.pages > 1 %}
+        <div class="card-footer bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span class="text-muted small">共 {{ pagination.total }} 条记录，第 {{ pagination.page }} / {{ pagination.pages }} 页</span>
+            <nav aria-label="测验成绩分页">
+                <ul class="pagination justify-content-center mb-0 flex-wrap">
+                    <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('resources.resource_quiz_results', res_id=resource.id, page=pagination.prev_num) if pagination.has_prev else '#' }}">上一页</a>
+                    </li>
+                    {% for p in range(1, pagination.pages + 1) %}
+                        {% if p == 1 or p == pagination.pages or (p >= pagination.page - 2 and p <= pagination.page + 2) %}
+                        <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                            <a class="page-link" href="{{ url_for('resources.resource_quiz_results', res_id=resource.id, page=p) }}">{{ p }}</a>
+                        </li>
+                        {% elif p == 2 or p == pagination.pages - 1 %}
+                        <li class="page-item disabled"><span class="page-link">…</span></li>
+                        {% endif %}
+                    {% endfor %}
+                    <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('resources.resource_quiz_results', res_id=resource.id, page=pagination.next_num) if pagination.has_next else '#' }}">下一页</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="alert alert-info">
+    <i class="fas fa-info-circle me-2"></i>暂无答题记录。学生完成资源中的测验后，答题数据将自动采集到这里。
+  </div>
+  {% endif %}
+</div>
+
+<div class="modal fade" id="detailModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-clipboard-list me-2"></i>答题详情</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+      </div>
+      <div class="modal-body" id="detailBody">
+        <div class="text-center py-4"><div class="spinner-border text-primary"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function escapeHtml(s) {
+  var d = document.createElement('div');
+  d.textContent = s == null ? '' : String(s);
+  return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function showDetail(resultId) {
+  var modal = new bootstrap.Modal(document.getElementById('detailModal'));
+  document.getElementById('detailBody').innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
+  modal.show();
+
+  // 单条轻量接口：避免列表 N 行 × 全量拉取
+  fetch('/api/results/quiz/' + resultId)
+    .then(function(r){ return r.json(); })
+    .then(function(resp){
+      if (!resp.success) { document.getElementById('detailBody').innerHTML = '<p class="text-danger">加载失败</p>'; return; }
+      var item = resp.data;
+      if (!item) { document.getElementById('detailBody').innerHTML = '<p class="text-danger">未找到记录</p>'; return; }
+
+      var html = '<div class="mb-3"><strong>学生：</strong>' + escapeHtml(item.student_name) +
+                 ' <strong>学号：</strong>' + escapeHtml(item.student_number || '-') +
+                 ' <strong>文件：</strong>' + escapeHtml(item.source_file || '默认') +
+                 ' <strong>时间：</strong>' + escapeHtml(item.submit_time) + '</div>';
+
+      var answers = {};
+      try {
+        var parsedAnswers = JSON.parse(item.answers || '{}');
+        answers = (parsedAnswers && typeof parsedAnswers === 'object') ? parsedAnswers : {};
+      } catch(e){ answers = {}; }
+      var scores = {};
+      try {
+        var parsedScores = JSON.parse(item.scores || '{}');
+        scores = (parsedScores && typeof parsedScores === 'object') ? parsedScores : {};
+      } catch(e){ scores = {}; }
+
+      var keys = Object.keys(answers);
+      if (item.questions && item.questions.length && window.QuizAnalysis) {
+        html += window.QuizAnalysis.detailHtml(item.questions);
+      } else if (keys.length > 0) {
+        html += '<h6>答题情况</h6><table class="table table-sm table-bordered"><thead class="table-light"><tr><th>题目</th><th>答案</th>';
+        if (Object.keys(scores).length > 0) html += '<th>得分</th>';
+        html += '</tr></thead><tbody>';
+        keys.forEach(function(k){
+          var ans = answers[k];
+          if (Array.isArray(ans)) ans = ans.join(', ');
+          html += '<tr><td>' + escapeHtml(k) + '</td><td>' + escapeHtml(ans) + '</td>';
+          if (Object.keys(scores).length > 0) {
+            var sc = scores[k];
+            html += '<td>' + escapeHtml(sc !== undefined ? sc : '-') + '</td>';
+          }
+          html += '</tr>';
+        });
+        html += '</tbody></table>';
+      }
+
+      if (item.total_score !== null) {
+        html += '<div class="mt-2"><strong>总分：</strong>' + escapeHtml(item.total_score);
+        if (item.max_score !== null) html += ' / ' + escapeHtml(item.max_score);
+        html += '</div>';
+      }
+
+      document.getElementById('detailBody').innerHTML = html;
+    })
+    .catch(function(){
+      document.getElementById('detailBody').innerHTML = '<p class="text-danger">加载失败</p>';
+    });
+}
+
+function exportCSV() {
+  var table = document.getElementById('resultsTable');
+  var rows = table.querySelectorAll('tr');
+  var csv = [];
+  rows.forEach(function(row){
+    var cols = row.querySelectorAll('td, th');
+    var rowData = [];
+    cols.forEach(function(col){
+      // 公式注入中和：= + - @ 开头的单元格加 ' 前缀（Excel 打开不执行公式）
+    var cell = col.textContent.trim().replace(/"/g, '""');
+    if (/^[=+\-@]/.test(cell)) cell = "'" + cell;
+    rowData.push('"' + cell + '"');
+    });
+    csv.push(rowData.join(','));
+  });
+  var blob = new Blob(['\uFEFF' + csv.join('\n')], {type: 'text/csv;charset=utf-8;'});
+  var link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  // 文件名净化：资源标题含 / \ : * ? " < > | 时 Windows 下载失败或被改写。
+  // tojson 输出 JS 字符串字面量（引号/HTML 实体均安全转义）
+  var safeTitle = ({{ resource.title|tojson }}).replace(/[\/\\:*?"<>|]/g, '_').replace(/\s+/g, '_');
+  link.download = 'quiz_results_' + safeTitle + '.csv';
+  link.click();
+  // 释放 Blob URL（此前长期驻留内存）
+  setTimeout(function() { URL.revokeObjectURL(link.href); }, 0);
+}
+
+// 等级分布图表（Chart.js 本地按需加载，仅本页使用）
+function initGradeChart() {
+  var canvas = document.getElementById('gradeChart');
+  if (!canvas || typeof Chart === 'undefined') return;
+  var dist = {{ grade_dist|tojson }};
+  new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: ['优秀', '良好', '合格', '不合格'],
+      datasets: [{
+        label: '成绩记录数',
+        data: [dist['优秀'], dist['良好'], dist['合格'], dist['不合格']],
+        backgroundColor: '#2a78d6',
+        maxBarThickness: 24,
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { precision: 0 } }
+      }
+    }
+  });
+}
+document.addEventListener('DOMContentLoaded', initGradeChart);
+</script>
+<script defer src="{{ versioned_static('chart.js/chart.umd.min.js') }}"></script>
+<script defer src="{{ versioned_static('js/quiz_analysis.js') }}"></script>
+{% endblock %}

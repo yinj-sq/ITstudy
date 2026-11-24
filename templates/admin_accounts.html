@@ -1,0 +1,157 @@
+{% extends 'base.html' %}
+{% block title %}管理员账号{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-user-shield me-2"></i>管理员账号</h2>
+    <button class="btn btn-primary rounded-pill" data-bs-toggle="modal" data-bs-target="#addAccountModal">
+      <i class="fas fa-plus me-1"></i>添加管理员
+    </button>
+  </div>
+
+  {% if file_account_exists %}
+  <div class="alert alert-info py-2">
+    <i class="fas fa-info-circle me-2"></i>
+    兼容提示：旧版文件账号 <code>admin_account.txt</code> 仍可登录（升级前的账号）。
+    建议在下方创建正式账号后妥善管理密码。
+  </div>
+  {% endif %}
+
+  <div class="card shadow-sm">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover table-striped mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>#</th>
+              <th>用户名</th>
+              <th>显示名</th>
+              <th>状态</th>
+              <th>最近登录</th>
+              <th>创建时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for a in accounts %}
+            <tr>
+              <td>{{ loop.index }}</td>
+              <td><code>{{ a.username }}</code></td>
+              <td>{{ a.display_name or '-' }}</td>
+              <td>
+                {% if a.is_active %}<span class="badge bg-success">启用</span>
+                {% else %}<span class="badge bg-secondary">停用</span>{% endif %}
+              </td>
+              <td class="text-muted small">{{ a.last_login_at.strftime('%Y-%m-%d %H:%M') if a.last_login_at else '从未登录' }}</td>
+              <td class="text-muted small">{{ a.created_at.strftime('%Y-%m-%d') if a.created_at else '-' }}</td>
+              <td class="text-nowrap">
+                <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal"
+                        data-bs-target="#pwdModal" onclick='setPwdId({{ a.id }}, {{ a.username|tojson }})'>
+                  <i class="fas fa-key me-1"></i>改密
+                </button>
+                <form method="post" action="{{ url_for('auth.admin_accounts') }}" style="display:inline;"
+                      onsubmit='return confirm("确定{{ "停用" if a.is_active else "启用" }}账号 " + {{ a.username|tojson }} + "？");'>
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="action" value="toggle">
+                  <input type="hidden" name="account_id" value="{{ a.id }}">
+                  <button class="btn btn-outline-warning btn-sm">
+                    <i class="fas fa-power-off me-1"></i>{{ '停用' if a.is_active else '启用' }}
+                  </button>
+                </form>
+                <form method="post" action="{{ url_for('auth.admin_accounts') }}" style="display:inline;"
+                      onsubmit='return confirm("确定删除账号 " + {{ a.username|tojson }} + "？此操作不可恢复。");'>
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="action" value="delete">
+                  <input type="hidden" name="account_id" value="{{ a.id }}">
+                  <button class="btn btn-outline-danger btn-sm"><i class="fas fa-trash me-1"></i>删除</button>
+                </form>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" class="text-center text-muted py-4">暂无管理员账号，请先添加</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <p class="text-muted small mt-3">
+    <i class="fas fa-shield-alt me-1"></i>
+    安全提示：管理员账号影响全部管理功能，请使用强密码并妥善保管。
+    停用/删除账号不会中断已登录会话（会话到期后自动失效）。
+  </p>
+</div>
+
+<!-- 添加账号模态框 -->
+<div class="modal fade" id="addAccountModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('auth.admin_accounts') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="action" value="create">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title"><i class="fas fa-user-plus me-1"></i>添加管理员</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="关闭"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">用户名 <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" name="username" required maxlength="80"
+                   placeholder="登录时使用的用户名">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">显示名</label>
+            <input type="text" class="form-control" name="display_name" maxlength="80"
+                   placeholder="如：系统管理员（留空则用用户名）">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">密码 <span class="text-danger">*</span></label>
+            <input type="password" class="form-control" name="password" required minlength="6"
+                   placeholder="至少 6 位">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-primary">创建</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- 修改密码模态框 -->
+<div class="modal fade" id="pwdModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('auth.admin_accounts') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="action" value="password">
+        <input type="hidden" name="account_id" id="pwdAccountId">
+        <div class="modal-header bg-warning">
+          <h5 class="modal-title"><i class="fas fa-key me-1"></i>修改密码 — <span id="pwdAccountName"></span></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">新密码 <span class="text-danger">*</span></label>
+            <input type="password" class="form-control" name="password" required minlength="6"
+                   placeholder="至少 6 位">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-warning">更新密码</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function setPwdId(id, name) {
+  document.getElementById('pwdAccountId').value = id;
+  document.getElementById('pwdAccountName').textContent = name;
+}
+</script>
+{% endblock %}

@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+{% block title %}{{ '编辑作业' if hw else '发布作业' }}{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h2 class="mb-4"><i class="fas fa-{{ 'edit' if hw else 'plus-circle' }} me-2"></i>{{ '编辑作业' if hw else '发布作业' }}</h2>
+
+  <div class="row">
+    <div class="col-md-8">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <form method="post" id="hwForm" enctype="multipart/form-data">
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <label class="form-label">作业标题 <span class="text-danger">*</span></label>
+                <input type="text" name="title" class="form-control rounded-pill" value="{{ hw.title if hw else '' }}" required>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">所属学科</label>
+                <select class="form-select rounded-pill" name="subject_id">
+                  <option value="">未分类</option>
+                  {% for s in subjects %}
+                  <option value="{{ s.id }}" {% if hw and hw.subject_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">截止时间</label>
+                <input type="datetime-local" name="deadline" class="form-control rounded-pill" value="{{ hw.deadline.strftime('%Y-%m-%dT%H:%M') if hw and hw.deadline else '' }}">
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">接收班级 <span class="text-danger">*</span></label>
+              <div class="d-flex flex-wrap gap-2">
+                {% for c in classes %}
+                <label class="badge bg-light text-dark border p-2 rounded-pill" style="cursor:pointer;font-size:0.9rem;">
+                  <input type="checkbox" name="class_ids" value="{{ c.id }}" {% if c.id in (hw_classes if hw else []) %}checked{% endif %}> {{ c.name }}
+                </label>
+                {% endfor %}
+              </div>
+              <small class="text-muted">至少选择一个班级</small>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">作业描述</label>
+              <textarea name="description" class="form-control" rows="4" placeholder="作业要求...">{{ hw.description if hw else '' }}</textarea>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">附件</label>
+              <input type="file" name="attachments" class="form-control" multiple>
+              <small class="text-muted">支持图片/PDF/音视频/Office文档</small>
+            </div>
+            <div class="mb-3">
+              <label class="form-check">
+                <input type="checkbox" name="deliver_to_drive" value="1" class="form-check-input" checked>
+                发布后将附件投递到接收班级学生的个人网盘
+              </label>
+            </div>
+            {% if hw and attachments_list %}
+            <div class="mb-3">
+              <label class="form-label">现有附件</label>
+              <div class="border rounded p-2">
+                {% for a in attachments_list %}
+                <label class="d-block small">
+                  <input type="checkbox" name="delete_attachments" value="{{ a }}"> <i class="fas fa-paperclip me-1"></i>{{ a }}
+                </label>
+                {% endfor %}
+              </div>
+              <small class="text-muted">勾选后在保存时删除</small>
+            </div>
+            {% endif %}
+            {% if hw %}
+            <div class="mb-3">
+              <label class="form-check">
+                <input type="checkbox" name="is_active" value="1" class="form-check-input" {% if hw.is_active %}checked{% endif %}> 作业进行中（关闭后学生无法提交）
+              </label>
+            </div>
+            {% endif %}
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-primary rounded-pill px-5"><i class="fas fa-save me-1"></i>{{ '保存修改' if hw else '发布作业' }}</button>
+              <a href="/admin/homework" class="btn btn-outline-secondary rounded-pill"><i class="fas fa-arrow-left"></i> 返回</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card shadow-sm">
+        <div class="card-header"><strong><i class="fas fa-info-circle me-1"></i>说明</strong></div>
+        <div class="card-body small">
+          <ul class="list-unstyled mb-0">
+            <li class="mb-2"><i class="fas fa-check text-success me-1"></i>作业发布后学生即可查看提交</li>
+            <li class="mb-2"><i class="fas fa-clock text-warning me-1"></i>截止时间到期后学生仍可提交</li>
+            <li class="mb-2"><i class="fas fa-users text-primary me-1"></i>至少选择一个接收班级</li>
+            <li class="mb-2"><i class="fas fa-paperclip text-info me-1"></i>附件支持批量上传</li>
+            <li><i class="fas fa-star text-warning me-1"></i>等级评分：A+ ~ E 共10级</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

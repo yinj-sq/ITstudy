@@ -1,0 +1,381 @@
+{% extends 'base.html' %}
+{% block title %}签到管理 - 管理员{% endblock %}
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0"><i class="fas fa-clipboard-check me-2"></i>签到管理</h2>
+        <div>
+            <span class="badge bg-success me-2" id="statusBadge">
+                <i class="fas fa-sync-alt fa-spin me-1"></i>自动刷新中
+            </span>
+            <span class="text-muted small" id="lastRefresh"></span>
+        </div>
+    </div>
+
+    <!-- 实时 / 历史 切换 -->
+    <ul class="nav nav-tabs mb-4">
+        <li class="nav-item">
+            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabRealtime" type="button">
+                <i class="fas fa-sync-alt me-1"></i>实时签到
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabHistory" type="button" id="historyTabBtn">
+                <i class="fas fa-history me-1"></i>历史记录
+            </button>
+        </li>
+    </ul>
+    <div class="tab-content">
+    <div class="tab-pane fade show active" id="tabRealtime">
+
+    <!-- 顶部统计卡片 -->
+    <div class="row mb-4" id="statsRow">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body text-center">
+                    <h3 class="mb-0" id="statTotal">-</h3>
+                    <small>学生总数</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <h3 class="mb-0" id="statCheckedIn">-</h3>
+                    <small>已签到</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-danger text-white">
+                <div class="card-body text-center">
+                    <h3 class="mb-0" id="statNotChecked">-</h3>
+                    <small>未签到</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <h3 class="mb-0" id="statRate">-</h3>
+                    <small>签到率</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 班级筛选 -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">按班级查看</label>
+                    <select class="form-select" id="classFilter" onchange="loadAttendance()">
+                        <option value="">全部班级</option>
+                        {% for c in classes %}
+                        <option value="{{ c.id }}" {% if class_id == c.id|string %}selected{% endif %}>{{ c.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <button class="btn btn-outline-primary" onclick="loadAttendance()">
+                        <i class="fas fa-sync-alt me-1"></i>手动刷新
+                    </button>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="autoRefreshToggle" checked onchange="toggleAutoRefresh()">
+                        <label class="form-check-label" for="autoRefreshToggle">自动刷新 (10秒)</label>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="hideCheckedIn" onchange="renderAttendance()">
+                        <label class="form-check-label" for="hideCheckedIn">仅显示未签到</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 签到列表 -->
+    <div class="card">
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">签到列表</h5>
+            <small id="listSummary"></small>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>座位号</th>
+                        <th>学号</th>
+                        <th>姓名</th>
+                        <th>班级</th>
+                        <th>小组</th>
+                        <th>签到状态</th>
+                        <th>签到时间</th>
+                        <th>IP地址</th>
+                    </tr>
+                </thead>
+                <tbody id="attendanceBody">
+                    <tr><td colspan="8" class="text-center py-4 text-muted">
+                        <i class="fas fa-spinner fa-spin me-2"></i>加载中...
+                    </td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    </div><!-- /tabRealtime -->
+
+    <!-- ═══ 历史记录 ═══ -->
+    <div class="tab-pane fade" id="tabHistory">
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label">日期</label>
+                        <input type="date" class="form-control" id="historyDate"
+                               value="{{ today }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">班级</label>
+                        <select class="form-select" id="historyClass">
+                            <option value="">选择班级</option>
+                            {% for c in classes %}
+                            <option value="{{ c.id }}">{{ c.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3 d-flex gap-2">
+                        <button class="btn btn-primary" onclick="loadHistory()">
+                            <i class="fas fa-search me-1"></i>查询
+                        </button>
+                        <button class="btn btn-success" id="historyExportBtn" disabled>
+                            <i class="fas fa-file-export me-1"></i>导出Excel
+                        </button>
+                    </div>
+                    <div class="col-md-3" id="historySummary"></div>
+                </div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">每日签到记录</h5>
+                <small class="text-muted">按课程表记录各班当天签到情况，离线学生自动补录为"未签到"</small>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>座位号</th>
+                            <th>学号</th>
+                            <th>姓名</th>
+                            <th>签到状态</th>
+                            <th>签到时间</th>
+                            <th>最后活跃</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyBody">
+                        <tr><td colspan="6" class="text-center py-4 text-muted">
+                            请选择日期与班级后查询
+                        </td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div><!-- /tabHistory -->
+    </div><!-- /tab-content -->
+</div>
+
+<script>
+var attendanceData = [];
+var autoRefreshTimer = null;
+var historyLoaded = {};
+
+// ── 历史记录查询/导出 ──
+function loadHistory() {
+    var d = document.getElementById('historyDate').value;
+    var cid = document.getElementById('historyClass').value;
+    if (!d) { alert('请选择日期'); return; }
+    if (!cid) { alert('请选择班级'); return; }
+    var body = document.getElementById('historyBody');
+    body.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i>查询中...</td></tr>';
+    fetch('/admin/attendance/history?date=' + d + '&class_id=' + cid, { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+            if (!j.success) { alert(j.message); body.innerHTML = ''; return; }
+            var data = j.data;
+            var online = data.stats.online, total = data.stats.total;
+            document.getElementById('historySummary').innerHTML =
+                '<span class="badge bg-success">已签到 ' + online + '/' + total + '</span> ' +
+                '<span class="badge bg-danger">未签到 ' + (total - online) + '</span>';
+            var exportBtn = document.getElementById('historyExportBtn');
+            exportBtn.disabled = false;
+            exportBtn.onclick = function () {
+                window.location.href = '/admin/attendance/export?date=' + d + '&class_id=' + cid;
+            };
+            body.innerHTML = '';
+            if (!data.records.length) {
+                body.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">当天该班无签到记录</td></tr>';
+                return;
+            }
+            data.records.forEach(function (r) {
+                var tr = document.createElement('tr');
+                tr.className = r.status === 'offline' ? 'table-danger' : '';
+                tr.innerHTML = '<td>' + (r.seat_number != null ? r.seat_number : '-') + '</td>' +
+                    '<td>' + escapeHtml(r.student_number || '-') + '</td>' +
+                    '<td>' + escapeHtml(r.name) + '</td>' +
+                    '<td>' + (r.status === 'online'
+                        ? '<span class="badge bg-success">已签到</span>'
+                        : '<span class="badge bg-danger">未签到</span>') + '</td>' +
+                    '<td>' + escapeHtml(r.login_time || '-') + '</td>' +
+                    '<td>' + escapeHtml(r.last_seen || '-') + '</td>';
+                body.appendChild(tr);
+            });
+        })
+        .catch(function () { alert('查询失败'); });
+}
+
+// 切到历史 tab 时自动加载今天/已选班级（若有）
+document.getElementById('historyTabBtn').addEventListener('click', function () {
+    var cid = document.getElementById('historyClass').value;
+    if (cid) loadHistory();
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadAttendance();
+    startAutoRefresh();
+});
+
+function loadAttendance() {
+    var classId = document.getElementById('classFilter').value;
+    var url = '/api/attendance/status';
+    if (classId) url += '?class_id=' + classId;
+
+    fetch(url)
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (!d.success) return;
+            attendanceData = d.data;
+            updateStats(d.data);
+            renderAttendance();
+            document.getElementById('lastRefresh').textContent = '刷新时间: ' + d.data.refresh_time;
+        })
+        .catch(function(e) {
+            console.error('加载签到数据失败:', e);
+        });
+}
+
+function updateStats(data) {
+    document.getElementById('statTotal').textContent = data.total;
+    document.getElementById('statCheckedIn').textContent = data.checked_in;
+    document.getElementById('statNotChecked').textContent = data.total - data.checked_in;
+    document.getElementById('statRate').textContent = data.check_in_rate + '%';
+    document.getElementById('listSummary').textContent =
+        '已签到 ' + data.checked_in + ' / ' + data.total + ' 人 (' + data.check_in_rate + '%)';
+}
+
+function escapeHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s == null ? '' : String(s);
+    return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function renderAttendance() {
+    var hideChecked = document.getElementById('hideCheckedIn').checked;
+    var tbody = document.getElementById('attendanceBody');
+    var students = attendanceData.students || [];
+
+    if (students.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">暂无学生数据</td></tr>';
+        return;
+    }
+
+    // 按班级分组
+    var grouped = {};
+    students.forEach(function(s) {
+        var cn = s.class_name || '未分班';
+        if (!grouped[cn]) grouped[cn] = [];
+        grouped[cn].push(s);
+    });
+
+    var html = '';
+    var classNames = Object.keys(grouped).sort();
+    classNames.forEach(function(cn) {
+        var classStudents = grouped[cn];
+        var classCheckedIn = classStudents.filter(function(s) { return s.is_online; }).length;
+        html += '<tr class="table-secondary"><td colspan="8"><strong>' + escapeHtml(cn) +
+                '</strong> — ' + classStudents.length + '人，已签到 ' + classCheckedIn + '人' +
+                ' (' + (classStudents.length > 0 ? Math.round(classCheckedIn / classStudents.length * 100) : 0) + '%)' +
+                '</td></tr>';
+
+        classStudents.forEach(function(s) {
+            if (hideChecked && s.is_online) return;
+            var rowClass = s.is_online ? '' : 'table-danger';
+            var statusHtml = s.is_online
+                ? '<span class="badge bg-success">已签到</span>'
+                : '<span class="badge bg-danger">未签到</span>';
+            html += '<tr class="' + rowClass + '">';
+            html += '<td><span class="badge bg-dark">' + escapeHtml(s.seat_number != null ? s.seat_number : '-') + '</span></td>';
+            html += '<td>' + escapeHtml(s.student_number || '-') + '</td>';
+            html += '<td><strong>' + escapeHtml(s.name) + '</strong></td>';
+            html += '<td>' + escapeHtml(s.class_name || '-') + '</td>';
+            html += '<td>' + escapeHtml(s.group_name || '-') + '</td>';
+            html += '<td>' + statusHtml + '</td>';
+            html += '<td class="text-muted small">' + escapeHtml(s.login_time || '未登录') + '</td>';
+            html += '<td class="text-muted small">' + escapeHtml(s.ip_address || '-') + '</td>';
+            html += '</tr>';
+        });
+    });
+
+    tbody.innerHTML = html;
+}
+
+var attendanceSSE = null, attendanceSSEErrors = 0;
+
+function startAutoRefresh() {
+    if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+    autoRefreshTimer = setInterval(loadAttendance, 10000);
+    // SSE 变更推送（与课堂大屏同通道）：学生上线/换班时立即重拉，
+    // 替代 10s 轮询等待；10s 轮询保留为兜底
+    if (!attendanceSSE) {
+        try {
+            attendanceSSE = new EventSource('/api/events/classroom');
+            attendanceSSE.addEventListener('refresh', function() { loadAttendance(); });
+            attendanceSSE.onerror = function() {
+                attendanceSSEErrors++;
+                if (attendanceSSEErrors >= 3 && attendanceSSE) {
+                    attendanceSSE.close();
+                    attendanceSSE = null;
+                }
+            };
+        } catch (e) { attendanceSSE = null; }
+    }
+}
+
+function toggleAutoRefresh() {
+    var enabled = document.getElementById('autoRefreshToggle').checked;
+    var badge = document.getElementById('statusBadge');
+    if (enabled) {
+        startAutoRefresh();
+        badge.className = 'badge bg-success me-2';
+        badge.innerHTML = '<i class="fas fa-sync-alt fa-spin me-1"></i>自动刷新中';
+    } else {
+        clearInterval(autoRefreshTimer);
+        if (attendanceSSE) { attendanceSSE.close(); attendanceSSE = null; }
+        badge.className = 'badge bg-secondary me-2';
+        badge.innerHTML = '<i class="fas fa-pause me-1"></i>已暂停自动刷新';
+    }
+}
+</script>
+
+<style>
+.table-danger td {
+    background-color: #fff3cd !important;
+}
+.table-danger:hover td {
+    background-color: #ffe69c !important;
+}
+</style>
+{% endblock %}

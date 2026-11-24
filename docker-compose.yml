@@ -1,0 +1,98 @@
+# ITstudy 容器编排示例（最小可用）
+# 启动：docker compose up -d   说明见 docs/容器部署.md
+services:
+  db:
+    image: postgres:16-alpine
+    # 与 app 一致的自动重启：PG 崩溃/宿主重启后不自动拉起，app 会持续
+    # unhealthy 且无人察觉（此前 db 无 restart 策略）
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      # 必填：不再回退到内置弱口令 "@@"。未设置时 compose 直接报错退出，
+      # 避免用默认口令初始化数据卷后长期无人发现。
+      POSTGRES_PASSWORD: "${DB_PASS:?请先设置 DB_PASS（数据库强口令）}"
+      POSTGRES_DB: itstudy
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d itstudy"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # 资源上限（compose v2 支持 deploy.resources 作为容器限制）：
+    # 防止单容器失控拖垮宿主；大班级/多学科部署可按需上调
+    deploy:
+      resources:
+        limits:
+          cpus: "${DB_CPUS:-1.0}"
+          memory: "${DB_MEMORY:-1g}"
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASS: "${DB_PASS:?请先设置 DB_PASS（数据库强口令）}"
+      DB_NAME: itstudy
+      SECRET_KEY: "${SECRET_KEY:-}"          # 多实例必设；留空用 instance/secret_key
+      # 工作线程数（8-128）：连接池按此自动放大，调高前确认数据库
+      # max_connections 余量；显式设置会覆盖 deploy.conf 与管理端设置页
+      WAITRESS_THREADS: "48"
+      # 时区（签到窗口/课表自动切班/作业截止均按本地时间判定，镜像已默认
+      # Asia/Shanghai；其它时区在此覆盖）
+      TZ: "${TZ:-Asia/Shanghai}"
+      # 文件管理员账号默认写 /app 根目录（不在持久卷内），容器重建即丢、
+      # 改过的密码随之失效。指到 instance 卷后首次登录改密可长期生效。
+      # 从旧版 compose 升级时，可先把旧容器的 /app/admin_account.txt
+      # 复制到卷内同一路径，否则会重新生成初始密码（见 docs/容器部署.md）。
+      ADMIN_ACCOUNT_FILE: "/app/instance/admin_account.txt"
+      # 文件管理员账号的初始密码（仅账号文件尚不存在时生效）。账号文件已由
+      # 上面的 ADMIN_ACCOUNT_FILE 固定到 instance 卷，首次登录改密后长期有效；
+      # 不设本项时随机密码只在首启日志出现一次，错过需用
+      # tools/reset_admin_password.py 重置。
+      ADMIN_INIT_PASSWORD: "${ADMIN_INIT_PASSWORD:-}"
+      # AI 流式并发上限（deploy.conf 同名键的等价环境变量覆盖）
+      # AI_MAX_CONCURRENT_STREAMS: "16"
+      # TRUST_PROXY_HEADERS: "1"             # 前置反代时开启
+      # PROXY_SECRET: "${PROXY_SECRET:-}"    # 代理密钥（需反代同值注入 X-Proxy-Secret，见 docs/itstudy.conf）
+      # TRUSTED_HOSTS: "itstudy.example.com" # 逗号分隔、禁带端口（/api/healthz 豁免，容器健康检查不受影响）
+      # COOKIE_SECURE: "1"                   # 整站 HTTPS 时开启
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    volumes:
+      - app_instance:/app/instance           # secret_key 持久化（丢失=全员掉线）
+      - app_uploads:/app/static/uploads      # 上传文件（课件/网盘/答案）
+      - app_homework:/app/static/homework    # 作业附件
+      - app_submissions:/app/static/submissions  # 学生提交
+      - app_chunks:/app/static/chunks        # 分块上传临时区
+      - app_question_img:/app/static/question_img  # 题目图片
+      - app_data:/app/data
+      - app_logs:/app/logs
+    restart: unless-stopped
+    stop_grace_period: 30s                   # 给 Waitress 收尾/关闭连接留时间
+    deploy:
+      resources:
+        limits:
+          cpus: "${APP_CPUS:-2.0}"
+          memory: "${APP_MEMORY:-2g}"
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+volumes:
+  db_data:
+  app_instance:
+  app_uploads:
+  app_homework:
+  app_submissions:
+  app_chunks:
+  app_question_img:
+  app_data:
+  app_logs:

@@ -1,0 +1,582 @@
+{% extends 'base.html' %}
+{% block title %}学生管理 - 管理员{% endblock %}
+{% block content %}
+<div class="container py-4">
+    <h2 class="mb-4"><i class="fas fa-users me-2"></i>学生管理</h2>
+
+    {% if secret_notice %}
+    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+        <strong>一次性密码提示：</strong> {{ secret_notice }}
+        <div class="small mt-1">请立即安全记录；刷新或离开本页面后将不再显示。</div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="关闭"></button>
+    </div>
+    {% endif %}
+
+    <!-- 顶部操作栏 -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <!-- 筛选行 -->
+            <div class="row g-2 align-items-end mb-3">
+                <div class="col-md-2">
+                    <label class="form-label small mb-1">班级筛选</label>
+                    <select class="form-select form-select-sm" onchange="filterClass(this.value)">
+                        <option value="">全部班级</option>
+                        {% for c in classes %}
+                        <option value="{{ c.id }}" {% if class_id == c.id|string %}selected{% endif %}>{{ c.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-1">账号状态</label>
+                    <select class="form-select form-select-sm" onchange="filterStatus(this.value)">
+                        <option value="">全部</option>
+                        <option value="activated" {% if status == 'activated' %}selected{% endif %}>已激活</option>
+                        <option value="deactivated" {% if status == 'deactivated' %}selected{% endif %}>未激活</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small mb-1">搜索</label>
+                    <div class="input-group input-group-sm">
+                        <input type="text" class="form-control" id="searchInput" placeholder="姓名/学号/班级"
+                               value="{{ search }}" onkeydown="if(event.key==='Enter') searchStudents()">
+                        <button class="btn btn-primary" onclick="searchStudents()">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-5 d-flex align-items-end gap-2">
+                    <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#addStudentModal">
+                        <i class="fas fa-plus me-1"></i>添加学生
+                    </button>
+                    <button class="btn btn-info btn-sm text-white" data-bs-toggle="modal" data-bs-target="#importModal">
+                        <i class="fas fa-upload me-1"></i>批量导入
+                    </button>
+                    <a href="{{ url_for('class_management.download_import_template') }}" class="btn btn-outline-success btn-sm">
+                        <i class="fas fa-download me-1"></i>模板下载
+                    </a>
+                    <a href="{{ url_for('class_management.export_students', class_id=class_id) }}" class="btn btn-outline-info btn-sm">
+                        <i class="fas fa-file-export me-1"></i>批量导出
+                    </a>
+                    <button class="btn btn-outline-danger btn-sm" id="batchDeleteBtn" disabled onclick="batchDelete()">
+                        <i class="fas fa-trash me-1"></i>批量删除
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 学生表格 -->
+    <div class="card">
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                学生列表 (共 {{ pagination.total if pagination else 0 }} 名)
+                {% if class_id %}<span class="badge bg-info ms-2">已筛选班级</span>{% endif %}
+            </h5>
+            <div>
+                <button class="btn btn-sm btn-outline-light" id="selectAllBtn" onclick="toggleSelectAll()">
+                    <i class="fas fa-check-square me-1"></i>全选
+                </button>
+                <button class="btn btn-sm btn-outline-light" id="batchResetPwdBtn" disabled
+                        onclick="batchResetPwd()">
+                    <i class="fas fa-key me-1"></i>批量重置密码
+                </button>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="selectAll" onchange="toggleAll(this)"></th>
+                        <th>学号</th>
+                        <th>姓名</th>
+                        <th>班级</th>
+                        <th>年级</th>
+                        <th>小组</th>
+                        <th>状态</th>
+                        <th>最后登录</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if students %}
+                        {% for s in students %}
+                        <tr id="row-{{ s.id }}" class="{% if not s.is_activated %}table-secondary{% endif %}">
+                            <td><input type="checkbox" class="student-check" value="{{ s.id }}" onchange="updateBatchBtns()"></td>
+                            <td>{{ s.student_number or '-' }}</td>
+                            <td><strong>{{ s.name }}</strong></td>
+                            <td>
+                                {% if s.class_ %}
+                                <span class="badge bg-primary">{{ s.class_.name }}</span>
+                                {% else %}
+                                <span class="text-muted">{{ s.student_class or '未分班' }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-muted small">{{ s.grade or '-' }}</td>
+                            <td>
+                                {% if s.group %}
+                                <span class="badge bg-success">{{ s.group.name }}</span>
+                                {% else %}-{% endif %}
+                            </td>
+                            <td>
+                                {% if s.is_activated %}
+                                <span class="badge bg-success">已激活</span>
+                                {% else %}
+                                <span class="badge bg-warning">未激活</span>
+                                {% endif %}
+                                {% if not s.has_changed_password %}
+                                <span class="badge bg-secondary">未改密</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-muted small">{{ s.login_time.strftime('%m-%d %H:%M') if s.login_time else '-' }}</td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-primary btn-sm" aria-label="编辑学生"
+                                            onclick='editStudent({{ s.id }}, {{ s.name|tojson }}, {{ (s.student_number or "")|tojson }}, {{ s.class_id or "null" }}, {{ (s.grade or "")|tojson }}, {{ "true" if s.is_activated else "false" }}, {{ s.group_id or "null" }}, {{ (s.student_class or "")|tojson }})'
+                                            data-bs-toggle="modal" data-bs-target="#editStudentModal">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="btn btn-outline-warning btn-sm" aria-label="重置密码"
+                                            onclick='resetPwd({{ s.id }}, {{ s.name|tojson }})'
+                                            data-bs-toggle="modal" data-bs-target="#resetPwdModal">
+                                        <i class="fas fa-key"></i>
+                                    </button>
+                                    <button class="btn btn-outline-danger btn-sm" aria-label="删除学生"
+                                            onclick='deleteStudent({{ s.id }}, {{ s.name|tojson }})'>
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr><td colspan="9" class="text-center text-muted py-4">
+                            {% if class_id %}该班级暂无学生{% else %}暂无学生数据，请先添加班级后导入学生{% endif %}
+                        </td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+        {% if pagination and pagination.pages > 1 %}
+        <div class="card-footer">
+            <nav>
+                <ul class="pagination justify-content-center mb-0">
+                    <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('class_management.admin_students', page=pagination.prev_num, sort=sort, order=order, class_id=class_id, search=search, status=status) if pagination.has_prev else '#' }}">上一页</a>
+                    </li>
+                    {% for p in range(1, pagination.pages + 1) %}
+                        {% if p == 1 or p == pagination.pages or (p >= pagination.page - 2 and p <= pagination.page + 2) %}
+                        <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                            <a class="page-link" href="{{ url_for('class_management.admin_students', page=p, sort=sort, order=order, class_id=class_id, search=search, status=status) }}">{{ p }}</a>
+                        </li>
+                        {% elif p == pagination.page - 3 or p == pagination.page + 3 %}
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                        {% endif %}
+                    {% endfor %}
+                    <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('class_management.admin_students', page=pagination.next_num, sort=sort, order=order, class_id=class_id, search=search, status=status) if pagination.has_next else '#' }}">下一页</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 添加学生模态框 -->
+<div class="modal fade" id="addStudentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{{ url_for('class_management.add_student') }}">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title"><i class="fas fa-user-plus me-1"></i>添加学生</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="关闭"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">姓名 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">学号</label>
+                        <input type="text" class="form-control" name="student_number">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">班级</label>
+                        <select class="form-select" name="class_id">
+                            <option value="">未分班</option>
+                            {% for c in classes %}
+                            <option value="{{ c.id }}" {% if class_id == c.id|string %}selected{% endif %}>{{ c.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">年级</label>
+                        <input type="text" class="form-control" name="grade" placeholder="例如：2024级（选填）">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">初始密码</label>
+                        <input type="text" class="form-control" name="password" placeholder="留空则自动生成6位随机密码">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-success">添加</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 编辑学生模态框 -->
+<div class="modal fade" id="editStudentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="editStudentForm" method="post">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="fas fa-user-edit me-1"></i>编辑学生</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="关闭"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">姓名 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="name" id="editName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">学号</label>
+                        <input type="text" class="form-control" name="student_number" id="editNumber">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">班级</label>
+                        <select class="form-select" name="class_id" id="editClassId" onchange="filterGroupsForClass(this.value)">
+                            <option value="">未分班</option>
+                            {% for c in classes %}
+                            <option value="{{ c.id }}">{{ c.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">文本班级</label>
+                        <input type="text" class="form-control" name="student_class" id="editStudentClass"
+                               placeholder="导入时的文本班级（选填，不填则清空）">
+                        <div class="form-text text-muted">此处对应导入时的文本班级；留空可清空原值。</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">学习小组</label>
+                        <select class="form-select" name="group_id" id="editGroupId">
+                            <option value="">无小组</option>
+                            {% for g in groups %}
+                            <option value="{{ g.id }}" data-class="{{ g.class_id }}">{{ g.class.name if g.class else '?' }} - {{ g.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text text-muted">仅显示所选班级的小组；留空可移除小组。</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">年级</label>
+                        <input type="text" class="form-control" name="grade" id="editGrade" placeholder="例如：2024级">
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" name="is_activated" id="editActivated" value="true">
+                        <label class="form-check-label">账号已激活</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 导入学生模态框 -->
+<div class="modal fade" id="importModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="post" action="{{ url_for('class_management.import_students') }}" enctype="multipart/form-data">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title"><i class="fas fa-upload me-1"></i>批量导入学生</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="关闭"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="import_mode" id="importMode" value="text">
+                    <ul class="nav nav-tabs mb-3" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#textTab" type="button" onclick="document.getElementById('importMode').value='text'">文本导入</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#excelTab" type="button" onclick="document.getElementById('importMode').value='excel'">Excel导入</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active" id="textTab">
+                            <label class="form-label">学生名单</label>
+                            <textarea class="form-control" name="text_data" rows="10"
+                                      placeholder="每行一名学生，格式：学号 姓名 班级 年级&#10;例如：&#10;2024001 张三 计算机1班 2024级&#10;2024002 李四 计算机1班 2024级&#10;2024003 王五 计算机2班 2024级"></textarea>
+                            <small class="text-muted">每行格式：学号 姓名 班级 年级（空格/逗号分隔）。每批导入会生成新的8位临时密码，并在导入结果中显示。</small>
+                        </div>
+                        <div class="tab-pane fade" id="excelTab">
+                            <label class="form-label">选择Excel文件</label>
+                            <input type="file" class="form-control" name="excel_file" accept=".xlsx,.xls">
+                            <small class="text-muted">列序：A=学号 B=姓名 C=班级 D=年级。先下载模板填写后上传。</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-info">开始导入</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 导入进度提示覆盖层 -->
+<div id="importLoadingOverlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:99999;align-items:center;justify-content:center;">
+    <div class="text-center text-white">
+        <div class="spinner-border text-light mb-3" style="width:3rem;height:3rem;" role="status"></div>
+        <h5 class="mb-1">正在导入学生...</h5>
+        <small class="text-muted">大名单需要一点时间，请勿关闭页面</small>
+    </div>
+</div>
+
+<!-- 同名同班确认模态框 -->
+<div class="modal fade" id="duplicateConfirmModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title"><i class="fas fa-exclamation-triangle me-1"></i>发现同名同班学生</h5>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">
+                    以下学生与现有学生<b>姓名和班级相同</b>（学号不同，可能确实存在同名同班情况）。
+                    请确认是否仍要导入：<span class="fw-bold" id="dupImportCount"></span>
+                </p>
+                <div class="table-responsive" style="max-height:300px;overflow-y:auto;">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light">
+                            <tr><th>姓名</th><th>班级</th><th>学号</th></tr>
+                        </thead>
+                        <tbody id="duplicateList"></tbody>
+                    </table>
+                </div>
+                <p class="text-muted small mt-2 mb-0" id="dupMoreHint"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="dupSkipBtn">跳过这些学生</button>
+                <button type="button" class="btn btn-warning" id="dupConfirmBtn">
+                    <i class="fas fa-check me-1"></i>仍要导入
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    var form = document.querySelector('#importModal form');
+    if (!form) return;
+    var overlay = document.getElementById('importLoadingOverlay');
+    var pendingToken = null;
+
+    // 转义 HTML，防止学生姓名/班级等注入脚本
+    function escapeHtml(v) {
+        var d = document.createElement('div');
+        d.textContent = v == null ? '' : String(v);
+        return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function hasImportData() {
+        if (document.getElementById('importMode').value === 'excel') {
+            var ef = form.querySelector('input[name="excel_file"]');
+            return !!(ef && ef.files && ef.files.length > 0);
+        }
+        return (form.querySelector('textarea[name="text_data"]').value || '').trim().length > 0;
+    }
+
+    function submitImport(extraFormData) {
+        var fd = new FormData(form);
+        if (extraFormData) {
+            extraFormData.forEach(function (v, k) { fd.append(k, v); });
+        }
+        overlay.style.display = 'flex';
+        fetch(form.action, {
+            method: 'POST',
+            body: fd,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+        }).then(function (resp) {
+            return resp.json().catch(function () { return null; });
+        }).then(function (data) {
+            overlay.style.display = 'none';
+            if (!data) { alert('导入失败，请重试或联系管理员'); return; }
+            if (data.need_confirm) {
+                pendingToken = data.token;
+                document.getElementById('dupImportCount').textContent =
+                    '将导入 ' + data.imported + ' 名学生；同名同班 ' + data.duplicates_total + ' 名待确认';
+                var tbody = document.getElementById('duplicateList');
+                tbody.innerHTML = '';
+                (data.duplicates || []).forEach(function (d) {
+                    var tr = document.createElement('tr');
+                    tr.innerHTML = '<td>' + escapeHtml(d.name) + '</td><td>' + escapeHtml(d.student_class) + '</td><td>' + escapeHtml(d.number || '-') + '</td>';
+                    tbody.appendChild(tr);
+                });
+                document.getElementById('dupMoreHint').textContent =
+                    data.duplicates_total > (data.duplicates || []).length
+                        ? '…还有 ' + (data.duplicates_total - (data.duplicates || []).length) + ' 名同名同班学生未全部列出'
+                        : '';
+                new bootstrap.Modal(document.getElementById('duplicateConfirmModal')).show();
+                return;
+            }
+            if (data.redirect) { window.location.href = data.redirect; return; }
+            alert(data.message || '导入完成');
+        }).catch(function () {
+            overlay.style.display = 'none';
+            alert('网络错误，请重试');
+        });
+    }
+
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (!hasImportData()) return;
+        submitImport(null);
+    });
+
+    document.getElementById('dupConfirmBtn').addEventListener('click', function () {
+        if (!pendingToken) return;
+        var fd = new FormData();
+        fd.append('confirm_token', pendingToken);
+        bootstrap.Modal.getInstance(document.getElementById('duplicateConfirmModal')).hide();
+        submitImport(fd);
+    });
+})();
+</script>
+
+<!-- 重置密码模态框 -->
+<div class="modal fade" id="resetPwdModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <form id="resetPwdForm" method="post">
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title"><i class="fas fa-key me-1"></i>重置密码</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+                </div>
+                <div class="modal-body">
+                    <p>为学生 "<strong id="resetPwdName"></strong>" 设置新密码：</p>
+                    <input type="text" class="form-control" name="new_password" required
+                           placeholder="输入新密码" minlength="6">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-warning">确认重置</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 批量重置密码表单(隐藏) -->
+<form id="batchResetPwdForm" method="post" action="{{ url_for('class_management.batch_reset_student_password') }}">
+    <input type="hidden" name="ids" id="batchResetIds">
+    <input type="hidden" name="new_password" id="batchResetPwd">
+</form>
+<form id="batchDeleteForm" method="post" action="{{ url_for('class_management.batch_delete_students') }}">
+    <input type="hidden" name="ids" id="batchDeleteIds">
+</form>
+
+<script>
+function filterClass(val) {
+    var url = new URL(window.location);
+    if (val) url.searchParams.set('class_id', val); else url.searchParams.delete('class_id');
+    url.searchParams.set('page', '1');
+    window.location = url.toString();
+}
+function filterStatus(val) {
+    var url = new URL(window.location);
+    if (val) url.searchParams.set('status', val); else url.searchParams.delete('status');
+    url.searchParams.set('page', '1');
+    window.location = url.toString();
+}
+function searchStudents() {
+    var url = new URL(window.location);
+    var q = document.getElementById('searchInput').value;
+    if (q) url.searchParams.set('search', q); else url.searchParams.delete('search');
+    url.searchParams.set('page', '1');
+    window.location = url.toString();
+}
+
+function editStudent(id, name, number, classId, grade, activated, groupId, studentClass) {
+    document.getElementById('editStudentForm').action = '/admin/students/' + id + '/edit';
+    document.getElementById('editName').value = name;
+    document.getElementById('editNumber').value = number;
+    document.getElementById('editClassId').value = classId || '';
+    document.getElementById('editStudentClass').value = studentClass || '';
+    document.getElementById('editGrade').value = grade || '';
+    document.getElementById('editActivated').checked = activated;
+    document.getElementById('editGroupId').value = groupId || '';
+    // 按当前班级过滤小组下拉，保证"无小组"仍可选
+    filterGroupsForClass(document.getElementById('editClassId').value);
+}
+function filterGroupsForClass(classId) {
+    var sel = document.getElementById('editGroupId');
+    var options = sel.querySelectorAll('option[data-class]');
+    options.forEach(function(opt) {
+        opt.style.display = (classId && opt.getAttribute('data-class') === String(classId)) ? '' : 'none';
+    });
+    // 当前选中的小组不属于所选班级时清空（防止提交跨班级小组被后端拒绝）
+    var cur = sel.options[sel.selectedIndex];
+    if (sel.value && (!classId || !cur || cur.getAttribute('data-class') !== String(classId))) {
+        sel.value = '';
+    }
+}
+function resetPwd(id, name) {
+    document.getElementById('resetPwdForm').action = '/admin/students/' + id + '/reset-password';
+    document.getElementById('resetPwdName').textContent = name;
+}
+function deleteStudent(id, name) {
+    if (!confirm('确定要删除学生 "' + name + '" 吗？此操作不可恢复。')) return;
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/admin/students/' + id + '/delete';
+    document.body.appendChild(form);
+    form.submit();
+}
+function toggleAll(cb) {
+    var checks = document.querySelectorAll('.student-check');
+    checks.forEach(function(c) { c.checked = cb.checked; });
+    updateBatchBtns();
+}
+function toggleSelectAll() {
+    var checks = document.querySelectorAll('.student-check');
+    var allChecked = Array.from(checks).every(function(c) { return c.checked; });
+    document.getElementById('selectAll').checked = !allChecked;
+    toggleAll(document.getElementById('selectAll'));
+}
+function updateBatchBtns() {
+    var checked = document.querySelectorAll('.student-check:checked');
+    var hasChecked = checked.length > 0;
+    document.getElementById('batchDeleteBtn').disabled = !hasChecked;
+    document.getElementById('batchResetPwdBtn').disabled = !hasChecked;
+}
+function getCheckedIds() {
+    var ids = [];
+    document.querySelectorAll('.student-check:checked').forEach(function(c) { ids.push(c.value); });
+    return ids.join(',');
+}
+function batchDelete() {
+    var ids = getCheckedIds();
+    if (!ids) return;
+    if (!confirm('确定要删除选中的学生吗？此操作不可恢复。')) return;
+    document.getElementById('batchDeleteIds').value = ids;
+    document.getElementById('batchDeleteForm').submit();
+}
+function batchResetPwd() {
+    var ids = getCheckedIds();
+    if (!ids) return;
+    var pwd = prompt('请输入新密码：');
+    if (!pwd || !pwd.trim()) return;
+    document.getElementById('batchResetIds').value = ids;
+    document.getElementById('batchResetPwd').value = pwd.trim();
+    document.getElementById('batchResetPwdForm').submit();
+}
+</script>
+{% endblock %}

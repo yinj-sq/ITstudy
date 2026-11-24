@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+{% block title %}作品 - {{ activity.title }}{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2 class="mb-1"><i class="fas fa-inbox me-2"></i>{{ activity.title }}</h2>
+      <div class="text-muted">{{ activity.resource.title if activity.resource else '资源已删除' }}</div>
+    </div>
+    <a href="{{ url_for('activities.admin_works') }}" class="btn btn-outline-secondary rounded-pill"><i class="fas fa-arrow-left me-1"></i>作品云盘</a>
+  </div>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-header"><strong><i class="fas fa-star me-1"></i>优秀作品阈值</strong></div>
+    <div class="card-body">
+      <form method="post" action="{{ url_for('activities.admin_work_threshold', act_id=activity.id) }}" class="row g-2 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label">最低分</label>
+          <input type="number" step="0.1" name="min_score" class="form-control" value="{{ threshold.min_score if threshold else 90 }}">
+        </div>
+        <div class="col-md-5">
+          <label class="form-label">优秀等级</label>
+          <input type="text" name="grade_levels" class="form-control" value="{{ threshold.grade_levels if threshold else 'A+,A' }}">
+        </div>
+        <div class="col-md-4">
+          <button class="btn btn-primary rounded-pill"><i class="fas fa-save me-1"></i>保存并重算</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr><th>学生</th><th>作品</th><th>提交时间</th><th>评价</th><th>优秀</th><th style="width:230px;">操作</th></tr>
+        </thead>
+        <tbody>
+          {% for w in works %}
+          <tr>
+            <td>
+              <strong>{{ w.student.name if w.student else '学生已删除' }}</strong>
+              <div class="small text-muted">{{ w.student.class_.name if w.student and w.student.class_ else (w.student.student_class if w.student else '') }}</div>
+            </td>
+            <td>
+              {% if w.original_filename %}<i class="fas fa-paperclip me-1"></i>{{ w.original_filename }}{% else %}<span class="text-muted">文本作品</span>{% endif %}
+              {% if w.text_content %}<div class="small text-muted">{{ w.text_content[:80] }}</div>{% endif %}
+            </td>
+            <td class="small text-muted">{{ w.submitted_at.strftime('%Y-%m-%d %H:%M') if w.submitted_at else '' }}</td>
+            <td>
+              {% if w.status == 'submitted' %}
+              <span class="badge bg-info text-dark">待评价</span>
+              {% if w.evaluation %}<div class="small text-muted mt-1">上次：{{ w.evaluation.grade or '' }}{% if w.evaluation.score is not none %} / {{ w.evaluation.score }}分{% endif %}</div>{% endif %}
+              {% elif w.evaluation %}
+              {{ w.evaluation.grade or '' }}{% if w.evaluation.score is not none %} / {{ w.evaluation.score }}分{% endif %}
+              {% else %}<span class="badge bg-secondary">未评</span>{% endif %}
+            </td>
+            <td>{% if w.is_excellent %}<span class="badge bg-warning text-dark">优秀</span>{% else %}<span class="text-muted">-</span>{% endif %}</td>
+            <td>
+              <div class="d-flex flex-wrap gap-1">
+                {% if w.file_path %}
+                <a href="{{ url_for('activities.work_file_preview', work_id=w.id, source='works', page=pagination.page) }}" target="_blank" class="btn btn-outline-primary btn-sm rounded-pill"><i class="fas fa-eye me-1"></i>预览</a>
+                {% endif %}
+                <a href="{{ url_for('activities.admin_work_evaluate', work_id=w.id) }}" class="btn btn-outline-success btn-sm rounded-pill"><i class="fas fa-check me-1"></i>评价</a>
+                {% if w.is_excellent %}
+                <a href="{{ url_for('activities.public_work', token=w.public_token) }}" target="_blank" class="btn btn-outline-warning btn-sm rounded-pill"><i class="fas fa-star me-1"></i>公开</a>
+                {% endif %}
+                {% if can_manage %}
+                <form method="post" action="{{ url_for('activities.admin_work_delete', work_id=w.id) }}"
+                      class="m-0" onsubmit="return confirm('确定删除该学生的作品？删除后学生端将恢复为未提交状态，评价记录一并删除。');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <button class="btn btn-outline-danger btn-sm rounded-pill"><i class="fas fa-trash me-1"></i>删除</button>
+                </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="text-center text-muted py-4">暂无学生作品</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if pagination and pagination.pages > 1 %}
+    <div class="card-footer bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span class="text-muted small">共 {{ pagination.total }} 件作品，第 {{ pagination.page }} / {{ pagination.pages }} 页</span>
+        <nav aria-label="作品分页">
+            <ul class="pagination justify-content-center mb-0 flex-wrap">
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('activities.admin_works_activity', act_id=activity.id, page=pagination.prev_num) if pagination.has_prev else '#' }}">上一页</a>
+                </li>
+                {% for p in range(1, pagination.pages + 1) %}
+                    {% if p == 1 or p == pagination.pages or (p >= pagination.page - 2 and p <= pagination.page + 2) %}
+                    <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                        <a class="page-link" href="{{ url_for('activities.admin_works_activity', act_id=activity.id, page=p) }}">{{ p }}</a>
+                    </li>
+                    {% elif p == 2 or p == pagination.pages - 1 %}
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('activities.admin_works_activity', act_id=activity.id, page=pagination.next_num) if pagination.has_next else '#' }}">下一页</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

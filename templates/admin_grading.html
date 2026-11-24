@@ -1,0 +1,376 @@
+{% extends "base.html" %}
+
+{% block title %}
+{% if mode == 'exam_list' %}批改中心 — 试卷列表{% elif mode == 'student_list' %}批改中心 — {{ exam.name }}{% else %}批改 — {{ student.name }}{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+
+{% if mode == 'exam_list' %}
+{# ─────── 模式一：试卷列表 ─────── #}
+<h3 class="mb-3"><i class="fas fa-check-double me-2"></i>批改中心</h3>
+
+{% if not exam_stats %}
+<div class="alert alert-info">暂无需要批改的试卷</div>
+{% else %}
+<div class="table-responsive">
+<table class="table table-hover align-middle">
+  <thead class="table-light">
+    <tr>
+      <th>试卷名称</th>
+      <th>待批改人数</th>
+      <th title="学生未作答的空答案提交，系统自动批改为0分">自动批改</th>
+      <th>已批改人数</th>
+      <th>操作</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for eid, stat in exam_stats.items() %}
+    <tr>
+      <td><strong>{{ stat.exam.name }}</strong></td>
+      <td>
+        {% if stat.pending > 0 %}
+        <span class="badge bg-warning text-dark">{{ stat.pending }}</span>
+        {% else %}
+        <span class="text-muted">0</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if stat.get('auto_graded', 0) > 0 %}
+        <span class="badge bg-info">{{ stat.auto_graded }}</span>
+        {% else %}
+        <span class="text-muted">0</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if stat.graded > 0 %}
+        <span class="badge bg-success">{{ stat.graded }}</span>
+        {% else %}
+        <span class="text-muted">0</span>
+        {% endif %}
+      </td>
+      <td>
+        <a href="{{ url_for('grading.grading_students', exam_id=eid) }}" class="btn btn-sm btn-primary">
+          <i class="fas fa-list me-1"></i>查看学生
+        </a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% if pagination and pagination.pages > 1 %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
+    <span class="text-muted small">共 {{ pagination.total }} 张试卷，第 {{ pagination.page }} / {{ pagination.pages }} 页</span>
+    <nav aria-label="试卷分页">
+        <ul class="pagination justify-content-center mb-0 flex-wrap">
+            <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                <a class="page-link" href="{{ url_for('grading.grading_list', page=pagination.prev_num) if pagination.has_prev else '#' }}">上一页</a>
+            </li>
+            {% for p in range(1, pagination.pages + 1) %}
+                {% if p == 1 or p == pagination.pages or (p >= pagination.page - 2 and p <= pagination.page + 2) %}
+                <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                    <a class="page-link" href="{{ url_for('grading.grading_list', page=p) }}">{{ p }}</a>
+                </li>
+                {% elif p == 2 or p == pagination.pages - 1 %}
+                <li class="page-item disabled"><span class="page-link">…</span></li>
+                {% endif %}
+            {% endfor %}
+            <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                <a class="page-link" href="{{ url_for('grading.grading_list', page=pagination.next_num) if pagination.has_next else '#' }}">下一页</a>
+            </li>
+        </ul>
+    </nav>
+</div>
+{% endif %}
+{% endif %}
+
+{% elif mode == 'student_list' %}
+{# ─────── 模式二：学生列表 ─────── #}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0"><i class="fas fa-check-double me-2"></i>{{ exam.name }}</h4>
+  <a href="{{ url_for('grading.grading_list') }}" class="btn btn-outline-secondary btn-sm">
+    <i class="fas fa-arrow-left me-1"></i>返回试卷列表
+  </a>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div class="btn-group" role="group">
+    <a href="{{ url_for('grading.grading_students', exam_id=exam.id, status='pending') }}"
+       class="btn btn-sm {% if status_filter == 'pending' %}btn-warning{% else %}btn-outline-warning{% endif %}">
+      待批改 <span class="badge bg-dark ms-1">{{ pending_count }}</span>
+    </a>
+    <a href="{{ url_for('grading.grading_students', exam_id=exam.id, status='auto_graded') }}"
+       class="btn btn-sm {% if status_filter == 'auto_graded' %}btn-info{% else %}btn-outline-info{% endif %}">
+      自动批改 <span class="badge bg-dark ms-1">{{ auto_graded_count }}</span>
+    </a>
+    <a href="{{ url_for('grading.grading_students', exam_id=exam.id, status='graded') }}"
+       class="btn btn-sm {% if status_filter == 'graded' %}btn-success{% else %}btn-outline-success{% endif %}">
+      已批改 <span class="badge bg-dark ms-1">{{ graded_count }}</span>
+    </a>
+    <a href="{{ url_for('grading.grading_students', exam_id=exam.id, status='all') }}"
+       class="btn btn-sm {% if status_filter == 'all' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+      全部
+    </a>
+  </div>
+  <div id="batchActions" style="display:none">
+    <button class="btn btn-sm btn-danger" onclick="batchDelete()">
+      <i class="fas fa-trash me-1"></i>批量删除 (<span id="selectedCount">0</span>)
+    </button>
+  </div>
+</div>
+
+{% if not result_data %}
+<div class="alert alert-info">暂无数据</div>
+{% else %}
+<div class="table-responsive">
+<table class="table table-hover align-middle">
+  <thead class="table-light">
+    <tr>
+      <th style="width:36px"><input type="checkbox" class="form-check-input" id="selectAll" onclick="toggleSelectAll(this)"></th>
+      <th>#</th>
+      <th>姓名</th>
+      <th>班级</th>
+      <th>提交时间</th>
+      <th>批改进度</th>
+      <th>当前总分</th>
+      <th>状态</th>
+      <th>操作</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in result_data %}
+    {% set r = item.result %}
+    {% set s = item.student %}
+    <tr>
+      <td><input type="checkbox" class="form-check-input result-checkbox" value="{{ r.id }}" onchange="updateBatchActions()"></td>
+      <td>{{ loop.index }}</td>
+      <td><strong>{{ s.name if s else '未知' }}</strong></td>
+      <td>{{ (s.student_class or (s.class_.name if s.class_ else '-')) if s else '-' }}</td>
+      <td>{{ r.submit_time.strftime('%m-%d %H:%M') if r.submit_time else '-' }}</td>
+      <td>
+        <div class="progress" style="height:18px" title="已批 {{ item.graded_oe }}/{{ item.total_oe }}">
+          <div class="progress-bar {% if item.graded_oe == item.total_oe %}bg-success{% else %}bg-warning{% endif %}"
+               style="width: {{ (item.graded_oe / item.total_oe * 100) if item.total_oe else 0 }}%">
+            {{ item.graded_oe }}/{{ item.total_oe }}
+          </div>
+        </div>
+      </td>
+      <td><strong>{{ r.total_score }}</strong></td>
+      <td>
+        {% if r.grading_status == 'pending_review' %}
+        <span class="badge bg-warning text-dark">待批改</span>
+        {% elif r.grading_status == 'auto_graded' %}
+        <span class="badge bg-info" title="学生未作答，系统自动批改为0分">自动批改</span>
+        {% elif r.grading_status == 'fully_graded' %}
+        <span class="badge bg-success">已批改</span>
+        {% endif %}
+      </td>
+      <td>
+        <div class="btn-group btn-group-sm">
+          <a href="{{ url_for('grading.grade_student', exam_id=exam.id, result_id=r.id) }}" class="btn btn-primary">
+            <i class="fas fa-pen me-1"></i>{% if r.grading_status == 'fully_graded' %}复查{% else %}批改{% endif %}
+          </a>
+          <button class="btn btn-outline-danger" onclick='deleteResult({{ exam.id }}, {{ r.id }}, {{ (s.name if s else "未知")|tojson }})' title="删除">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% if pagination and pagination.pages > 1 %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
+    <span class="text-muted small">共 {{ pagination.total }} 份成绩，第 {{ pagination.page }} / {{ pagination.pages }} 页</span>
+    <nav aria-label="成绩分页">
+        <ul class="pagination justify-content-center mb-0 flex-wrap">
+            <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                <a class="page-link" href="{{ url_for('grading.grading_students', exam_id=exam.id, status=status_filter, page=pagination.prev_num) if pagination.has_prev else '#' }}">上一页</a>
+            </li>
+            {% for p in range(1, pagination.pages + 1) %}
+                {% if p == 1 or p == pagination.pages or (p >= pagination.page - 2 and p <= pagination.page + 2) %}
+                <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                    <a class="page-link" href="{{ url_for('grading.grading_students', exam_id=exam.id, status=status_filter, page=p) }}">{{ p }}</a>
+                </li>
+                {% elif p == 2 or p == pagination.pages - 1 %}
+                <li class="page-item disabled"><span class="page-link">…</span></li>
+                {% endif %}
+            {% endfor %}
+            <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                <a class="page-link" href="{{ url_for('grading.grading_students', exam_id=exam.id, status=status_filter, page=pagination.next_num) if pagination.has_next else '#' }}">下一页</a>
+            </li>
+        </ul>
+    </nav>
+</div>
+{% endif %}
+{% endif %}
+
+{% elif mode == 'grade' %}
+{# ─────── 模式三：批改界面 ─────── #}
+<div class="alert alert-warning d-flex align-items-center mb-3 py-2">
+  <i class="fas fa-shield-alt me-2 fs-5"></i>
+  <span><strong>安全提示：</strong>以下仅显示需人工批改的开放式试题，系统已自动屏蔽其他考题内容。</span>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">
+  <div>
+    <a href="{{ url_for('grading.grading_students', exam_id=exam.id) }}" class="btn btn-outline-secondary btn-sm me-2">
+      <i class="fas fa-list me-1"></i>学生列表
+    </a>
+    <span class="fs-5 fw-bold">{{ student.name }}</span>
+    <span class="text-muted ms-2">{{ student.student_class or '' }}</span>
+  </div>
+  <div>
+    <span class="badge bg-secondary fs-6">第 {{ current_idx + 1 }} / {{ total_count }} 名</span>
+  </div>
+</div>
+
+{# 导航按钮 #}
+<div class="d-flex justify-content-between mb-4">
+  <div>
+    {% if prev_result %}
+    <a href="{{ url_for('grading.prev_student', exam_id=exam.id, result_id=result.id) }}"
+       class="btn btn-outline-secondary" title="退回上一名学生（用于二次批改）">
+      <i class="fas fa-chevron-left me-1"></i>上一名学生
+    </a>
+    {% else %}
+    <button class="btn btn-outline-secondary" disabled><i class="fas fa-chevron-left me-1"></i>上一名学生</button>
+    {% endif %}
+  </div>
+  <div class="text-center">
+    <span class="text-muted">提交时间：{{ result.submit_time.strftime('%Y-%m-%d %H:%M') if result.submit_time else '-' }}</span>
+    <br>
+    <span>当前总分：<strong class="text-primary">{{ result.total_score }}</strong></span>
+  </div>
+  <div>
+    {% if next_result %}
+    <a href="{{ url_for('grading.grade_student', exam_id=exam.id, result_id=next_result.id) }}"
+       class="btn btn-outline-primary">
+      下一名学生<i class="fas fa-chevron-right ms-1"></i>
+    </a>
+    {% else %}
+    <button class="btn btn-outline-primary" disabled>下一名学生<i class="fas fa-chevron-right ms-1"></i></button>
+    {% endif %}
+  </div>
+</div>
+
+{# 批改表单 #}
+<form method="POST" action="{{ url_for('grading.submit_grading', exam_id=exam.id, result_id=result.id) }}">
+  {% for key, info in manual_scores.items() %}
+  {% set detail = questions_detail.get(key, {}) %}
+  <div class="card mb-3 border-primary">
+    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+      <span class="fw-bold">开放式试题 {{ loop.index }}
+        {% if info.auto_graded %}
+        <span class="badge bg-info ms-2" title="学生未作答，系统自动批改为0分">自动批改</span>
+        <small class="text-muted ms-2">（学生未作答，系统自动批改为0分）</small>
+        {% endif %}
+      </span>
+      <span class="badge bg-info">满分 {{ info.max_score }} 分</span>
+    </div>
+    <div class="card-body">
+      {# 题目内容 #}
+      <div class="mb-3">
+        <label class="form-label fw-bold text-secondary">题目内容</label>
+        <div class="p-3 bg-light rounded border" style="min-height: 40px;">
+          {{ (detail.content if detail.content else info.content)|sanitize_rich_text }}
+        </div>
+      </div>
+
+      {# 学生答案 #}
+      <div class="mb-3">
+        <label class="form-label fw-bold text-secondary">学生答案</label>
+        <div class="p-3 rounded border" style="background-color: #f0f0f0; min-height: 40px;">
+          {% set student_ans = info.student_answer %}
+          {% if student_ans and student_ans|string|trim %}
+          <pre class="mb-0" style="white-space: pre-wrap; word-break: break-word;">{{ student_ans }}</pre>
+          {% else %}
+          <span class="text-muted fst-italic">（学生未作答）</span>
+          {% endif %}
+        </div>
+      </div>
+
+      {# 分数输入 #}
+      <div class="row align-items-center">
+        <div class="col-auto">
+          <label for="score_{{ key }}" class="form-label fw-bold text-success mb-0">评分</label>
+        </div>
+        <div class="col-auto">
+          <div class="input-group input-group-sm" style="width: 140px;">
+            <input type="number" id="score_{{ key }}" name="score_{{ key }}"
+                   class="form-control form-control-lg text-center fw-bold text-success"
+                   min="0" max="{{ info.max_score }}" step="0.5"
+                   value="{{ info.manual_score if info.manual_score is not none else '' }}"
+                   placeholder="0~{{ info.max_score }}">
+            <span class="input-group-text">/ {{ info.max_score }}</span>
+          </div>
+        </div>
+        {% if info.manual_score is not none %}
+        <div class="col-auto">
+          <span class="badge bg-success">已评分: {{ info.manual_score }}</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+
+  {# 提交按钮 #}
+  <div class="d-flex justify-content-between align-items-center mt-4 mb-5">
+    <a href="{{ url_for('grading.grading_students', exam_id=exam.id) }}" class="btn btn-outline-secondary">
+      <i class="fas fa-times me-1"></i>取消
+    </a>
+    <div>
+      <button type="submit" name="action" value="save" class="btn btn-success me-2">
+        <i class="fas fa-save me-1"></i>保存评分
+      </button>
+      <button type="submit" name="action" value="next" class="btn btn-primary">
+        <i class="fas fa-arrow-right me-1"></i>保存并下一个
+      </button>
+    </div>
+  </div>
+</form>
+{% endif %}
+
+</div>
+
+{% if mode == 'student_list' %}
+<script>
+function toggleSelectAll(el) {
+  document.querySelectorAll('.result-checkbox').forEach(function(cb) { cb.checked = el.checked; });
+  updateBatchActions();
+}
+function updateBatchActions() {
+  var c = document.querySelectorAll('.result-checkbox:checked').length;
+  document.getElementById('selectedCount').textContent = c;
+  document.getElementById('batchActions').style.display = c > 0 ? '' : 'none';
+}
+function batchDelete() {
+  var checked = document.querySelectorAll('.result-checkbox:checked');
+  if (checked.length === 0) return;
+  if (!confirm('确定要删除选中的 ' + checked.length + ' 条成绩记录吗？此操作不可恢复！')) return;
+  var ids = [];
+  checked.forEach(function(cb) { ids.push(parseInt(cb.value)); });
+  var f = document.createElement('form');
+  f.method = 'POST';
+  f.action = "{{ url_for('grading.batch_delete_grading_results', exam_id=exam.id) }}";
+  var inp = document.createElement('input');
+  inp.type = 'hidden'; inp.name = 'ids'; inp.value = JSON.stringify(ids);
+  f.appendChild(inp);
+  document.body.appendChild(f);
+  f.submit();
+}
+function deleteResult(examId, resultId, studentName) {
+  if (!confirm('确定要删除 ' + studentName + ' 的成绩记录吗？此操作不可恢复！')) return;
+  var f = document.createElement('form');
+  f.method = 'POST';
+  f.action = '/admin/grading/' + examId + '/' + resultId + '/delete';
+  document.body.appendChild(f);
+  f.submit();
+}
+</script>
+{% endif %}
+{% endblock %}

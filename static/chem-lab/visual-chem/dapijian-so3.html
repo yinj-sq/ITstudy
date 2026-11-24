@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+    
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>三氧化硫 SO₃ · 平面三角形与大 π 键（Π₄⁶）</title>
+<link rel="icon" href="favicon.png">
+<link rel="stylesheet" href="ui-glass.css">
+<style>
+    :root { --side-width: 232px; --info-width: 272px; }
+    body, html {
+        margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+        background: #05070d; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; color: #e2e8f0;
+    }
+    #app-container {
+        position: fixed; inset: 0; display: flex; flex-direction: column;
+        background: radial-gradient(1100px 640px at 50% -8%, rgba(53, 208, 255, 0.10), rgba(255, 79, 216, 0.05) 55%, transparent 75%), #05070d;
+    }
+    #main-row { flex: 1; display: flex; min-height: 0; padding: 0 12px 12px; gap: 10px; align-items: stretch; }
+
+    #sidebar { width: var(--side-width); flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; }
+    #controls-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding: 2px 0; }
+    #controls-panel::-webkit-scrollbar, #info-sidebar::-webkit-scrollbar { width: 5px; }
+    #controls-panel::-webkit-scrollbar-thumb, #info-sidebar::-webkit-scrollbar-thumb { background: rgba(102,170,255,0.35); border-radius: 4px; }
+
+    #info-sidebar { width: var(--info-width); flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow-y: auto; padding: 2px 0; }
+
+    .glass-panel {
+        background: rgba(12, 19, 33, 0.82); border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 14px; padding: 12px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+        display: flex; flex-direction: column; gap: 8px;
+    }
+    .panel-title {
+        font-size: 12px; font-weight: 700; color: #9fc4ff; letter-spacing: 2px;
+        border-bottom: 1px solid rgba(102,170,255,0.18); padding-bottom: 6px;
+    }
+
+    .cbtn {
+        display: block; width: 100%; padding: 7px 8px; border-radius: 10px; cursor: pointer;
+        background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.14); color: #dbe4f2;
+        text-align: center; font-size: 12px; font-family: inherit; transition: all 0.2s;
+    }
+    .cbtn:hover { background: rgba(102, 170, 255, 0.14); border-color: rgba(102, 170, 255, 0.4); color: #fff; }
+    .cbtn.active { background: linear-gradient(135deg, rgba(53, 208, 255, 0.28), rgba(85, 224, 192, 0.18)); border-color: rgba(53, 208, 255, 0.6); color: #fff; font-weight: 600; }
+    .cbtn.primary { background: linear-gradient(135deg, rgba(102, 170, 255, 0.34), rgba(64, 128, 255, 0.22)); border-color: rgba(102, 170, 255, 0.7); color: #fff; font-weight: 600; }
+
+    .slider-label { display: flex; justify-content: space-between; font-size: 11px; color: #c7d3e8; }
+    input[type=range] { width: 100%; accent-color: #35d0ff; cursor: pointer; margin: 0; }
+
+    .info-list { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 6px; }
+    .info-list li { font-size: 12px; line-height: 1.7; color: #c7d3e8; }
+    .info-list li b { color: #66ccff; }
+
+    #canvas-area {
+        position: relative; flex: 1; min-width: 0; border-radius: 18px; overflow: hidden;
+        border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 12px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06);
+    }
+    #canvas-container { position: absolute; inset: 0; cursor: grab; }
+    #canvas-container:active { cursor: grabbing; }
+
+    #canvas-legend {
+        position: absolute; top: 12px; right: 12px; z-index: 20; pointer-events: none;
+        background: rgba(10, 18, 32, 0.72); border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 10px; padding: 8px 11px; backdrop-filter: blur(6px);
+        box-shadow: 0 6px 18px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 5px; font-size: 11px; color: #dbe4f2;
+    }
+    .legend-item { display: flex; align-items: center; gap: 7px; }
+    .color-box { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.2); }
+
+    /* 左上角结构简式 */
+    #formula-overlay {
+        position: absolute; top: 12px; left: 12px; z-index: 20; pointer-events: none;
+        background: rgba(10, 18, 32, 0.74); border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 10px; padding: 7px 10px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4); user-select: none;
+        display: flex; flex-direction: column; align-items: center;
+    }
+    #formula-overlay .fo-title { font-size: 10px; color: #9fb4d8; letter-spacing: 1px; margin-bottom: 1px; }
+    #formula-overlay .fo-caption { font-size: 11px; color: #dbe4f2; margin-top: 2px; }
+    @media (max-width: 700px) {
+        #formula-overlay { transform: scale(0.82); transform-origin: top left; }
+    }
+
+    @media (max-width: 860px) {
+        :root { --side-width: 200px; --info-width: 220px; }
+    }
+    @media (max-width: 700px) {
+        #main-row { flex-direction: column; overflow-y: auto; }
+        #sidebar { width: auto; }
+        #controls-panel { flex-direction: row; flex-wrap: wrap; }
+        #controls-panel .glass-panel { flex: 1 1 180px; }
+        #canvas-area { min-height: 55vh; }
+        #info-sidebar { width: auto; flex-direction: row; flex-wrap: wrap; }
+        #info-sidebar .glass-panel { flex: 1 1 240px; }
+    }
+</style>
+
+<style id="chem-lab-embed-style">
+  /* ITstudy 化学仿真统一壳：隐藏原站顶栏/品牌/版权水印。
+     不强制页面高度与 overflow —— 各页面自有布局（周期表需要滚动，
+     3D 页需要全屏），统一覆盖会把周期表底部裁掉。 */
+  #topbar, #copyright, .wm-copyright, #btn-home,
+  .topbar-actions, .back-home-btn,
+  .brand, .brand-title, #brand-logo { display: none !important; }
+  canvas { max-width: 100%; }
+  /* 课堂 iframe 高度较小时：周期表隐藏趋势图、压缩行高，保证 118 元素可见 */
+  @media (max-height: 720px) {
+    #chart-panel { display: none !important; }
+    .ptable.size-s { grid-auto-rows: 32px !important; }
+    #info-sidebar { width: 220px; }
+  }
+</style>
+</head>
+<body>
+<div id="app-container">
+    <div id="topbar" class="glass">
+        <div class="brand">
+            <img id="brand-logo" src="favicon.png" alt="可视化化学">
+            <div class="brand-text">
+                <div class="brand-title">可视化化学<span class="brand-divider">·</span>可视化学</div>
+                <div class="brand-sub">让微观结构，触手可及！</div>
+            </div>
+        </div>
+        <div class="topbar-actions">
+            <a class="top-btn" id="btn-home" href="index.html" target="_top">主页</a>
+            <button class="top-btn" id="btn-back" onclick="goBackSubnav()">返回上一页</button>
+            <button class="top-btn pause-btn" id="btn-pause" onclick="toggleRotation()">暂停模型自转</button>
+            <button class="top-btn" id="btn-reset-view" onclick="resetView()">视角复原</button>
+        </div>
+    </div>
+
+    <div id="main-row">
+        <div id="sidebar">
+            <div id="controls-panel">
+                <div class="glass-panel">
+                    <div class="panel-title">分子形成</div>
+                    <button class="cbtn primary" id="btn-demo">▶ 分子形成动画</button>
+                    <label class="slider-label"><span>形成进度</span><span id="progress-val">100%</span></label>
+                    <input type="range" id="progress-slider" min="0" max="100" value="100">
+                </div>
+                <div class="glass-panel">
+                    <div class="panel-title">模型状态</div>
+                    <button class="cbtn active" id="btn-cloud">大π键</button>
+                    <button class="cbtn" id="btn-bare">分子骨架</button>
+                </div>
+                <div class="glass-panel">
+                    <div class="panel-title">显示控制</div>
+                    <button class="cbtn" id="btn-phase">相位着色</button>
+                    <button class="cbtn active" id="btn-elec">显示电子</button>
+                    <label class="slider-label"><span>云透明度</span><span id="opacity-val">38%</span></label>
+                    <input type="range" id="opacity-slider" min="0" max="100" value="38">
+                </div>
+            </div>
+        </div>
+
+        <div id="canvas-area">
+            <div id="canvas-container"></div>
+            <div id="canvas-legend">
+                <div class="legend-item"><span class="color-box" style="background:#e9b93e"></span>硫 S</div>
+                <div class="legend-item"><span class="color-box" style="background:#ff4747"></span>氧 O</div>
+                <div class="legend-item"><span class="color-box" style="background:#ffb35c;box-shadow:0 0 5px rgba(255,179,92,0.5)"></span>sp 杂化轨道</div>
+                <div class="legend-item"><span class="color-box" style="background:#35d0ff"></span>2p 轨道 · +侧</div>
+                <div class="legend-item"><span class="color-box" style="background:#ff4fd8"></span>2p 轨道 · −侧</div>
+                <div class="legend-item"><span class="color-box" style="background:rgba(53,208,255,0.55)"></span>π 电子云（离域）</div>
+                <div class="legend-item"><span class="color-box" style="background:#ffd400;box-shadow:0 0 5px #ffd400"></span>π 电子 (e⁻)</div>
+                <div class="legend-item"><span class="color-box" style="background:#4dff9a;box-shadow:0 0 5px #4dff9a"></span>σ 电子 / 孤对电子</div>
+            </div>
+        </div>
+
+        <div id="info-sidebar">
+            <div class="glass-panel">
+                <div class="panel-title">三氧化硫 SO₃ · 结构</div>
+                <ul class="info-list">
+                    <li><b>平面正三角形</b>分子，S—O 键角 <b>120°</b>，中心硫为 <b>sp² 杂化</b>。</li>
+                    <li>中心硫无平面内孤对；3 个端氧各带 2 对<b>孤对电子</b>。</li>
+                    <li>硫与 3 个氧各余 1 个垂直于分子平面的 <b>p 轨道</b>，相互平行。</li>
+                </ul>
+            </div>
+            <div class="glass-panel">
+                <div class="panel-title">分子形成 · 大 π 键 Π₄⁶</div>
+                <ul class="info-list">
+                    <li>硫与氧的 sp 轨道<b>头碰头重叠</b>：重叠区先出现 2 个单电子，再配对成 σ 键。</li>
+                    <li>4 个垂直于平面的 p 轨道<b>肩并肩重叠</b>，形成 4 中心 6 电子大 π 键（Π₄⁶）。</li>
+                    <li>中心硫提供 2 个、一个端氧（配键侧）提供 2 个、另两个端氧各 1 个，共 <b>6 个 π 电子</b>。</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>window.BACK_SUBNAV = 'subnav-valence';</script>
+<script src="three.min.js"></script>
+<script src="OrbitControls-umd.js"></script>
+<script>
+(function () {
+    const container = document.getElementById('canvas-container');
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    container.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x070b12);
+    const camera = new THREE.PerspectiveCamera(42, container.clientWidth / container.clientHeight, 0.1, 90);
+    camera.position.set(2.6, 5.2, 3.2);   // 3/4 俯视：斜上方看平面三角形
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.07;
+    controls.autoRotate = false;
+    controls.autoRotateSpeed = 1.4;
+    controls.target.set(0, 0, 0);
+    controls.minDistance = 1.6;
+    controls.maxDistance = 18;
+    controls.enablePan = false;
+
+    // 分子平面转水平：三角平面在旧 XY 面，π 云轴（旧 Z）竖直
+    scene.rotation.x = -Math.PI / 2;
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+    const keyLight = new THREE.DirectionalLight(0xffffff, 0.9);
+    keyLight.position.set(4, 8, 6);
+    scene.add(keyLight);
+    const fillLight = new THREE.DirectionalLight(0x66aaff, 0.35);
+    fillLight.position.set(-5, -3, -5);
+    scene.add(fillLight);
+
+    const smoothstep = (a, b, x) => {
+        x = Math.max(0, Math.min(1, (x - a) / (b - a)));
+        return x * x * (3 - 2 * x);
+    };
+
+    /* ---------- 几何参数 ---------- */
+    const BONDX = 1.12;      // S–O 距离
+    const SEP0 = 2.2;        // 初始分开距离
+    const COLOR_PLUS = 0x35d0ff;
+    const COLOR_MINUS = 0xff4fd8;
+    const DIRS = [], PERPS = [];
+    for (let i = 0; i < 3; i++) {
+        const a = Math.PI / 2 + (i * Math.PI * 2 / 3);   // 90°、210°、330°
+        DIRS.push(new THREE.Vector3(Math.cos(a), Math.sin(a), 0));
+        PERPS.push(new THREE.Vector3(-Math.sin(a), Math.cos(a), 0));
+    }
+
+    /* ---------- 材质 ---------- */
+    const atomSMat = new THREE.MeshStandardMaterial({ color: 0xe9b93e, roughness: 0.32, metalness: 0.18 });
+    const atomOMat = new THREE.MeshStandardMaterial({ color: 0xff4747, roughness: 0.3, metalness: 0.15 });
+    const bondMat = new THREE.MeshStandardMaterial({ color: 0xc9d7ea, roughness: 0.5, metalness: 0.1 });
+    function makeCloudMat(color, opacity) {
+        return new THREE.MeshStandardMaterial({
+            color: color, transparent: true, opacity: opacity, roughness: 0.55, metalness: 0.08,
+            depthWrite: false, side: THREE.DoubleSide, emissive: color, emissiveIntensity: 0.15
+        });
+    }
+    const plusMat = makeCloudMat(COLOR_PLUS, 0.48);
+    const minusMat = makeCloudMat(COLOR_MINUS, 0.48);
+    const bandUpMat = makeCloudMat(COLOR_PLUS, 0.5);
+    const bandDownMat = makeCloudMat(COLOR_MINUS, 0.5);
+    const spMat = makeCloudMat(0xffb35c, 0.42);
+    const spOuterMat = makeCloudMat(0xffb35c, 0.42);
+    const yellowMat = new THREE.MeshBasicMaterial({ color: 0xffd400 });
+    const greenMat = new THREE.MeshBasicMaterial({ color: 0x4dff9a });
+
+    /* ---------- 2p / sp 形状（与同系列一致的车削体） ---------- */
+    let lobeGeo = null;
+    (function buildLobeGeo() {
+        const pts = [];
+        for (let i = 0; i <= 64; i++) {
+            let t = i / 64;
+            t = 0.015 + t * 0.985;
+            pts.push(new THREE.Vector2(2.6 * Math.sqrt(t * (1 - t)) * (0.3 + 1.2 * t), t * 3.6));
+        }
+        lobeGeo = new THREE.LatheGeometry(pts, 64);
+        lobeGeo.computeBoundingBox();
+        lobeGeo._tip = lobeGeo.boundingBox.max.y;
+    })();
+    const BASE = 1 / lobeGeo._tip;
+    function sphere(r, mat) { return new THREE.Mesh(new THREE.SphereGeometry(r, 30, 24), mat); }
+    function lobeMesh(axis, sign, mat) {
+        const m = new THREE.Mesh(lobeGeo, mat);
+        if (axis === 'z') {
+            m.rotation.x = sign > 0 ? Math.PI / 2 : -Math.PI / 2;
+            m.position.z = 0.25 * sign;
+        }
+        return m;
+    }
+    const allLobes = [], allSp = [];
+    function addAtomP(group) {
+        const zUp = lobeMesh('z', 1, plusMat); group.add(zUp); allLobes.push(zUp);
+        const zDn = lobeMesh('z', -1, minusMat); group.add(zDn); allLobes.push(zDn);
+    }
+    function addSpOrbital(parent, dir3, isOuter) {
+        const s = BASE * 0.85;
+        const main = new THREE.Mesh(lobeGeo, isOuter ? spOuterMat : spMat);
+        const v = dir3.clone().normalize();
+        main.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), v);
+        main.position.copy(v).multiplyScalar(0.25);
+        main.userData.outer = !!isOuter;
+        main.scale.set(s, s * 0.72, s);
+        parent.add(main);
+        allSp.push(main);
+        return main;
+    }
+
+    /* 三个端氧：局部 +X 指向中心硫，sp² = σ + 2 个非键孤对 */
+    const oGroups = [];
+    DIRS.forEach((d, i) => {
+        const g = new THREE.Group();
+        g.add(sphere(0.32, atomOMat));
+        addAtomP(g);
+        addSpOrbital(g, new THREE.Vector3(1, 0, 0), false);
+        const c120 = Math.cos(2 * Math.PI / 3), s120 = Math.sin(2 * Math.PI / 3);
+        addSpOrbital(g, new THREE.Vector3(c120, s120, 0), true);
+        addSpOrbital(g, new THREE.Vector3(c120, -s120, 0), true);
+        g.rotation.z = Math.atan2(d.y, d.x) + Math.PI;
+        g.position.copy(d).multiplyScalar(SEP0);
+        scene.add(g);
+        oGroups.push(g);
+    });
+
+    /* 中心硫：3 个 σ sp² 指向端氧，无平面内孤对 */
+    const sAtom = sphere(0.42, atomSMat);
+    scene.add(sAtom);
+    addAtomP(scene);
+    DIRS.forEach(d => {
+        const m = new THREE.Mesh(lobeGeo, spMat);
+        m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
+        m.position.copy(d).multiplyScalar(0.25);
+        m.userData.outer = false;
+        const s = BASE * 0.85;
+        m.scale.set(s, s * 0.72, s);
+        scene.add(m);
+        allSp.push(m);
+    });
+
+    /* σ 重叠云（每条 S–O 之间） */
+    function spindleGeoX(halfLen, rmax) {
+        const pts = [];
+        const N = 26;
+        for (let i = 0; i <= N; i++) {
+            const t = i / N;
+            const rr = rmax * 2 * Math.sqrt(t * (1 - t));
+            pts.push(new THREE.Vector2(Math.max(rr, 0.0005), -halfLen + 2 * halfLen * t));
+        }
+        const g = new THREE.LatheGeometry(pts, 22);
+        g.rotateZ(Math.PI / 2);
+        return g;
+    }
+    const ovGroup = new THREE.Group();
+    scene.add(ovGroup);
+    const ovMeshes = [];
+    DIRS.forEach((d, i) => {
+        const m = new THREE.Mesh(spindleGeoX(0.5, 1), spMat);
+        m.rotation.z = Math.atan2(d.y, d.x);
+        ovGroup.add(m);
+        ovMeshes.push(m);
+    });
+
+    /* σ 单键骨架杆 */
+    const singleGroup = new THREE.Group();
+    scene.add(singleGroup);
+    DIRS.forEach(d => {
+        const mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, BONDX, 10), bondMat);
+        mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone());
+        mesh.position.copy(d).multiplyScalar(BONDX / 2);
+        singleGroup.add(mesh);
+    });
+    singleGroup.visible = false;
+
+    /* Π 电子云：上下两层圆环（无缝 TorusGeometry，环绕三角骨架） */
+    const bands = [];
+    const torusGeo = new THREE.TorusGeometry(1.0, 0.52, 30, 180);
+    const ringUp = new THREE.Mesh(torusGeo, bandUpMat);
+    ringUp.position.z = 0.58;
+    scene.add(ringUp);
+    bands.push(ringUp);
+    const ringDown = new THREE.Mesh(torusGeo, bandDownMat);
+    ringDown.position.z = -0.58;
+    scene.add(ringDown);
+    bands.push(ringDown);
+
+    /* ---------- 电子 ---------- */
+    const piElecs = [];
+    // Π₄⁶：中心硫 2 个；一个端氧（配键侧，取 i=0）2 个；另两个端氧各 1 个
+    const PI_DESC = [
+        { a: -1, off: -0.12 }, { a: -1, off: 0.12 },
+        { a: 0, off: -0.12 }, { a: 0, off: 0.12 },
+        { a: 1, off: 0 }, { a: 2, off: 0 }
+    ];
+    PI_DESC.forEach(d => {
+        const e = new THREE.Mesh(new THREE.SphereGeometry(0.09, 14, 12), yellowMat);
+        e.userData = d;
+        e.visible = false;
+        scene.add(e);
+        piElecs.push(e);
+    });
+    const sigmaElecs = [], lpElecs = [];
+    function addGreen(px, py, pz) {
+        const e = new THREE.Mesh(new THREE.SphereGeometry(0.085, 14, 12), greenMat);
+        e.position.set(px, py, pz);
+        e.visible = false;
+        scene.add(e);
+        return e;
+    }
+    for (let b = 0; b < 3; b++) {
+        for (let side = 0; side < 2; side++) {
+            const e = addGreen(0, 0, 0);
+            e.userData = { b: b, side: side };
+            sigmaElecs.push(e);
+        }
+    }
+    // 每个端氧的 2 个非键 sp² 孤对（各 2 个电子）
+    const LP120 = Math.PI * 2 / 3;
+    const lpLobes = [];
+    for (let a = 0; a < 3; a++) {
+        const sx = -DIRS[a].x, sy = -DIRS[a].y;   // σ 指向中心硫
+        [1, -1].forEach(sg => {
+            const dx = sx * Math.cos(sg * LP120) - sy * Math.sin(sg * LP120);
+            const dy = sx * Math.sin(sg * LP120) + sy * Math.cos(sg * LP120);
+            lpLobes.push({ a: a, dx: dx, dy: dy });
+        });
+    }
+    lpLobes.forEach(lb => {
+        [1, -1].forEach(zs => {
+            const e = addGreen(0, 0, 0);
+            e.userData = { a: lb.a, dx: lb.dx, dy: lb.dy, zs: zs };
+            lpElecs.push(e);
+        });
+    });
+
+    /* ---------- 状态 ---------- */
+    let T = 1;
+    let animTarget = null;
+    let animCycle = false;
+    const TPS = 0.16;
+    let bareMode = false;
+    let phaseOn = false;
+    let opacityMult = 1;
+    let elecOn = true;
+    let keepOuterSp = false;
+    let fromFormation = false;
+
+    function applyPhase() {
+        const c2 = phaseOn ? COLOR_MINUS : COLOR_PLUS;
+        plusMat.color.setHex(COLOR_PLUS);
+        minusMat.color.setHex(c2);
+        bandUpMat.color.setHex(COLOR_PLUS);
+        bandDownMat.color.setHex(c2);
+    }
+
+    function updateScene() {
+        const pA = smoothstep(0, 0.30, T);
+        const sep = BONDX + (SEP0 - BONDX) * (1 - pA);
+        oGroups.forEach((g, i) => g.position.copy(DIRS[i]).multiplyScalar(sep));
+        const spOv = smoothstep(0.30, 0.55, T);
+        const spOff = 1 - smoothstep(0.55, 0.80, T);
+        const sigOn = smoothstep(0.60, 0.80, T);
+        const pifus = smoothstep(0.66, 1.0, T);
+
+        if (bareMode) {
+            oGroups.forEach((g, i) => g.position.copy(DIRS[i]).multiplyScalar(BONDX));
+            allLobes.forEach(l => l.visible = false);
+            allSp.forEach(s => s.visible = false);
+            ovGroup.visible = false;
+            bands.forEach(b => b.visible = false);
+            singleGroup.visible = true;
+            piElecs.concat(sigmaElecs, lpElecs).forEach(e => e.visible = false);
+            return;
+        }
+
+        const innerSpOn = T < 0.82 && spOff > 0.004;
+        const outerSpOn = T < 0.98 || keepOuterSp;
+        spMat.opacity = innerSpOn ? spOff * 0.42 * opacityMult : 0;
+        spOuterMat.opacity = outerSpOn ? 0.42 * opacityMult : 0;
+        allSp.forEach(s => { s.visible = s.userData.outer ? outerSpOn : innerSpOn; });
+
+        ovGroup.visible = T > 0.28 && T < 0.88;
+        const ovX = 0.35 + 1.05 * spOv;
+        ovMeshes.forEach((m, i) => {
+            m.position.copy(DIRS[i]).multiplyScalar(sep / 2);
+            m.scale.set(ovX, 0.25, 0.25);
+            m.material.opacity = spMat.opacity;
+        });
+
+        const lobeS = 0.85 + 0.45 * smoothstep(0, 0.4, pifus);
+        const lobeOp = (1 - smoothstep(0.58, 0.92, pifus)) * 0.48 * opacityMult;
+        allLobes.forEach(l => {
+            l.visible = lobeOp > 0.004;
+            const sw = BASE * lobeS;
+            l.scale.set(sw, sw * 0.72, sw);
+        });
+        plusMat.opacity = minusMat.opacity = lobeOp;
+
+        const bo = smoothstep(0.55, 0.95, pifus) * 0.5 * opacityMult;
+        bands.forEach(b => { b.visible = bo > 0.004; });
+        bandUpMat.opacity = bandDownMat.opacity = bo;
+
+        singleGroup.visible = sigOn > 0.5;
+        const cleanPi = !keepOuterSp && T >= 0.98 && animTarget === null;
+        const conv = smoothstep(0.22, 0.60, T);
+
+        sigmaElecs.forEach(e => {
+            const b = e.userData.b, side = e.userData.side;
+            const startS = side === 0 ? 0.55 : (sep - 0.55);
+            const s = startS + (sep / 2 - startS) * conv;
+            const zSign = side === 0 ? 1 : -1;
+            e.position.copy(DIRS[b]).multiplyScalar(s);
+            e.position.z = zSign * (0.10 - 0.065 * conv);
+            e.visible = elecOn && !cleanPi;
+        });
+        lpElecs.forEach(e => {
+            const d = e.userData;
+            e.position.copy(DIRS[d.a]).multiplyScalar(sep);
+            e.position.x += d.dx * 0.55;
+            e.position.y += d.dy * 0.55;
+            e.position.z = d.zs * 0.10;
+            e.visible = elecOn && !cleanPi;
+        });
+        piElecs.forEach(e => {
+            const d = e.userData;
+            if (d.a < 0) {
+                e.position.set(d.off, 0, 0.52);
+            } else {
+                e.position.copy(DIRS[d.a]).multiplyScalar(sep);
+                e.position.x += PERPS[d.a].x * d.off;
+                e.position.y += PERPS[d.a].y * d.off;
+                e.position.z = 0.52;
+            }
+            e.visible = elecOn;
+        });
+    }
+
+    function playFormation() {
+        if (animTarget !== null) return;
+        T = 0;
+        animTarget = 1;
+        animCycle = false;
+        fromFormation = true;
+        keepOuterSp = false;
+        refreshStateBtns();
+        updateScene();
+    }
+    function toggleFormation() {
+        if (animTarget !== null) { animTarget = null; animCycle = false; return; }
+        fromFormation = true;
+        if (T >= 0.98) {
+            T = 0;
+            keepOuterSp = false;
+            refreshStateBtns();
+            updateScene();
+        }
+        animTarget = 1;
+        animCycle = false;
+    }
+
+    const clickTargets = bands.concat(allLobes);
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    renderer.domElement.addEventListener('click', function (e) {
+        if (animTarget !== null || bareMode) return;
+        pointer.x = (e.clientX / renderer.domElement.clientWidth) * 2 - 1;
+        pointer.y = -(e.clientY / renderer.domElement.clientHeight) * 2 + 1;
+        raycaster.setFromCamera(pointer, camera);
+        const hits = raycaster.intersectObjects(clickTargets);
+        if (hits.length) playFormation();
+    });
+
+    const btnCloud = document.getElementById('btn-cloud');
+    const btnBare = document.getElementById('btn-bare');
+    const btnDemo = document.getElementById('btn-demo');
+    const progressSlider = document.getElementById('progress-slider');
+    const progressVal = document.getElementById('progress-val');
+    const btnPhase = document.getElementById('btn-phase');
+    const btnElec = document.getElementById('btn-elec');
+    const opacitySlider = document.getElementById('opacity-slider');
+    const opacityVal = document.getElementById('opacity-val');
+
+    function refreshStateBtns() {
+        btnCloud.classList.toggle('active', !bareMode && T > 0.5);
+        btnBare.classList.toggle('active', bareMode);
+    }
+    btnCloud.addEventListener('click', () => {
+        if (animTarget !== null) return;
+        fromFormation = false;
+        keepOuterSp = false;
+        bareMode = false; animCycle = false; animTarget = 1;
+    });
+    btnBare.addEventListener('click', () => {
+        if (animTarget !== null) return;
+        fromFormation = false;
+        keepOuterSp = false;
+        bareMode = true; animTarget = null; animCycle = false;
+        updateScene(); refreshStateBtns();
+    });
+    btnDemo.addEventListener('click', toggleFormation);
+    progressSlider.addEventListener('input', () => {
+        animTarget = null;
+        animCycle = false;
+        fromFormation = false;
+        keepOuterSp = false;
+        bareMode = false;
+        T = parseFloat(progressSlider.value) / 100;
+        refreshStateBtns();
+        updateScene();
+    });
+    btnPhase.addEventListener('click', () => {
+        phaseOn = !phaseOn;
+        btnPhase.classList.toggle('active', phaseOn);
+        applyPhase();
+    });
+    btnElec.addEventListener('click', () => {
+        elecOn = !elecOn;
+        btnElec.classList.toggle('active', elecOn);
+        updateScene();
+    });
+    opacitySlider.addEventListener('input', () => {
+        opacityMult = parseFloat(opacitySlider.value) / 38;
+        opacityVal.textContent = opacitySlider.value + '%';
+    });
+
+    window.toggleRotation = function () {
+        controls.autoRotate = !controls.autoRotate;
+        const btn = document.getElementById('btn-pause');
+        btn.textContent = controls.autoRotate ? '暂停模型自转' : '继续模型自转';
+        btn.classList.toggle('paused', !controls.autoRotate);
+    };
+    window.resetView = function () {
+        camera.position.set(2.6, 5.2, 3.2);
+        controls.target.set(0, 0, 0);
+        controls.update();
+    };
+    (function syncRotateBtn() {
+        const btn = document.getElementById('btn-pause');
+        btn.textContent = controls.autoRotate ? '暂停模型自转' : '继续模型自转';
+        btn.classList.toggle('paused', !controls.autoRotate);
+    })();
+
+    window.addEventListener('resize', () => {
+        const w = container.clientWidth, h = container.clientHeight;
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+    });
+
+    applyPhase();
+    updateScene();
+    refreshStateBtns();
+
+    function syncProgress() {
+        progressSlider.value = Math.round(T * 100);
+        progressVal.textContent = Math.round(T * 100) + '%';
+    }
+    syncProgress();
+
+    const clock = new THREE.Clock();
+    function animate() {
+        requestAnimationFrame(animate);
+        const dt = Math.min(clock.getDelta(), 0.1);
+        if (animTarget !== null) {
+            const step = TPS * dt;
+            const dir = animTarget > T ? 1 : -1;
+            if (Math.abs(animTarget - T) <= step) {
+                T = animTarget;
+                if (animCycle && animTarget === 0) animTarget = 1;
+                else {
+                    animTarget = null;
+                    animCycle = false;
+                    if (T >= 0.98 && fromFormation) keepOuterSp = true;
+                }
+            } else { T += dir * step; }
+            refreshStateBtns();
+        }
+        updateScene();
+        syncProgress();
+        controls.update();
+        renderer.render(scene, camera);
+    }
+    animate();
+})();
+</script>
+<script>
+/* 左上角结构简式：平面三角形 SO₃（中心硫 + 三个端氧，120°），
+   虚线环示意 Π₄⁶ 离域 */
+(function () {
+    const area = document.getElementById('canvas-area');
+    if (!area || document.getElementById('formula-overlay')) return;
+    const NS = 'http://www.w3.org/2000/svg';
+    const box = document.createElement('div');
+    box.id = 'formula-overlay';
+    box.innerHTML = '<div class="fo-title">结构简式</div>' +
+        '<svg id="fo-svg" width="176" height="96"></svg>' +
+        '<div class="fo-caption">三氧化硫 SO₃</div>';
+    area.appendChild(box);
+    const svg = box.querySelector('svg');
+    function txt(x, y, s, color) {
+        const el = document.createElementNS(NS, 'text');
+        el.setAttribute('x', x); el.setAttribute('y', y);
+        el.setAttribute('text-anchor', 'middle'); el.setAttribute('dominant-baseline', 'central');
+        el.setAttribute('font-size', '22'); el.setAttribute('font-weight', 'bold');
+        el.setAttribute('font-family', 'Arial, sans-serif');
+        el.setAttribute('fill', color);
+        el.setAttribute('stroke', '#0a0f1c'); el.setAttribute('stroke-width', '4');
+        el.setAttribute('paint-order', 'stroke');
+        el.textContent = s;
+        svg.appendChild(el);
+    }
+    const cx = 88, cy = 50;
+    const R = 34;
+    const dirs = [[0, -1], [-Math.sqrt(3) / 2, 0.5], [Math.sqrt(3) / 2, 0.5]];
+    txt(cx, cy, 'S', '#f0c35c');
+    dirs.forEach(d => txt(cx + d[0] * R, cy + d[1] * R, 'O', '#ff9090'));
+    function line(x1, y1, x2, y2, width, dashed) {
+        const el = document.createElementNS(NS, 'line');
+        el.setAttribute('x1', x1); el.setAttribute('y1', y1);
+        el.setAttribute('x2', x2); el.setAttribute('y2', y2);
+        el.setAttribute('stroke', dashed ? '#c9dbee' : '#e2edfb');
+        el.setAttribute('stroke-width', String(width));
+        el.setAttribute('stroke-linecap', dashed ? 'butt' : 'round');
+        if (dashed) el.setAttribute('stroke-dasharray', '6 6');
+        svg.appendChild(el);
+    }
+    const rt = 9;
+    dirs.forEach(d => {
+        const x1 = cx + d[0] * rt, y1 = cy + d[1] * rt;
+        const x2 = cx + d[0] * (R - rt), y2 = cy + d[1] * (R - rt);
+        line(x1, y1, x2, y2, 3.2, false);
+        const px = -d[1], py = d[0];
+        line(x1 + px * 3.6, y1 + py * 3.6, x2 + px * 3.6, y2 + py * 3.6, 2.4, true);
+    });
+})();
+</script>
+
+</body>
+</html>

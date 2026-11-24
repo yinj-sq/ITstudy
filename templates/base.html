@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}学科教学及测试平台{% endblock %}</title>
+    <link rel="icon" type="image/x-icon" href="{{ versioned_static('favicon.ico') }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <!-- 优先使用本地Bootstrap样式 -->
+    <link rel="stylesheet" href="{{ versioned_static('bootstrap/css/bootstrap.min.css') }}" crossorigin="anonymous">
+    <link rel="stylesheet" href="{{ versioned_static('css/main.min.css') }}">
+    <style>
+        body { background: #f8f9fa; }
+        .navbar-brand { font-weight: bold; letter-spacing: 2px; }
+        /* 无障碍对比度：Bootstrap 默认的浅蓝导航链接/浅色描边按钮在
+           白底或主色底上低于 WCAG AA 4.5:1。这里统一提高前景对比度。 */
+        .navbar-dark .navbar-nav .nav-link,
+        .navbar-dark .navbar-nav .btn-link,
+        .navbar-dark .navbar-brand { color: #fff; }
+        .navbar-dark .navbar-nav .nav-link:hover,
+        .navbar-dark .navbar-nav .nav-link:focus,
+        .navbar-dark .navbar-nav .btn-link:hover,
+        .navbar-dark .navbar-nav .btn-link:focus { color: #e9ecef; }
+        input[placeholder], textarea[placeholder], input::placeholder, textarea::placeholder { color: #5c636a !important; opacity: 1; }
+        .btn-outline-secondary { --bs-btn-color: #495057; --bs-btn-border-color: #6c757d; }
+        .btn-outline-info { --bs-btn-color: #055160; --bs-btn-border-color: #0dcaf0; --bs-btn-hover-color: #000; }
+        .btn-outline-warning { --bs-btn-color: #664d03; --bs-btn-border-color: #ffc107; --bs-btn-hover-color: #000; }
+        .btn-outline-danger { --bs-btn-color: #842029; --bs-btn-border-color: #dc3545; }
+        .badge.bg-info { color: #055160 !important; }
+        .subject-nav-item.active { color: #084298; background-color: #cfe2ff; }
+        .card { box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+        @media (max-width: 600px) {
+          .container, .mx-auto { max-width: 100% !important; padding: 0 12px; }
+          .card { padding: 0.5rem !important; border-radius: 0.7rem !important; }
+          h2, h3 { font-size: 1.1rem !important; }
+          .alert, .form-label, .form-control, .form-select, .table, .table th, .table td { font-size: 1rem !important; }
+          .btn, .btn-sm, .btn-lg { font-size: 1.1rem !important; padding: 0.7rem 1.2rem !important; border-radius: 2rem !important; }
+          .table-responsive { overflow-x: auto; }
+          /* 仅可横向滚动的表格保持最小宽度；未包 .table-responsive 的
+             成绩/统计表跟随视口，避免手机端整页横向滚动 */
+          .table-responsive .table { min-width: 600px; }
+          .navbar-brand { font-size: 1.1rem !important; }
+          .pagination .page-link { font-size: 1rem !important; padding: 0.5rem 0.9rem !important; }
+        }
+    </style>
+    <!-- 优先使用本地Font Awesome -->
+    <link rel="stylesheet" href="{{ versioned_static('fontawesome/css/all.min.css') }}">
+    <script>
+    window.CSRF_TOKEN = {{ csrf_token|tojson }};
+    // 延迟加载队列由各页面按需 push（默认保持为空）。
+    // 注意：bootstrap/fontawesome 已在 head 通过 versioned_static 加载本地
+    // 版本化文件，不得再 push 类型名 —— 之前 push 后 resource-loader 会以
+    // 不带 ?v= 的 URL 二次下载同文件（每用户每页多 305KB + 2 请求）。
+    window.DEFERRED_STYLES = [];
+    window.DEFERRED_SCRIPTS = [];
+    </script>
+    <script src="{{ versioned_static('js/resource-loader.js') }}" defer></script>
+    <script src="{{ versioned_static('js/ui-feedback.js') }}" defer></script>
+    {% block head %}{% endblock %}
+</head>
+<body>
+{% set embed_view = request.args.get('embed') == '1' %}
+{% if not embed_view %}
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+  <div class="container">
+    <a class="navbar-brand" href="/">学科教学及测试平台</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ms-auto">
+        {% if session.get('is_admin') %}
+          {% set _p = request.path %}
+          <li class="nav-item"><a class="nav-link {% if _p == '/admin/dashboard' %}active{% endif %}" href="/admin/dashboard"><i class="fas fa-gauge-high"></i> 管理总览</a></li>
+          <!-- 考试与练习 -->
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if _p.startswith(("/admin/exams", "/admin/questions", "/admin/grading", "/admin/trend", "/admin/tools/import-python-fill")) %}active{% endif %}" href="#" role="button" data-bs-toggle="dropdown"><i class="fas fa-edit"></i> 考试与练习</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="/admin/exams"><i class="fas fa-file-alt me-2"></i>试卷管理</a></li>
+              <li><a class="dropdown-item" href="/admin/questions"><i class="fas fa-database me-2"></i>题库管理</a></li>
+              <li><a class="dropdown-item" href="/admin/tools/import-python-fill"><i class="fas fa-file-import me-2"></i>批量导入Python填空题</a></li>
+              <li><a class="dropdown-item" href="/admin/grading"><i class="fas fa-check-double me-2"></i>批改中心</a></li>
+              <li class="dropdown-divider"></li>
+              {# 导航菜单仅展示最近 20 张试卷，避免每次渲染全表扫描 #}
+              {% for exam in recent_exams %}
+              <li><a class="dropdown-item" href="/admin/trend/{{ exam.id }}"><i class="fas fa-chart-line me-2"></i>{{ exam.name }}</a></li>
+              {% endfor %}
+            </ul>
+          </li>
+          <!-- 班级与考勤 -->
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if _p.startswith(("/admin/classes", "/admin/groups", "/admin/attendance", "/admin/online_students", "/admin/student-drive")) %}active{% endif %}" href="#" role="button" data-bs-toggle="dropdown"><i class="fas fa-school"></i> 班级与考勤</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="/admin/classes"><i class="fas fa-door-open me-2"></i>班级信息</a></li>
+              <li><a class="dropdown-item" href="/admin/groups"><i class="fas fa-layer-group me-2"></i>学习小组</a></li>
+              <li><a class="dropdown-item" href="/admin/attendance"><i class="fas fa-clipboard-check me-2"></i>签到管理</a></li>
+              <li><a class="dropdown-item" href="/admin/online_students"><i class="fas fa-wifi me-2"></i>在线学生</a></li>
+              <li><a class="dropdown-item" href="/admin/student-drive"><i class="fas fa-cloud me-2"></i>学生网盘</a></li>
+            </ul>
+          </li>
+          <!-- 教学资源 -->
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if _p.startswith(("/admin/resources", "/sim-lab", "/admin/homework", "/admin/works")) %}active{% endif %}" href="#" role="button" data-bs-toggle="dropdown"><i class="fas fa-book"></i> 教学资源</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="/admin/resources"><i class="fas fa-folder-open me-2"></i>资源管理</a></li>
+              <li><a class="dropdown-item" href="/sim-lab"><i class="fas fa-flask me-2"></i>仿真实验</a></li>
+              <li><a class="dropdown-item" href="/admin/homework"><i class="fas fa-tasks me-2"></i>作业管理</a></li>
+              <li><a class="dropdown-item" href="/admin/works"><i class="fas fa-inbox me-2"></i>作品云盘</a></li>
+            </ul>
+          </li>
+          <!-- 课堂工具 -->
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if _p.startswith(("/admin/classroom", "/admin/ai_config")) %}active{% endif %}" href="#" role="button" data-bs-toggle="dropdown"><i class="fas fa-chalkboard-teacher"></i> 课堂工具</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="/admin/classroom"><i class="fas fa-desktop me-2"></i>课堂大屏</a></li>
+              <li><a class="dropdown-item" href="/admin/ai_config"><i class="fas fa-robot me-2"></i>AI配置</a></li>
+            </ul>
+          </li>
+          <!-- 数据中心 -->
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if _p.startswith(("/admin/students", "/admin/schedule", "/admin/class_schedule", "/admin/statistics", "/admin/teaching-sessions", "/admin/account-trail")) %}active{% endif %}" href="#" role="button" data-bs-toggle="dropdown"><i class="fas fa-chart-bar"></i> 数据与审计</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="/admin/students"><i class="fas fa-user-graduate me-2"></i>学生信息</a></li>
+              <li><a class="dropdown-item" href="/admin/schedule"><i class="fas fa-clock me-2"></i>作息时间</a></li>
+              <li><a class="dropdown-item" href="/admin/class_schedule"><i class="fas fa-calendar-alt me-2"></i>课程表</a></li>
+              <li><a class="dropdown-item" href="/admin/statistics"><i class="fas fa-chart-pie me-2"></i>数据统计</a></li>
+              <li><a class="dropdown-item" href="/admin/teaching-sessions"><i class="fas fa-clipboard-list me-2"></i>教学记录</a></li>
+              <li><a class="dropdown-item" href="/admin/account-trail"><i class="fas fa-route me-2"></i>账号轨迹</a></li>
+            </ul>
+          </li>
+          <!-- 系统管理 -->
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if _p.startswith(("/admin/logs", "/admin/python_logs", "/admin/teacher_account", "/admin/accounts", "/admin/system")) %}active{% endif %}" href="#" role="button" data-bs-toggle="dropdown"><i class="fas fa-cog"></i> 系统</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="/admin/logs"><i class="fas fa-history me-2"></i>操作日志</a></li>
+              <li><a class="dropdown-item" href="/admin/python_logs"><i class="fas fa-bug me-2"></i>Python日志</a></li>
+              <li><a class="dropdown-item" href="/admin/teacher_account"><i class="fas fa-chalkboard-teacher me-2"></i>教师账号</a></li>
+              <li><a class="dropdown-item" href="/admin/accounts"><i class="fas fa-user-shield me-2"></i>管理员账号</a></li>
+              <li><a class="dropdown-item" href="/admin/system"><i class="fas fa-toggle-on me-2"></i>系统开关</a></li>
+              <li class="dropdown-divider"></li>
+              <li>
+                <form method="post" action="/admin/logout" style="margin:0;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <button type="submit" class="dropdown-item text-danger border-0 bg-transparent w-100 text-start">
+                    <i class="fas fa-sign-out-alt me-2"></i>退出登录
+                  </button>
+                </form>
+              </li>
+            </ul>
+          </li>
+        {% elif session.get('is_teacher') %}
+          <li class="nav-item">
+            <a class="nav-link" href="/teacher/dashboard"><i class="fas fa-chalkboard-teacher"></i> 教学台</a>
+          </li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown"><i class="fas fa-school"></i> 课堂</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="/study?mode=classroom"><i class="fas fa-book-open me-2"></i>学习资源</a></li>
+              <li><a class="dropdown-item" href="/admin/classroom"><i class="fas fa-desktop me-2"></i>课堂大屏</a></li>
+              <li><a class="dropdown-item" href="/sim-lab"><i class="fas fa-flask me-2"></i>仿真实验</a></li>
+              <li><a class="dropdown-item" href="/teacher/schedule"><i class="fas fa-clock me-2"></i>作息/课表</a></li>
+            </ul>
+          </li>
+          {% if session.get('teacher_mode') != 'readonly' %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown"><i class="fas fa-book"></i> 教学资源</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="/teacher/resource-library"><i class="fas fa-folder-open me-2"></i>资源管理</a></li>
+              <li><a class="dropdown-item" href="/teacher/resources"><i class="fas fa-tasks me-2"></i>活动管理</a></li>
+              <li><a class="dropdown-item" href="/admin/homework"><i class="fas fa-clipboard-check me-2"></i>作业管理</a></li>
+              <li><a class="dropdown-item" href="/admin/grading"><i class="fas fa-check-double me-2"></i>批改中心</a></li>
+            </ul>
+          </li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown"><i class="fas fa-users"></i> 学生</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="/teacher/student-drive"><i class="fas fa-cloud me-2"></i>学生网盘</a></li>
+              <li><a class="dropdown-item" href="/teacher/works"><i class="fas fa-inbox me-2"></i>作品云盘</a></li>
+              <li><a class="dropdown-item" href="/teacher/teaching-sessions"><i class="fas fa-clipboard-list me-2"></i>教学记录</a></li>
+            </ul>
+          </li>
+          {% endif %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown"><i class="fas fa-gear"></i> 设置</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="/teacher/ai_config"><i class="fas fa-robot me-2"></i>AI 配置</a></li>
+            </ul>
+          </li>
+          <li class="nav-item">
+            <form method="post" action="/teacher/logout" style="margin:0;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="nav-link btn btn-link border-0 bg-transparent">
+                <i class="fas fa-sign-out-alt"></i> 退出
+              </button>
+            </form>
+          </li>
+        {% elif session.get('student_id') %}
+          <li class="nav-item"><a class="nav-link" href="/student/home"><i class="fas fa-house"></i> 今日学习</a></li>
+          <li class="nav-item"><a class="nav-link" href="/study"><i class="fas fa-book"></i> 学习资源</a></li>
+          <li class="nav-item"><a class="nav-link" href="/sim-lab"><i class="fas fa-flask"></i> 仿真实验</a></li>
+          <li class="nav-item"><a class="nav-link" href="/student/homework"><i class="fas fa-tasks"></i> 我的作业</a></li>
+          <li class="nav-item"><a class="nav-link" href="/student/drive"><i class="fas fa-cloud"></i> 个人网盘</a></li>
+          <li class="nav-item"><a class="nav-link" href="/exam"><i class="fas fa-edit"></i> 在线测试</a></li>
+          <li class="nav-item"><a class="nav-link" href="/groups"><i class="fas fa-layer-group"></i> 学习小组</a></li>
+          <li class="nav-item"><a class="nav-link" href="/student/trend/{{ session.get('student_id', '') }}"><i class="fas fa-chart-line"></i> 成绩趋势</a></li>
+          <li class="nav-item"><a class="nav-link" href="/change-password"><i class="fas fa-key"></i> 修改密码</a></li>
+          <li class="nav-item">
+            <form method="post" action="/logout" style="margin:0;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="nav-link btn btn-link border-0 bg-transparent">
+                <i class="fas fa-sign-out-alt"></i> 退出
+              </button>
+            </form>
+          </li>
+        {% elif classroom_mode %}
+          <li class="nav-item"><a class="nav-link" href="/teacher/login"><i class="fas fa-chalkboard-teacher"></i> 教师登录</a></li>
+        {% else %}
+          <li class="nav-item"><a class="nav-link" href="/"><i class="fas fa-sign-in-alt"></i> 学生登录</a></li>
+          <li class="nav-item"><a class="nav-link" href="/teacher/login"><i class="fas fa-chalkboard-teacher"></i> 教师登录</a></li>
+          <li class="nav-item"><a class="nav-link" href="/admin/login"><i class="fas fa-user-cog"></i> 管理后台</a></li>
+        {% endif %}
+      </ul>
+    </div>
+  </div>
+</nav>
+{% endif %}
+<div class="container">
+    {% if show_welcome %}
+    <div class="alert alert-success alert-dismissible fade show py-2 mt-2" role="alert">
+      <i class="fas fa-graduation-cap me-2"></i>
+      <strong>{{ student_name }}</strong> 同学，欢迎回来！
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="关闭"></button>
+    </div>
+    {% endif %}
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div class="alert alert-info alert-dismissible fade show" role="alert">
+          <span class="flash-message">{{ messages[0] }}</span>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="关闭"></button>
+        </div>
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+</div>
+<!-- 使用本地Bootstrap JS -->
+<script defer src="{{ versioned_static('bootstrap/js/bootstrap.bundle.min.js') }}"></script>
+<script>
+// 资源加载失败处理 (每个资源只回退一次, 防止死循环)
+var _fallbackTried = {};
+function handleResourceError(element, fallbackURL) {
+  var key = fallbackURL;
+  if (_fallbackTried[key]) return;
+  _fallbackTried[key] = true;
+  console.log('资源加载失败，切换到:', fallbackURL);
+  if (element.tagName === 'LINK') {
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = fallbackURL;
+    document.head.appendChild(link);
+  } else if (element.tagName === 'SCRIPT') {
+    var script = document.createElement('script');
+    script.src = fallbackURL;
+    script.defer = true;
+    document.body.appendChild(script);
+  }
+}
+
+// 登录失败锁定提示倒计时：flash 文案“请 N 秒后再试”每秒递减，
+// 倒计时期间禁用页面内的密码表单提交，归零后自动恢复。
+(function () {
+  var el = document.querySelector('.flash-message');
+  if (!el) return;
+  var text = el.textContent || '';
+  var m = text.match(/(\d+)\s*秒后再试/);
+  if (!m) return;
+  var remaining = parseInt(m[1], 10);
+  if (!remaining || remaining <= 0) return;
+  var buttons = [];
+  document.querySelectorAll('form').forEach(function (form) {
+    if (!form.querySelector('input[type="password"]')) return;
+    form.querySelectorAll('button[type="submit"], input[type="submit"]')
+      .forEach(function (btn) {
+        buttons.push(btn);
+        btn.disabled = true;
+      });
+  });
+  function render() {
+    if (remaining > 0) {
+      el.textContent = text.replace(
+        /(\d+)(\s*秒后再试)/, remaining + '$2');
+    } else {
+      el.textContent = '等待时间已结束，可以重新尝试登录';
+      buttons.forEach(function (btn) { btn.disabled = false; });
+      clearInterval(timer);
+    }
+  }
+  render();
+  var timer = setInterval(function () {
+    remaining -= 1;
+    render();
+  }, 1000);
+})();
+
+// 监听资源加载错误
+window.addEventListener('error', function(e) {
+  var target = e.target;
+  if (target.tagName === 'LINK' && target.href.indexOf('bootstrap') !== -1) {
+    handleResourceError(target, '/static/bootstrap/css/bootstrap.min.css');
+  } else if (target.tagName === 'LINK' && target.href.indexOf('fontawesome') !== -1) {
+    handleResourceError(target, '/static/fontawesome/css/all.min.css');
+  } else if (target.tagName === 'SCRIPT' && target.src.indexOf('bootstrap') !== -1) {
+    handleResourceError(target, '/static/bootstrap/js/bootstrap.bundle.min.js');
+  }
+}, true);
+
+</script>
+{% if session.get('student_id') and not embed_view %}
+<script>
+(function(){
+  function sendHeartbeat() {
+    fetch('/api/heartbeat', {
+      method: 'POST',
+      headers: {'X-CSRFToken': window.CSRF_TOKEN || ''},
+      credentials: 'same-origin'
+    }).catch(function(){});
+  }
+  sendHeartbeat();
+  setInterval(sendHeartbeat, 60000);
+})();
+</script>
+{% endif %}
+{% if not embed_view and ((session.get('student_id') and not session.get('must_change_password')) or session.get('is_admin') or session.get('is_teacher') or classroom_mode) %}
+<style>
+  .ai-fab-lazy { position: fixed; right: 24px; bottom: 24px; z-index: 1050;
+    width: 56px; height: 56px; border-radius: 50%; border: 0; color: #fff;
+    background: #0d6efd; box-shadow: 0 4px 14px rgba(13,110,253,.35);
+    font-size: 22px; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; }
+  .ai-fab-lazy:hover { background: #0b5ed7; }
+  .ai-fab-lazy[disabled] { opacity: .65; cursor: wait; }
+</style>
+<button type="button" class="ai-fab-lazy" id="aiFabLazy"
+        aria-label="打开 AI 学习助手" title="AI 助手">
+  <i class="fas fa-robot" aria-hidden="true"></i>
+</button>
+<script>
+(function () {
+  var btn = document.getElementById('aiFabLazy');
+  if (!btn) return;
+  // 轻量状态检查：AI 未启用/未登录时不显示悬浮入口；脚本与样式仍等到
+  // 用户点击后才加载。
+  fetch('/api/ai/status', {credentials: 'same-origin'})
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d || !d.enabled || !d.logged_in) btn.remove();
+    })
+    .catch(function () {});
+  var loading = false;
+  var loaded = false;
+  var assets = {
+    css: [
+      {{ versioned_static('css/ai-chat.css')|tojson }},
+      {{ versioned_static('highlight/github.min.css')|tojson }}
+    ],
+    js: [
+      {{ versioned_static('js/dompurify/purify.min.js')|tojson }},
+      {{ versioned_static('js/ai-chat.js')|tojson }}
+    ]
+  };
+
+  function loadAsset(url, isCss) {
+    return new Promise(function (resolve) {
+      var el;
+      if (isCss) {
+        el = document.createElement('link');
+        el.rel = 'stylesheet';
+        el.href = url;
+      } else {
+        el = document.createElement('script');
+        el.src = url;
+        el.defer = true;
+      }
+      el.onload = function () { resolve(true); };
+      el.onerror = function () { resolve(false); };
+      document.head.appendChild(el);
+    });
+  }
+
+  function openRealFab() {
+    var tries = 0;
+    var timer = setInterval(function () {
+      var fab = document.getElementById('aiFab');
+      if (fab) {
+        clearInterval(timer);
+        btn.style.display = 'none';
+        fab.click();
+      } else if (++tries >= 80) {
+        // AI 未启用/未配置：隐藏惰性入口，避免留下无效按钮
+        clearInterval(timer);
+        btn.style.display = 'none';
+      }
+    }, 100);
+  }
+
+  btn.addEventListener('click', function () {
+    if (loaded) {
+      var fab = document.getElementById('aiFab');
+      if (fab) fab.click();
+      return;
+    }
+    if (loading) return;
+    loading = true;
+    btn.disabled = true;
+    var loads = [];
+    assets.css.forEach(function (url) { loads.push(loadAsset(url, true)); });
+    Promise.all(loads).then(function () {
+      var jsLoads = [];
+      assets.js.forEach(function (url) { jsLoads.push(loadAsset(url, false)); });
+      return Promise.all(jsLoads);
+    }).then(function (results) {
+      loading = false;
+      btn.disabled = false;
+      // ai-chat.js 必须加载成功；其它资源失败时由 ai-chat.js 自身降级
+      if (!results || results[results.length - 1] === false) return;
+      loaded = true;
+      openRealFab();
+    });
+  });
+})();
+</script>
+{% endif %}
+{% block scripts %}{% endblock %}
+{% if not embed_view %}
+<footer class="text-center text-muted py-2" style="font-size:11px;">
+  ITstudy V{{ app_version }} &copy; {{ app_copyright }} &mdash; {{ app_license }}
+</footer>
+{% endif %}
+</body>
+</html>

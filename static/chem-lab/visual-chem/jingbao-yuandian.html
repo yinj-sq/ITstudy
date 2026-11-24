@@ -1,0 +1,1719 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>晶胞原点转换 · 四晶胞合集 - 可视化化学</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<style>
+    * { box-sizing: border-box; }
+    html, body {
+        margin: 0; padding: 0; height: 100%; overflow: hidden;
+        background: #000;
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+        -webkit-font-smoothing: antialiased;
+    }
+    #stage {
+        display: block; width: 100%; height: 100%; border: 0;
+        background: #000;
+        position: absolute; left: 0; top: 0;
+        transform-origin: 50% 50%;
+        /* 切换晶胞时淡出 → 换页 → 新页画面出来再淡入，避免整块 3D 突然重建的黑闪 */
+        opacity: 0; transition: opacity 0.28s ease;
+    }
+    #stage.shown { opacity: 1; }
+
+    /* ============ 左侧一列：晶胞种类在上、操作按钮在下 ============ */
+    #switcher {
+        position: fixed; top: 84px; left: 14px; z-index: 9999;
+        display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+        user-select: none; -webkit-user-select: none;
+    }
+    /* 半透明只给「晶胞列表」，操作按钮要一直清楚（父级 opacity 会连带乘到子级，所以分开写） */
+    #sw-list { opacity: 0.82; transition: opacity 0.28s ease; }
+    #switcher:hover #sw-list,
+    #switcher:focus-within #sw-list { opacity: 1; }
+    #sw-toggle {
+        display: inline-flex; align-items: center; gap: 6px;
+        width: auto; height: 38px; padding: 0 12px; border-radius: 12px;
+        border: 1px solid rgba(150, 180, 255, 0.26);
+        background: rgba(16, 22, 38, 0.88);
+        color: #cfe0ff; font-size: 15px; line-height: 1; cursor: pointer;
+        -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+    }
+    #sw-toggle:hover { background: rgba(28, 38, 62, 0.94); color: #fff; }
+    .sw-toggle-label { font-size: 12.5px; font-weight: 600; letter-spacing: 0.3px; }
+    /* 折叠后只留「晶胞」按钮，避免遮挡画布与功能模块 */
+    #switcher:not(.open) #sw-list,
+    #switcher:not(.open) #bar { display: none !important; }
+    #switcher.open #sw-list { display: flex; }
+    #sw-list {
+        display: flex; flex-direction: column; gap: 6px; align-items: stretch;
+        padding: 8px;
+        border-radius: 14px;
+        border: 1px solid rgba(150, 180, 255, 0.20);
+        background: rgba(14, 19, 33, 0.74);
+        -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.42);
+    }
+    .sw-item {
+        position: relative;
+        display: flex; align-items: center; gap: 8px;
+        width: 132px; padding: 7px 10px 7px 9px;
+        border-radius: 9px; border: 1px solid transparent;
+        background: rgba(255, 255, 255, 0.035);
+        color: #b9c6e0; text-align: left; cursor: pointer;
+        transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.12s ease;
+    }
+    .sw-item::before {
+        content: ""; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+        width: 3px; height: 0; border-radius: 0 3px 3px 0;
+        background: var(--c, #7fb0ff);
+        transition: height 0.22s cubic-bezier(0.23, 1, 0.32, 1);
+    }
+    .sw-item:hover { background: rgba(255, 255, 255, 0.075); color: #e6eeff; }
+    .sw-item:active { transform: scale(0.975); }
+    .sw-item.on {
+        background: rgba(255, 255, 255, 0.10);
+        border-color: rgba(160, 195, 255, 0.28);
+        color: #ffffff;
+    }
+    .sw-item.on::before { height: 62%; }
+    .sw-dot {
+        flex: 0 0 auto; width: 9px; height: 9px; border-radius: 50%;
+        background: var(--c, #7fb0ff);
+        box-shadow: 0 0 8px var(--c, #7fb0ff);
+        opacity: 0.55; transition: opacity 0.18s ease;
+    }
+    .sw-item.on .sw-dot { opacity: 1; }
+    .sw-f {
+        font-size: 13px; font-weight: 700; letter-spacing: 0.2px;
+        font-variant-numeric: tabular-nums;
+    }
+    .sw-n { font-size: 11.5px; opacity: 0.78; margin-left: auto; }
+    .sw-f sub { font-size: 0.68em; vertical-align: -0.22em; }
+
+    /* 操作栏：接在晶胞列表下面，同一列（都在左侧），宽度与列表对齐 */
+    #bar {
+        display: flex; flex-direction: column; align-items: stretch; gap: 6px;
+        min-width: 150px; padding: 8px;
+        border-radius: 14px; border: 1px solid rgba(150, 180, 255, 0.20);
+        background: rgba(14, 19, 33, 0.74);
+        -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.42);
+        opacity: 0.72; transition: opacity 0.25s ease;
+    }
+    #bar:hover { opacity: 1; }
+    #bar button {
+        padding: 8px 10px; border-radius: 9px; cursor: pointer; text-align: center;
+        border: 1px solid rgba(160, 195, 255, 0.26);
+        background: rgba(255, 255, 255, 0.07); color: #dce8ff;
+        font-size: 12.5px; font-family: inherit; white-space: nowrap;
+    }
+    #bar button:hover { background: rgba(255, 255, 255, 0.16); }
+    #bar button:disabled { opacity: 0.35; cursor: default; }
+    #bar-step {
+        background: rgba(255, 171, 61, 0.18);
+        border-color: rgba(255, 171, 61, 0.36); color: #ffd9a0;
+    }
+    #bar-step:hover { background: rgba(255, 171, 61, 0.30); }
+    #bar-state {
+        display: none; font-size: 11px; color: rgba(170, 190, 224, 0.80);
+        text-align: center; white-space: nowrap; letter-spacing: 0.2px;
+    }
+    #bar-state.on { display: block; }
+    #bar-state b { color: #ffd9a0; font-weight: 600; }
+
+    /* 依赖加载失败兜底 */
+    #fail-tip {
+        position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+        z-index: 10000; width: min(430px, 88vw);
+        padding: 20px 22px; border-radius: 16px;
+        background: rgba(20, 26, 42, 0.95);
+        border: 1px solid rgba(255, 170, 120, 0.34);
+        color: #e8eefc; font-size: 13px; line-height: 1.75;
+        box-shadow: 0 22px 60px rgba(0, 0, 0, 0.65);
+    }
+    #fail-tip b { display: block; font-size: 14.5px; margin-bottom: 8px; color: #ffc98a; }
+    #fail-tip code {
+        background: rgba(255, 255, 255, 0.09); padding: 1px 5px;
+        border-radius: 4px; font-size: 11.5px; word-break: break-all;
+    }
+    #fail-tip button {
+        margin-top: 14px; padding: 7px 18px; border-radius: 9px;
+        border: 1px solid rgba(160, 195, 255, 0.30);
+        background: rgba(255, 255, 255, 0.08); color: #dce8ff;
+        cursor: pointer; font-size: 12.5px;
+    }
+    #fail-tip button:hover { background: rgba(255, 255, 255, 0.16); }
+
+    @media (max-width: 900px) {
+        #switcher { top: 74px; left: 10px; gap: 6px; }
+        #sw-list { padding: 6px; max-height: 62vh; overflow-y: auto; }
+        .sw-item { width: 118px; }
+        #bar { min-width: 132px; padding: 6px; gap: 5px; }
+    }
+    @media (max-width: 560px) {
+        #switcher { left: 8px; top: 70px; }
+        #bar { min-width: 120px; padding: 6px; gap: 5px; }
+        #bar button { padding: 6px 8px; font-size: 11.5px; }
+        #bar-state { display: none; }
+        .sw-item { width: 106px; padding: 6px 8px; }
+        .sw-n { display: none; }
+    }
+</style>
+<link rel="stylesheet" href="ui-glass.css">
+<style>
+    /* ★ 必须写在 ui-glass.css 之后：那边 #topbar 是按「文档流里的第一行」写的
+       （position:relative + 固定高度），这里是悬浮在 3D 舞台上方的一层，要覆盖掉。 */
+    #topbar {
+        position: fixed; left: 0; right: 0; top: 0;
+        margin: 8px 12px; height: auto; min-height: 54px;
+        padding: 6px 16px; z-index: 9996; flex-wrap: nowrap;
+    }
+    /* 窄屏：品牌 + 两个按钮一行放不下 —— 收字号、隐副标题，别让按钮掉出玻璃面板 */
+    @media (max-width: 720px) {
+        #topbar { margin: 6px 8px; min-height: 46px; padding: 4px 10px; gap: 8px; }
+        #brand-logo { width: 26px; height: 26px; }
+        .brand-title { font-size: 13.5px; letter-spacing: 0; }
+        .brand-sub { display: none; }
+        .top-btn { padding: 6px 9px; font-size: 11.5px; }
+        .top-btn .tb-icon { margin-right: 3px; width: 12px; height: 12px; }
+    }
+</style>
+
+<style id="chem-lab-embed-style">
+  /* ITstudy 化学仿真统一壳：隐藏原站顶栏/品牌/版权水印。
+     不强制页面高度与 overflow —— 各页面自有布局（周期表需要滚动，
+     3D 页需要全屏），统一覆盖会把周期表底部裁掉。 */
+  #topbar, #copyright, .wm-copyright, #btn-home,
+  .topbar-actions, .back-home-btn,
+  .brand, .brand-title, #brand-logo { display: none !important; }
+  canvas { max-width: 100%; }
+  /* 课堂 iframe 高度较小时：周期表隐藏趋势图、压缩行高，保证 118 元素可见 */
+  @media (max-height: 720px) {
+    #chart-panel { display: none !important; }
+    .ptable.size-s { grid-auto-rows: 32px !important; }
+    #info-sidebar { width: 220px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 顶部品牌栏（与其他晶胞页同一套 ui-glass.css） -->
+<div id="topbar" class="glass">
+    <div class="brand">
+        <img id="brand-logo" src="favicon.png" alt="可视化化学">
+        <div class="brand-text">
+            <div class="brand-title">可视化化学<span class="brand-divider">·</span>可视化学</div>
+            <div class="brand-sub">晶体结构 · 晶胞原点转换</div>
+        </div>
+    </div>
+    <div class="topbar-actions">
+        <a class="top-btn" id="btn-home" href="index.html" target="_top"><svg class="tb-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.8V21h14V9.8"/></svg>主页</a>
+    </div>
+</div>
+
+<iframe id="stage" allowfullscreen sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads"></iframe>
+
+<div id="switcher" class="open">
+    <button id="sw-toggle" type="button" title="收起晶胞切换" aria-label="收起晶胞切换" aria-expanded="true">
+        <span id="sw-toggle-icon" aria-hidden="true">▾</span><span class="sw-toggle-label">晶胞</span>
+    </button>
+    <div id="sw-list">
+        <button class="sw-item on" data-src="cscl.html" data-key="cscl" style="--c:#ffab3d" title="源文件：cscl.html">
+            <i class="sw-dot"></i><span class="sw-f">CsCl</span><span class="sw-n">氯化铯</span>
+        </button>
+        <button class="sw-item" data-src="nacl.html" data-key="nacl" style="--c:#b47cf0" title="源文件：nacl.html">
+            <i class="sw-dot"></i><span class="sw-f">NaCl</span><span class="sw-n">氯化钠</span>
+        </button>
+        <button class="sw-item" data-src="_vip/zns.html" data-key="zns" style="--c:#e8cd3c" title="源文件：_vip/zns.html">
+            <i class="sw-dot"></i><span class="sw-f">ZnS</span><span class="sw-n">硫化锌</span>
+        </button>
+        <button class="sw-item" data-src="_vip/caf2.html" data-key="caf2" style="--c:#5fd8a8" title="源文件：_vip/caf2.html">
+            <i class="sw-dot"></i><span class="sw-f">CaF<sub>2</sub></span><span class="sw-n">氟化钙</span>
+        </button>
+    </div>
+
+    <!-- 操作栏：接在晶胞列表下面，同一列（左侧） -->
+    <div id="bar">
+        <button id="bar-step">① 重新分开</button>
+        <button id="bar-cam">视角：透视</button>
+        <button id="bar-auto">自动：关</button>
+        <button id="bar-rot">旋转：开</button>
+        <span id="bar-state" class="on">加载中</span>
+    </div>
+</div>
+
+<script>
+(function () {
+    var frame = document.getElementById('stage');
+    var list = document.getElementById('sw-list');
+    var switcher = document.getElementById('switcher');
+    var toggle = document.getElementById('sw-toggle');
+    var items = list.querySelectorAll('.sw-item');
+    var barStep = document.getElementById('bar-step');
+    var barCam = document.getElementById('bar-cam');
+    var barAuto = document.getElementById('bar-auto');
+    var barRot = document.getElementById('bar-rot');
+    var barState = document.getElementById('bar-state');
+    var camOrtho = false;          /* 当前视角：false 透视 / true 正交（切页后要重发） */
+    var current = 'cscl';
+    /* 默认自己点；地址后加 ?auto=1 才自动轮播 */
+    var autoOn = /[?&]auto=1/.test(location.search);
+    /* 模型自转默认「关」；地址后加 ?rot=1 才让它转（用户要求：打开就是静止画面） */
+    var rotOn = /[?&]rot=1/.test(location.search);
+
+    /* 只留 3D 舞台：顶栏 / 左侧功能模块 / 右侧信息面板 / 横屏提示 全部剪掉 */
+    var BARE_CSS =
+        '#topbar,#sidebar,#info-sidebar,#rotate-hint,#cell-panel{display:none!important}' +
+        '#scene-boundary,#op-tip-bar,#op-tip-sw{display:none!important}' +
+        '#app-container{padding:0!important;display:block!important}' +
+        '#main-row{width:100%!important;height:100%!important;padding:0!important;margin:0!important;gap:0!important;display:block!important}' +
+        '#canvas-area{width:100%!important;height:100vh!important;padding:0!important;margin:0!important;border-radius:0!important}';
+
+    /* 注入到源页里的小驱动：由外壳通过 postMessage 指挥，不直接改源页的动画代码。
+       —— 用 postMessage 而不是让外壳取 contentDocument，是因为 file:// 下 sandbox 会拿不到文档。 */
+    var DRIVER = '<scr' + 'ipt>(function(){' +
+        'var n=0, timer=null, on=false, armed=false;' +
+        'function btn(){return document.getElementById("btn-transform");}' +
+        'function desc(){var d=document.getElementById("transform-desc");return d?d.innerText:"";}' +
+        'function post(){try{parent.postMessage({__ydn:1,n:n,desc:desc(),on:on},"*");}catch(e){}}' +
+        /* 页面在初始化 / 自己动画期间会把按钮置为 pointer-events:none（各页 setUIEnabled 干的），
+           这时点下去不算数 —— 隔 400ms 重试，最多 retry 次，别把这一拍白白丢掉。 */
+        /* busyUntil：上一次转换动画没走完就再点，源页的 __cancelAll 会把上一段动画组留在场景里，
+           变成白色小球和漂浮的断键 —— 所以动画期间一律不点，只排队等它结束。 */
+        'var busyUntil=0;' +
+        'function step(retry){' +
+        /* 有增强脚本就交给它（交叉晶胞）；没有才退回点源页按钮 */
+        'if(window.__ydnNext||window.__ydnToggle){var ok=false;try{ok=(window.__ydnNext||window.__ydnToggle)();}catch(e){ok=false;}' +
+        'if(!ok&&retry>0)setTimeout(function(){step(retry-1);},300);if(ok){n++;post();}return ok;}' +
+        'var b=btn();if(!b)return false;' +
+        'if(Date.now()<busyUntil){if(retry>0)setTimeout(function(){step(retry-1);},400);return false;}' +
+        'if(b.disabled||b.style.pointerEvents==="none"){' +
+        'if(retry>0)setTimeout(function(){step(retry-1);},400);return false;}' +
+        'busyUntil=Date.now()+5200;' +
+        'b.click();n++;post();setTimeout(post,5200);return true;}' +
+        'function auto(){clearInterval(timer);if(!on)return;timer=setInterval(function(){if(armed)step(3);},4800);}' +
+        /* 等页面把 3D 场景建好（canvas 出现）再开始，避免点在初始化阶段被吞掉。
+           ★ 这里绝不自动点第一步：切到某个晶胞时画面必须是「完整晶胞」，
+             要分开得用户自己按「① 重新分开」（自动播放开着时由 auto() 的计时器负责）。 */
+        'function arm(){if(armed)return;if(!document.querySelector("canvas")){setTimeout(arm,400);return;}' +
+        'armed=true;window.dispatchEvent(new Event("resize"));auto();}' +
+        'window.addEventListener("message",function(e){var m=e.data||{};' +
+        'if(m.__cmd==="step"){step(16);}' +
+        'else if(m.__cmd==="auto"){on=!!m.on;auto();post();}' +
+        'else if(m.__cmd==="rot"){try{if(window.__ydnRot)window.__ydnRot(!!m.on);}catch(e){}}' +
+        'else if(m.__cmd==="cam"){try{if(window.__ydnCam)window.__ydnCam(!!m.ortho);}catch(e){}}' +
+        'else if(m.__cmd==="state"){post();}' +
+        'else if(m.__cmd==="arm"){arm();}});' +
+        'window.addEventListener("load",function(){setTimeout(arm,300);});' +
+        'setTimeout(arm,800);' +
+        '})();</scr' + 'ipt>';
+
+    /* 注入到源页里的「增强」：不动源页的动画代码，只做两件事
+       ① 关掉原子点击（把射线打成空结果，拖动旋转不受影响）；
+       ② 转换原点改成「加一个晶胞」——把当前晶胞整体克隆一份，平移到最近的异种离子上。
+          平移一个最近邻矢量后，原来在体心/棱心的异种离子正好落到顶点，所以克隆出来那份
+          就是「换了原点」的晶胞；两份叠在一起 = 两个交叉的立方框，旧键一根都不消失。 */
+    var ENHANCE = '<scr' + 'ipt>(function(){' +
+        'if(!window.THREE||typeof crystalGroup==="undefined")return;' +
+        'var P=THREE.Raycaster.prototype;' +
+        'if(!P.__ydnNoRay){P.__ydnNoRay=1;P.intersectObjects=function(){return [];};P.intersectObject=function(){return [];};}' +
+        'var off=null,offB=null,ghost=null,busy=false,live=false,phase=0,DUR=900,fillN=0,fillErr="";' +
+        'function key(x,y,z){return Math.round(x*20)+"_"+Math.round(y*20)+"_"+Math.round(z*20);}' +
+        'function eachSphere(root,cb){root.traverse(function(o){if(o.isMesh&&o.geometry&&o.geometry.type==="SphereGeometry")cb(o);});}' +
+        /* 源页里「键」比「晶胞棱框」粗：CsCl 0.08 / 0.04、NaCl 0.05 / 0.03、CaF₂ 0.06 / 0.03。
+           ★ 不能写死阈值（0.06 会把 NaCl 的键当成棱），按场景里最细的圆柱动态判。 */
+        'var EDGER=0;' +
+        'function edgeR(){if(EDGER)return EDGER;var m=1e9;' +
+        '  crystalGroup.traverse(function(o){if(o.isMesh&&o.geometry&&String(o.geometry.type).indexOf("Cylinder")>=0){' +
+        '    var p=o.geometry.parameters||{},r=Math.max(p.radiusTop||0,p.radiusBottom||0);if(r>0&&r<m)m=r;}});' +
+        '  EDGER=(m===1e9)?0:m*1.15;return EDGER;}' +
+        'function isEdge(o){var p=(o.geometry&&o.geometry.parameters)||{};' +
+        '  return Math.max(p.radiusTop||0,p.radiusBottom||0)<=edgeR();}' +
+        /* ★ 当前是哪一页（外壳注入 window.__YDNKEY）。以前靠 off 的方向猜：
+           「纯 x 轴向 ⇒ 氯化钠」，一旦氟化钙改成水平插入，off 也变成纯 x，就认错了。
+           所以判定改用页面 key；key 缺失时才退回方向判断（单独打开源页时）。 */
+        'var PAGE=(typeof window.__YDNKEY==="string")?window.__YDNKEY:"";' +
+        'function isFluor(){return PAGE==="caf2";}' +
+        /* 最近的异种离子：从原点那颗离子出发，找距离最近的另一颗球，就是半个晶胞的平移量 */
+        'function offset(){var b=null,bd=1e9;' +
+        '  eachSphere(crystalGroup,function(o){var p=o.position,d=Math.sqrt(p.x*p.x+p.y*p.y+p.z*p.z);' +
+        '    if(d<0.3)return;' +
+        '    if(d<bd-0.02){bd=d;b=p.clone();}' +
+        '    else if(Math.abs(d-bd)<0.02&&b&&(p.x+p.y+p.z)>(b.x+b.y+b.z)){b=p.clone();}});' +
+        /* ★ 分开的方向要「看起来」水平：源页相机 up=(0,0,1)，+z 正好是屏幕竖直方向，
+           氯化钠的最近邻又只沿坐标轴 ⇒ 两个面心立体会一上一下。改走 x（左右并排），
+           长度不变。只有「纯轴向」的平移才换 —— 氯化铯是体对角线、硫化锌/氟化钙是
+           1/4 体对角线，x、y 分量都不为 0，一律不受影响。 */
+        '  if(b&&Math.abs(b.x)<1e-3&&Math.abs(b.y)<1e-3&&Math.abs(b.z)>1e-3)b=new THREE.Vector3(b.z,0,0);' +
+        '  return b;}' +
+        /* ★ 氯化铯 / 硫化锌：在 8 个「等价的体对角线」里挑一个落在「屏幕左·上·往里（远离相机）」的。
+           立方晶胞这些方向完全等价，换一个位置不会多出或少掉原子 —— 用户原话：
+           「做一个前后对称的路径，然后重做一个氯的简单立方」。相机不动，只换落点。 */
+        'function mirrorOff(v){try{' +
+        /* ★ 硫化锌单独走「左后下」(1,-1,-1)：它是 4 个合法平移之一，与建晶胞用的 offB
+           =(1,1,1) 只差一个 fcc 晶格矢量 (0,2,2) ⇒ Zn 仍落在键指的那组四面体空隙里
+           （键尖有锌）；往里走得最深，探出去的无关原子藏在后面不挡视线。
+           氯化铯仍走下面按相机挑方向的原逻辑，氯化钠/氟化钙根本不调本函数。 */
+        '  if(PAGE==="zns")return new THREE.Vector3(1,-1,-1).multiplyScalar(Math.max(Math.abs(v.x),Math.abs(v.y),Math.abs(v.z)));' +
+        '  var c=(controls&&controls.object)||null,t=(controls&&controls.target)?controls.target:null;' +
+        '  if(!c||!t||!v)return v;' +
+        '  var f=c.position.clone().sub(t).normalize();' +               /* 指向相机（屏幕外） */
+        '  var r=new THREE.Vector3().crossVectors(new THREE.Vector3(0,0,1),f).normalize();' + /* 屏幕右 */
+        '  var u=new THREE.Vector3().crossVectors(f,r).normalize();' +                        /* 屏幕上 */
+        '  var ax=Math.abs(v.x),ay=Math.abs(v.y),az=Math.abs(v.z),best=v.clone(),bs=-1e9;' +
+        '  for(var i=0;i<8;i++){' +
+        '    var s=new THREE.Vector3((i&1)?ax:-ax,(i&2)?ay:-ay,(i&4)?az:-az);' +
+        /* 权重：先要「往里」（−f），再要「往上」（+u），再要「往左」（−r） */
+        '    var sc=(-s.dot(f))*1.2+s.dot(u)*0.7+(-s.dot(r))*1.0;' +
+        '    if(sc>bs){bs=sc;best=s;}' +
+        '  }' +
+        '  return best;' +
+        '}catch(e){return v;}}' +
+        /* ★ 硫化锌的特殊处理：它只有 4 个「合法」的短平移（±1,±1,±1 里带偶数个负号的），
+           没有一个是「左后上」；硬用不合法的那一个就会在棱心和体内冒出假原子（用户看到的那批）。
+           所以位置照用户的（左后上），但把克隆体整体绕晶胞中心转 90°：闪锌矿转 90° 后
+           硫落在另外四个四面体空隙里，看上去还是同一个晶胞，原子却回到了合法格点上。 */
+        'function spinZ(g,ang){try{' +
+        '  var box=new THREE.Box3().setFromObject(crystalGroup),c=new THREE.Vector3();' +
+        '  box.getCenter(c);' +
+        '  var q=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),ang);' +
+        '  g.children.slice().forEach(function(o){' +
+        '    if(o.position)o.position.sub(c).applyQuaternion(q).add(c);' +
+        '    if(o.quaternion)o.quaternion.premultiply(q);' +
+        '  });' +
+        '}catch(e){}}' +
+        /* ★★ 平移半个晶胞会把「顶角」和「体心」两套离子互换 ⇒ 克隆体里每种离子的位置都
+           正好是「另一种离子该在的地方」。所以复制原子时必须把两种离子对调（几何半径、
+           材质一起换），否则新晶胞的顶点上站着的还是原来那个物种。
+           ★ 页里除了离子球还有几颗 r≈0.04 的灰色「格点小标记」（氯化钠就有 8 颗），
+           按半径把它们筛掉，否则会数出第三种「物种」，对调直接失效。 */
+        'var MAXR=0;' +
+        'function scanMax(){if(MAXR)return MAXR;' +
+        '  eachSphere(crystalGroup,function(o){var r=(o.geometry.parameters&&o.geometry.parameters.radius)||0;if(r>MAXR)MAXR=r;});' +
+        '  return MAXR||1;}' +
+        'function isAtomMesh(o){if(!o.geometry||o.geometry.type!=="SphereGeometry")return false;' +
+        '  var r=(o.geometry.parameters&&o.geometry.parameters.radius)||0;return r>=scanMax()*0.35;}' +
+        'function cls(o){var r=(o.geometry&&o.geometry.parameters&&o.geometry.parameters.radius)||0;' +
+        '  var c=(o.material&&o.material.color)?o.material.color.getHexString():"-";' +
+        '  return r.toFixed(3)+"|"+c;}' +
+        'function protos(){var m={},ks=[];' +
+        '  eachSphere(crystalGroup,function(o){if(!isAtomMesh(o))return;var k=cls(o);' +
+        '    if(!m[k]){m[k]={geo:o.geometry,mat:o.material,sc:o.scale.clone()};ks.push(k);}});' +
+        '  return {m:m,ks:ks};}' +
+        /* 逐网格手工复制。源页把循环引用挂在 userData 上（磨砂脚本的 fuseParent），
+           而 Object3D.clone() 内部要对 userData 做 JSON 序列化 —— 直接抛
+           「Converting circular structure to JSON」，所以这里自己搭。
+           ★★ 棱框（edges 里那 12 根细圆柱）也要一起复制：新晶胞跟旧晶胞必须是
+           同一套棱、同一套材质。早期版本把这 12 根跳过、另画一圈青色细框顶上，
+           结果新框是 MeshBasicMaterial 的扁平青色线，跟源页的银色金属棱完全两个质感，
+           而且线细、穿过球心，看着就像一堆悬空的线。 */
+        /* ★★ 材质克隆必须把 onBeforeCompile 一起搬过去：磨砂脚本就是靠它给材质注入
+           金属边缘光/磨砂着色器，而 Material.clone() **不会**复制这个函数 ——
+           只 clone 的话新键/新棱就成了「素面」材质，比原键明显发暗发闷。 */
+        'function cmat(src){var mm=src.clone();' +
+        '  if(src.onBeforeCompile)mm.onBeforeCompile=src.onBeforeCompile;' +
+        '  mm.needsUpdate=true;return mm;}' +
+        'function copyNode(o,pr,skip){var m=null,sw=false;' +
+        '  if(o.isSprite){m=new THREE.Sprite(cmat(o.material));}' +
+        '  else if(o.isMesh){' +
+        '    if(skip&&skip[o.id])return null;' +
+        '    if(pr&&pr.ks.length===2&&isAtomMesh(o)){' +
+        '      var k=cls(o),ok=(pr.ks[0]===k?pr.ks[1]:pr.ks[0]),p=pr.m[ok];' +
+        '      if(p){m=new THREE.Mesh(p.geo,cmat(p.mat));m.scale.copy(p.sc);sw=true;}' +
+        '    }' +
+        '    if(!m)m=new THREE.Mesh(o.geometry,o.material?cmat(o.material):undefined);' +
+        '  } else return null;' +
+        '  m.position.copy(o.position);m.quaternion.copy(o.quaternion);' +
+        '  if(!sw)m.scale.copy(o.scale);' +
+        '  m.renderOrder=o.renderOrder;' +
+        '  for(var i=0;i<o.children.length;i++){var c=copyNode(o.children[i],pr,skip);if(c)m.add(c);}' +
+        '  return m;}' +
+        'function matsOf(root){var out=[];if(!root)return out;' +
+        '  root.traverse(function(o){if(!o.material)return;var m=o.material;' +
+        '    if(out.indexOf(m)<0){m.__t=(m.opacity===undefined?1:m.opacity);m.__tr=!!m.transparent;out.push(m);}});' +
+        '  return out;}' +
+        /* ★★ 关键：源页的键/棱都是「按两端离子半径截短过」的圆柱（CsCl 键 3.46 只画 1.76、
+           棱 4.0 只画 2.13）。克隆体换过物种（大球小球半径对调），截短量却还是按老物种算的，
+           于是每条键/棱的某一端正好短了 0.16～0.19 —— 看着就是「没接上原子」「太短」。
+           这里把每一根圆柱的两端重新贴到最近那颗球的球面上（嵌进 0.02），长度/位置/朝向一起改。 */
+        'function fitEnds(g,off){' +
+        /* ★ 必须在「已经平移到位」的坐标系里量：克隆体的离子跟旧晶胞的离子在未平移时
+           是重叠的（顶点 0/4 重合、体心 2,2,2 重合），在原地量会认错球 —— 之前就是
+           这个原因：量到的半径是旧物种的，怎么修都差 0.15。所以先把 g 挪到 off，
+           全部按世界坐标算，再把结果减掉 off 写回局部坐标。 */
+        '  var at=[];' +
+        '  g.position.copy(off);g.updateMatrixWorld(true);' +
+        '  scene.traverse(function(o){if(!o.isMesh||!o.geometry||o.geometry.type!=="SphereGeometry")return;' +
+        '    var r=(o.geometry.parameters&&o.geometry.parameters.radius)||0;if(r<scanMax()*0.35)return;' +
+        '    var w=new THREE.Vector3();o.getWorldPosition(w);at.push({p:w,r:r});});' +
+        '  var up=new THREE.Vector3(0,1,0),n=0;' +
+        '  if(at.length)g.traverse(function(o){' +
+        '    if(!o.isMesh||!o.geometry||String(o.geometry.type).indexOf("Cylinder")<0)return;' +
+        /* ★★ 氯化钠的棱不做「贴球」：球半径 0.75、棱长 4，端点本来就埋在球心，球一遮
+           正好看着贴住；硬按球面重算时两端容易认到同一位置的接头小球（r≈0.04），
+           算出来一边只缩 0.04 —— 那根棱就插进球里、端头在球外悬空，看着「只画了半根」。
+           其余三页照旧（它们的球小、克隆后换过物种，确实需要重新贴一次）。 */
+        '    if(isEdge(o)&&isAxial())return;' +
+        '    var h=(o.geometry.parameters&&o.geometry.parameters.height)||0;if(h<1e-4)return;' +
+        '    var ax=new THREE.Vector3(0,1,0).applyQuaternion(o.quaternion);' +
+        '    var mid=new THREE.Vector3();o.getWorldPosition(mid);' +
+        '    var A0=mid.clone().addScaledVector(ax,h*o.scale.y*0.5);' +
+        '    var B0=mid.clone().addScaledVector(ax,-h*o.scale.y*0.5);' +
+        '    function near(pt){var b=null,bd=1e9;' +
+        '      for(var i=0;i<at.length;i++){var d=pt.distanceTo(at[i].p);if(d<bd){bd=d;b=at[i];}}' +
+        '      return (b&&bd<b.r+0.45)?b:null;}' +
+        '    var sa=near(A0),sb=near(B0);if(!sa||!sb||sa===sb)return;' +
+        '    var dir=new THREE.Vector3().subVectors(sb.p,sa.p),L=dir.length();' +
+        '    if(L<1e-4)return;dir.divideScalar(L);' +
+        /* ★★ 棱和键分开处理：
+           棱（晶胞框）要「够长」—— 直接画到两颗球心，球把它吃掉，球面上不会露出一个
+             亮亮的圆柱端头。端头卡在球面时，透视下那个端面会被球挡在剪影边上，看着
+             就像「棱到此为止、没插进球」，也就是用户说的「不够长、没紧贴小球」。
+           键（连两颗离子的细棍）仍贴到球面（嵌进 0.02），这样球之间不会有一截棍子悬着。 */
+        '    var e=0.02;' +
+        '    var A,B;' +
+        '    if(isEdge(o)){A=sa.p.clone();B=sb.p.clone();}' +
+        '    else{A=sa.p.clone().addScaledVector(dir,sa.r-e);B=sb.p.clone().addScaledVector(dir,-(sb.r-e));}' +
+        '    var nl=A.distanceTo(B);if(nl<0.04)return;' +
+        '    o.scale.y=nl/h;' +
+        '    o.quaternion.setFromUnitVectors(up,dir);' +
+        '    o.position.copy(A).add(B).multiplyScalar(0.5).sub(off);n++;' +
+        '  });' +
+        '  g.position.set(0,0,0);g.updateMatrixWorld(true);' +
+        '  return n;}' +
+        /* ★★ 补格点（只有氟化钙真的会动）：克隆 + 物种对调只能覆盖「旧晶胞里本来就有的位置」。
+           氟化钙以 F 为顶点重划后，F 构成边长 a/2 的简单立方 —— 新晶胞的 8 顶点 + 12 棱心 +
+           6 面心 + 1 体心共 27 个格点全是 F，克隆体只带来 15 个，棱心上的 9 个一个都没有
+           （用户一眼就看出来了）。这里按晶体自身的周期性（周期 = 旧晶胞边长）重新判一遍：
+           · 格点上晶体里压根没有离子的（氟化钙那 4 个「空四面体」位置）→ 删掉对调出来的假原子；
+           · 有离子但画面上缺的 → 用同类原型球补齐（几何/材质/光晕都跟原球一套）；
+           · 键按晶体重连：只连两端在晶体里都站得住的离子，长度取晶体的最近异种离子距离。
+           其余三页一个缺格点都没有，函数会直接返回、一格不动。 */
+        'function rebuildCell(g,off){' +
+        '  var old=[],samp={},mn=new THREE.Vector3(1e9,1e9,1e9),mx=new THREE.Vector3(-1e9,-1e9,-1e9);' +
+        '  eachSphere(crystalGroup,function(o){if(!isAtomMesh(o))return;' +
+        '    var k=cls(o);old.push({p:o.position.clone(),k:k,r:(o.geometry.parameters||{}).radius||0.5});' +
+        '    if(!samp[k])samp[k]=o;mn.min(o.position);mx.max(o.position);});' +
+        '  if(old.length<4||!off)return 0;' +
+        '  var per=Math.max(mx.x-mn.x,mx.y-mn.y,mx.z-mn.z);if(per<0.5)return 0;' +
+        /* 把任意位置折回旧晶胞（按周期 per），落在离某颗旧离子 0.15 以内就算「这里有离子」 */
+        '  function pick(w){var q=new THREE.Vector3(mn.x+(((w.x-mn.x)%per)+per)%per, mn.y+(((w.y-mn.y)%per)+per)%per, mn.z+(((w.z-mn.z)%per)+per)%per);' +
+        '    var b=null,bd=1e9;for(var i=0;i<old.length;i++){var d=q.distanceTo(old[i].p);if(d<bd){bd=d;b=old[i];}}' +
+        '    return (b&&bd<0.15)?b:null;}' +
+        /* ① 晶体里不存在的格点：删掉（对调会在这里造出假离子） */
+        '  var bad=[],i,j,k;' +
+        '  eachSphere(g,function(o){if(!isAtomMesh(o))return;if(!pick(o.position.clone().add(off)))bad.push(o);});' +
+        '  bad.forEach(function(o){if(o.parent)o.parent.remove(o);});' +
+        /* ② 27 个格点里缺的补上（新晶胞立方 = 旧立方 + off，每轴取 min / mid / max） */
+        '  var have=[];' +
+        '  eachSphere(g,function(o){if(isAtomMesh(o))have.push(o.position.clone());});' +
+        '  old.forEach(function(a){have.push(a.p.clone().sub(off));});' +
+        '  function exist(c){for(var i=0;i<have.length;i++){if(c.distanceTo(have[i])<0.2)return true;}return false;}' +
+        '  var A=[mn.x,(mn.x+mx.x)/2,mx.x],B=[mn.y,(mn.y+mx.y)/2,mx.y],C=[mn.z,(mn.z+mx.z)/2,mx.z];' +
+        '  var added=0;' +
+        '  for(i=0;i<3;i++)for(j=0;j<3;j++)for(k=0;k<3;k++){' +
+        '    var c=new THREE.Vector3(A[i],B[j],C[k]);' +
+        '    if(exist(c))continue;' +
+        '    var hit=pick(new THREE.Vector3(c.x+off.x,c.y+off.y,c.z+off.z));' +
+        '    if(!hit||!samp[hit.k])continue;' +
+        '    var m=copyNode(samp[hit.k]);if(!m)continue;' +
+        '    m.position.copy(c);g.add(m);have.push(c.clone());added++;' +
+        '  }' +
+        '  if(!added&&!bad.length)return 0;' +
+        /* ③ 键重连：先把克隆来的键全撤掉（它们连的可能是刚删掉的假原子），再按晶体重连。
+             「旧-旧」这一对不再重画 —— 那根键旧晶胞里本来就画着，重合两根只会打架。 */
+        '  var rodR=0,cyl=[];' +
+        '  g.traverse(function(o){if(o.isMesh&&o.geometry&&String(o.geometry.type).indexOf("Cylinder")>=0&&!isEdge(o)){' +
+        '    cyl.push(o);var p=o.geometry.parameters||{},r=Math.max(p.radiusTop||0,p.radiusBottom||0);if(r>rodR)rodR=r;}});' +
+        '  if(rodR<=0)rodR=0.05;' +
+        '  cyl.forEach(function(o){if(o.parent)o.parent.remove(o);});' +
+        '  var L=1e9;' +
+        '  for(i=0;i<old.length;i++)for(j=i+1;j<old.length;j++){if(old[i].k===old[j].k)continue;' +
+        '    var d0=old[i].p.distanceTo(old[j].p);if(d0<L)L=d0;}' +
+        '  if(L>1e8)return 0;' +
+        '  var atoms=[];' +
+        '  eachSphere(g,function(o){if(isAtomMesh(o))atoms.push({p:o.position.clone(),r:(o.geometry.parameters||{}).radius||0.5,n:1});});' +
+        '  old.forEach(function(a){var c=a.p.clone().sub(off);' +
+        '    if(c.x<mn.x-0.01||c.x>mx.x+0.01||c.y<mn.y-0.01||c.y>mx.y+0.01||c.z<mn.z-0.01||c.z>mx.z+0.01)return;' +
+        '    atoms.push({p:c,r:a.r,n:0});});' +
+        '  var nb=0;' +
+        '  if(typeof spawnFluidBond==="function"&&typeof bondMaterial!=="undefined"){' +
+        '    for(i=0;i<atoms.length;i++)for(j=i+1;j<atoms.length;j++){' +
+        '      if(!atoms[i].n&&!atoms[j].n)continue;' +
+        '      if(Math.abs(atoms[i].p.distanceTo(atoms[j].p)-L)>0.15)continue;' +
+        '      try{spawnFluidBond(atoms[i].p,atoms[i].r,atoms[j].p,atoms[j].r,bondMaterial,rodR,true,g,true,false);nb++;}catch(e){}' +
+        '    }' +
+        '  }' +
+        '  return nb;}' +
+        /* ★★ 氯化钠源页的晶胞棱框是 MeshBasicMaterial 灰度细线（其余三页的棱都是金属材质），
+           一分开就显得「边界不是金属的、灰扑扑」。这里请磨砂脚本用同一套配方（dce4ee、
+           金属度 .85、粗糙度 .22、studio 环境贴图 + 边缘辉光）再造一份材质给棱框和顶角
+           接头球用 —— 自己照参数拼的 MeshPhysical 没有 envMap/辉光，金属度 0.85 反而发黑。
+           ★ 必须保留 side=DoubleSide：磨砂脚本靠这个标记跳过棱，否则它会把棱按原子表面截短。 */
+        'function metalEdges(){' +
+        '  var need=false,bond=null;' +
+        '  crystalGroup.traverse(function(o){if(!o.isMesh||!o.geometry||!o.material)return;' +
+        '    var isCyl=String(o.geometry.type).indexOf("Cylinder")>=0;' +
+        '    var small=(o.geometry.type==="SphereGeometry")&&(((o.geometry.parameters||{}).radius||9)<scanMax()*0.25);' +
+        '    if(!isCyl&&!small)return;if(isCyl&&!isEdge(o)){if(!bond)bond=o;return;}' +
+        '    if(!o.material.isMeshPhysicalMaterial)need=true;});' +
+        '  if(!need||!bond)return 0;' +
+        '  var proto=null,CF=window.CrystalFrostAtoms;' +
+        '  try{var base=CF&&CF.baseOf&&CF.baseOf(bond);' +
+        '    if(base&&CF.bondMaterialOf){var b2=base.clone();proto=CF.bondMaterialOf(b2);}}catch(e){proto=null;}' +
+        '  if(!proto)return 0;' +
+        '  proto.side=THREE.DoubleSide;proto.transparent=false;proto.opacity=1;proto.depthWrite=true;' +
+        '  proto.userData=proto.userData||{};proto.userData.crystalFrostMaterial=true;' +
+        '  proto.needsUpdate=true;' +
+        '  var n=0;' +
+        '  crystalGroup.traverse(function(o){if(!o.isMesh||!o.geometry||!o.material)return;' +
+        '    var isCyl=String(o.geometry.type).indexOf("Cylinder")>=0;' +
+        '    var small=(o.geometry.type==="SphereGeometry")&&(((o.geometry.parameters||{}).radius||9)<scanMax()*0.25);' +
+        '    if(!isCyl&&!small)return;if(isCyl&&!isEdge(o))return;' +
+        '    if(o.material===proto)return;o.material=proto;n++;});' +
+        '  return n;}' +
+        /* ★ 氯化钠合拢后要显示的是「一个 1.5a 的长方体框」，而不是立方框套长方体框：
+           原晶胞那 12 根棱随合拢淡出（留着会在 x=a 处变成一道多余的隔断），
+           只留钠的长方体框；删界外原子那一步再淡回来。 */
+        'function edgeMats(){var out=[];crystalGroup.traverse(function(o){' +
+        '  if(!o.isMesh||!o.geometry||!o.material)return;' +
+        '  var cyl=String(o.geometry.type).indexOf("Cylinder")>=0;' +
+        '  var small=(o.geometry.type==="SphereGeometry")&&(((o.geometry.parameters||{}).radius||9)<scanMax()*0.25);' +
+        '  if(!cyl&&!small)return;if(cyl&&!isEdge(o))return;' +
+        '  if(out.indexOf(o.material)<0)out.push(o.material);});return out;}' +
+        'function setEdgeOpacity(v,soft){edgeMats().forEach(function(m){' +
+        '  if(m.transparent!==true){m.transparent=true;m.needsUpdate=true;}' +
+        '  m.opacity=v;if(v>=1&&!soft){m.transparent=false;m.needsUpdate=true;}});}' +
+        /* ★★★ 氟化钙专用新晶胞（2026-11-15）：不是整胞克隆，而是 8 个 F⁻ 组成的小立方体
+           （边长 a/2、中心在体心）—— 就是课本那句「F⁻ 落在 8 个小立方体的中心」本身。
+           它沿 x 轴水平滑进 Ca²⁺ 的面心立方：合拢后 F 全部落在晶胞内部、补上键就是完整晶胞，
+           界外一颗原子都没有 ⇒ 不再需要「删除多余原子」那一步（用户要求）。
+           ★ 8 颗 F 直接取原晶胞里那 8 颗（位置本来就对，不做半格平移）；
+             分开时的位移由 ghost.position = FLUOR_SEP 负责，跟 clone 出来的内容无关。 */
+        'function fluorSep(){var S=sites();return new THREE.Vector3(S.per*1.2,0,0);}' +
+        /* ★★ 分开的方向必须是**屏幕上的水平**：源页相机 up=(0,0,1)，z 是屏幕竖直，
+           所以取相机 right 向量投到 xy 平面（去 z）就是屏幕横向。写死 +x 会沿透视斜着
+           往右下走，两个晶胞看着像叠在一起（用户要「水平插入」，就是这个意思）。
+           ★ 方向就是「屏幕右」（相机矩阵第 0 列）。相机换到 az=+45 之后，
+             「屏幕右」在世界里是 (-x,-y)，也就是屏幕左，正好把氟的小立方体送向左侧；
+             另外三页的 off 也一起翻到左边（用户：左右换一下）。
+           方向在 buildSplit 那一刻定一次并缓存，动画中途相机转动也不会把位移方向改掉。 */
+        'var FDIR=null;' +
+        'function fluorDir(){' +
+        '  if(FDIR)return FDIR;' +
+        /* ★ 不能用 camera.matrixWorld 的第 0 列：那要等渲染才更新，改完视角后可能还是旧方向
+           （氟会跑到右边）。直接按 OrbitControls 的 eye/target 算屏幕右 = cross(z, eye-target)。 */
+        '  var c=(controls&&controls.object)||null,tg=(controls&&controls.target)||null,' +
+        '    d=new THREE.Vector3(1,0,0);' +
+        '  try{if(c&&tg&&c.position){var zc=c.position.clone().sub(tg).normalize();' +
+        '    d.set(0,0,1).cross(zc);d.z=0;}}catch(e){}' +
+        '  if(d.lengthSq()<1e-6)d.set(1,0,0);' +
+        /* ★ 取反 = 屏幕「左」：x_cam 是屏幕右方向，negate 后氟的小立方体往左飞，
+           合拢时从左往右插进钙晶胞（用户要求：氟在左、钙在右）。 */
+        '  d.normalize().negate();FDIR=d;return FDIR;}' +
+        'function fluorSep(){var S=sites();return fluorDir().clone().multiplyScalar(S.per*1.5);}' +
+        'function makeFluor(){' +
+        '  FDIR=null;' +
+        '  var g=new THREE.Group(),spA=cornerSpecies(crystalGroup),S=sites();' +
+        '  if(!spA)return;' +
+        '  var fs=[];' +
+        '  eachSphere(crystalGroup,function(o){if(!isAtomMesh(o))return;if(cls(o)===spA)return;' +
+        '    var m=copyNode(o,null);if(m){m.visible=true;g.add(m);fs.push(o.position.clone());}});' +
+        '  if(fs.length<4)return;' +
+        /* 小立方体的 12 条棱：连 F 与 F 之间「距离 = a/2」的那些对。半径/材质照搬原晶胞的棱 */
+        '  var best=1e9,rodM=null;' +
+        '  crystalGroup.traverse(function(o){if(!o.isMesh||!o.geometry||!o.material)return;' +
+        '    if(String(o.geometry.type).indexOf("Cylinder")<0)return;if(!isEdge(o))return;' +
+        '    var p=o.geometry.parameters||{},r=Math.max(p.radiusTop||0,p.radiusBottom||0);' +
+        '    if(r>0&&r<best){best=r;rodM=o.material;}});' +
+        '  var rodR=(best<1e8)?best:0.03,up=new THREE.Vector3(0,1,0),L=S.per*0.5,i,j;' +
+        '  for(i=0;i<fs.length;i++)for(j=i+1;j<fs.length;j++){' +
+        '    var d=fs[i].distanceTo(fs[j]);if(Math.abs(d-L)>L*0.2)continue;' +
+        '    var mg=new THREE.Mesh(new THREE.CylinderGeometry(rodR,rodR,1,12),rodM?cmat(rodM):undefined);' +
+        '    mg.scale.set(1,d,1);' +
+        '    mg.position.copy(fs[i]).add(fs[j]).multiplyScalar(0.5);' +
+        '    mg.quaternion.setFromUnitVectors(up,fs[j].clone().sub(fs[i]).normalize());' +
+        '    g.add(mg);' +
+        '  }' +
+        '  scene.add(g);' +
+        '  g.traverse(function(o){if(o.isMesh&&o.material&&o.material.clone){' +
+        '    var mm=cmat(o.material);mm.userData=mm.userData||{};' +
+        '    mm.userData.crystalFrostMaterial=true;o.material=mm;}});' +
+        '  var list=matsOf(g);list.forEach(function(m){m.transparent=true;m.opacity=0;});' +
+        '  ghost=g;ghost.__mats=list;' +
+        '}' +
+        'function make(){' +
+        '  if(isFluor()){makeFluor();return;}' +
+        '  var g=new THREE.Group(),skip={},pr=protos();' +
+        '  for(var i=0;i<crystalGroup.children.length;i++){var c=copyNode(crystalGroup.children[i],pr,skip);if(c)g.add(c);}' +
+        /* 平移 → 删掉与旧晶胞重合的原子/键（物种已对调，重合点本来就是同一颗离子/同一根键）。
+           键用「距离容差」比对而不是整数格点键：磨砂脚本按两端原子半径把键缩短了，
+           中点会偏离格点 0.05 上下，用整点 key 判会漏掉、同一根键画两遍。
+           棱框的容差要更小：新旧两个框本来就是错开的，容差给大了会把该留的棱误删。 */
+        '  g.position.copy(offB||off);g.updateMatrixWorld(true);' +
+        '  var oa=[],oc=[],v=new THREE.Vector3(),drop=[];' +
+        '  eachSphere(crystalGroup,function(o){' +
+        '    var rr=(o.geometry.parameters&&o.geometry.parameters.radius)||0;' +
+        '    if(rr<scanMax()*0.25)return;oa.push(o.position.clone());});' +
+        '  crystalGroup.traverse(function(o){if(o.isMesh&&o.geometry&&o.geometry.type!=="SphereGeometry")' +
+        '    oc.push({p:o.position.clone(),r:isEdge(o)?0.05:0.18});});' +
+        '  g.traverse(function(o){if(!o.isMesh||!o.geometry)return;o.getWorldPosition(v);' +
+        '    if(o.geometry.type==="SphereGeometry"){' +
+        /* ★ 顶角接头球（r≈0.04 的小球）不参与去重：它落在棱的顶点上，平移半格后
+           正好撞上晶胞里的离子球，会被当成「重复」删掉 —— 结果是新晶胞左面 4 个
+           顶角没有接头球，三条棱在那儿对不上，看着就像「最左边那根棱少了半截」。 */
+        '      var rr=(o.geometry.parameters&&o.geometry.parameters.radius)||0;' +
+        '      if(rr<scanMax()*0.25)return;' +
+        '      for(var i=0;i<oa.length;i++){if(v.distanceTo(oa[i])<0.08){drop.push(o);break;}}' +
+        '      return;}' +
+        '    for(var j=0;j<oc.length;j++){if(v.distanceTo(oc[j].p)<oc[j].r){drop.push(o);break;}}});' +
+        '  drop.forEach(function(o){if(o.parent)o.parent.remove(o);});' +
+        '  g.position.set(0,0,0);' +
+        '  try{fillN=rebuildCell(g,offB||off);}catch(e){fillErr=String(e&&e.message||e);}' +
+        /* ★ 新键要跟原键一样的金属质感：克隆下来的是「已接管」的副本，看着会发闷。
+           这里把克隆键的 crystalFrostMaterial 标记摘掉、挂进场景后立刻调一次
+           applyBondsNow(true)，让磨砂脚本按静态键同一套流程把新键重做一遍
+           （源页自己做转换动画时也是这么干的）。
+           ★ 棱框不摘标记：它是细棱不是键，跟着重新接管会被当键加粗、质感反而变了。 */
+        '  scene.add(g);' +
+        '  try{' +
+        '    if(window.CrystalFrostAtoms&&CrystalFrostAtoms.applyBondsNow){' +
+        '      g.traverse(function(o){if(o.isMesh&&o.material&&o.material.userData&&!isEdge(o))' +
+        '        delete o.material.userData.crystalFrostMaterial;});' +
+        '      CrystalFrostAtoms.applyBondsNow(true);' +
+        '    }' +
+        '  }catch(e){}' +
+        /* 接管完再把每根圆柱的两端贴回球面（换物种后截短量会错位，见 fitEnds 注释） */
+        '  try{fitEnds(g,offB||off);}catch(e){}' +
+        '  try{thinBonds(g);}catch(e){}' +
+        /* 接管后的材质往往是全场景共用一份 —— 逐网格克隆，淡入淡出才不会把旧键一起淡掉；
+           克隆体打上 crystalFrostMaterial，下一轮扫描就不会再把 opacity 改回 1。
+           ★★ 克隆必须把 onBeforeCompile 一起搬过去：磨砂脚本就是靠它给材质注入
+             金属边缘光/磨砂着色器的，Material.clone() **不会**复制这个函数 ——
+             不搬的话新键就成了「素面 MeshPhysical」→ 明显比原键发暗、发闷。 */
+        '  g.traverse(function(o){if(o.isMesh&&o.material&&o.material.clone){' +
+        '    var mm=cmat(o.material);mm.userData=mm.userData||{};' +
+        '    mm.userData.crystalFrostMaterial=true;o.material=mm;}});' +
+        '  var list=matsOf(g);list.forEach(function(m){m.transparent=true;m.opacity=0;});' +
+        '  ghost=g;ghost.__mats=list;}' +
+        /* 长了第二个晶胞以后整体大了一圈、而且往 +off 方向偏 —— 相机跟着退一点、往中间挪半格，
+           否则竖屏时新框的右角会被裁掉。
+           ★ 关掉时不能整份 pos 倒回去：源页开着「模型自转」，900ms 里相机已经转过一点了，
+             倒回去会跳一下。所以只还原「目标点 + 距离」，当前朝向原样保留。 */
+        'var camSave=null;' +
+        /* mul = 新晶胞位置（off 的倍数）：0 复原 / 1 交叉 / T 分开。
+           目标点取两个晶胞连线的中点，距离按「外接球半径」放大 —— 氯化铯走半个体对角线、
+           氟化钙只走 1/4 条（离得远），写死倍数会让氟化钙的两个晶胞还叠在一起。 */
+        'function camSet(mul){try{' +
+        /* ★ 四个源页暴露的全局不一样：cscl/nacl/caf2 有 engineState，硫化锌没有（只有 controls），
+           直接取 engineState 会抛错、被 catch 吞掉 —— 相机一动不动，第二个晶胞就被裁出画面。
+           统一从 OrbitControls 身上拿相机（controls.object），四页都有。 */
+        '  var c=(controls&&controls.object)||' +
+        '    ((typeof engineState!=="undefined"&&engineState.activeCamera)||null);' +
+        '  if(!c||!c.position||!off)return;' +
+        '  var tgt=(controls&&controls.target)?controls.target:null;if(!tgt)return;' +
+        '  var dir=c.position.clone().sub(tgt),len=dir.length()||1;dir.normalize();' +
+        '  if(!(mul>0)){' +
+        '    if(!camSave)return;' +
+        '    tgt.copy(camSave.t);' +
+        '    c.position.copy(tgt).addScaledVector(dir,camSave.d);' +
+        '    if(c.isOrthographicCamera&&camSave.z!==undefined){c.zoom=camSave.z;c.updateProjectionMatrix();}' +
+        '    camSave=null;' +
+        '  }else{' +
+        '    if(!camSave)camSave={t:tgt.clone(),d:len,z:c.zoom};' +
+        '    var g=off.clone().multiplyScalar(mul),mag;' +
+        '    if(mul<=1){mag=1+0.16*mul;}' +
+        '    else{var R0=sites().per*0.866,R1=R0+off.length()*0.5;' +
+        '      mag=1.16*(R0+g.length()*0.5)/R1;}' +
+        /* ★ 硫化锌：分开拉远后相机别跟着退那么多，晶胞在画面里更大（用户「大一些」）。
+           ★ 系数必须随 mul 平滑收回：写成 mul>1 才乘 0.80，会在 mul 跨过 1 的那一帧
+           从 0.93 跳回 1.16（相机猛退 25%），合拢后「突然变小」。
+           mul>=1 → 0.80（分开画面不变）；1>mul>0 → 平滑回到 1.00；mul=0 → 1.00（初始视角不变）。 */
+        '    if(PAGE==="zns")mag*=1-0.20*Math.min(1,mul);' +
+        '    tgt.copy(camSave.t).addScaledVector(g,0.5);' +
+        '    c.position.copy(tgt).addScaledVector(dir,camSave.d*mag);' +
+        '    if(c.isOrthographicCamera){c.zoom=camSave.z/mag;c.updateProjectionMatrix();}' +
+        '  }' +
+        '  if(controls&&controls.update)controls.update();' +
+        '}catch(e){}}' +
+        /* ★ 氟化钙专用取景：k = 两胞「分开程度」（1 分开 / 0 合拢）。
+           camSet 的 mag 公式是给「两胞只错开一点点」写的（mag 恒在 1.16 附近），
+           而这里新晶胞要沿 x 冲出 1.2a，画面得退到 1.6 倍左右才装得下。
+           目标点按两胞中点平移，距离单独放大 —— 跟 camSet 各有各的一套 camSave。 */
+        'var camSaveF=null;' +
+        'function camFit(k){try{' +
+        '  var c=(controls&&controls.object)||null;' +
+        '  var tgt=(controls&&controls.target)?controls.target:null;' +
+        '  if(!c||!tgt||!off)return;' +
+        '  var sep=fluorSep(),dir0=c.position.clone().sub(tgt),len0=dir0.length()||1;dir0.normalize();' +
+        '  if(!camSaveF)camSaveF={t:tgt.clone(),d:len0,z:c.zoom};' +
+        '  var push=Math.max(0,Math.min(1,k));' +
+        '  if(push<=0.004){' +
+        '    tgt.copy(camSaveF.t);c.position.copy(tgt).addScaledVector(dir0,camSaveF.d);' +
+        '    if(c.isOrthographicCamera&&camSaveF.z!==undefined){c.zoom=camSaveF.z;c.updateProjectionMatrix();}' +
+        '    camSaveF=null;' +
+        '  }else{' +
+        '    var mag=1+0.28*push;' +
+        '    tgt.copy(camSaveF.t).addScaledVector(sep.clone().normalize(),sep.length()*push*0.5);' +
+        '    c.position.copy(tgt).addScaledVector(dir0,camSaveF.d*mag);' +
+        '    if(c.isOrthographicCamera){c.zoom=camSaveF.z/mag;c.updateProjectionMatrix();}' +
+        '  }' +
+        '  if(controls&&controls.update)controls.update();' +
+        '}catch(e){}}' +
+        'function tween(dur,step,done){var t0=0;' +
+        '  function run(t){if(!t0)t0=t;var p=Math.min(1,(t-t0)/dur),e=1-Math.pow(1-p,3);step(e,p);' +
+        '    if(p<1){requestAnimationFrame(run);return;}if(done)done();}' +
+        '  requestAnimationFrame(run);}' +
+        'function pause(on){try{if(window.CrystalFrostAtoms&&CrystalFrostAtoms.pauseScan)CrystalFrostAtoms.pauseScan(!!on);}catch(e){}}' +
+        /* 下一步该做什么，由页面自己算（氯化钠多一步「钠伸半格」，按钮文字不能写死在壳里） */
+        'function nextLabel(){' +
+        '  if(phase===0)return "① 重新分开";' +
+        '  if(phase===3)return isAxial()?"② 钠伸半格":"② 合拢两个晶胞";' +
+        '  if(phase===4)return "③ 合拢两个晶胞";' +
+        /* 氟化钙只有三步：分开 → 合拢（小立方体插进去）→ 补键就完整，没有「删除多余原子」 */
+        '  if(phase===2)return isFluor()?"③ 补回化学键":(isAxial()?"④ 补回化学键":"③ 补回化学键");' +
+        '  if(phase===1)return isFluor()?"① 重新分开":(isAxial()?"⑤ 删除多余原子":"④ 删除多余原子");' +
+        '  return "";}' +
+        'function post(){try{parent.postMessage({__ydn:1,phase:phase,label:nextLabel()},"*");}catch(e){}}' +
+        /* ★★ 第三步（分开）必须补球：克隆体在「交叉」位置把与旧晶胞重合的离子删掉了（重合点本来
+           就是同一颗），一分开新晶胞就缺位置 —— 氯化钠缺一整个面、氯化铯缺一个顶角加体心。
+           补什么物种按晶体自身的周期性判（位置 + off 折回旧晶胞找同类离子），跟克隆体
+           「换过原点」的物种规则完全一致，氟化钙那种重建过的也能用。 */
+        'var SITE=null;' +
+        'function sites(){if(SITE)return SITE;' +
+        '  var old=[],samp={},mn=new THREE.Vector3(1e9,1e9,1e9),mx=new THREE.Vector3(-1e9,-1e9,-1e9);' +
+        '  eachSphere(crystalGroup,function(o){if(!isAtomMesh(o))return;' +
+        '    var k=cls(o);old.push({p:o.position.clone(),k:k});' +
+        '    if(!samp[k])samp[k]=o;mn.min(o.position);mx.max(o.position);});' +
+        '  SITE={old:old,samp:samp,mn:mn,mx:mx,per:Math.max(mx.x-mn.x,mx.y-mn.y,mx.z-mn.z)};return SITE;}' +
+        /* ★★★ 第三步「分开」要一胞一物种：氯化铯 → 铯的简单立方 + 氯的简单立方；
+           氯化钠 → 氯的面心立方 + 钠的面心立方；硫化锌 → 硫、锌两个面心立方；
+           氟化钙 → 钙的面心立方 + 氟的（棱心也充满的）面心立方。
+           顶角那种离子就是每个晶胞自己的物种：旧晶胞只留它（面心/棱心/体心上的异种球是
+           「重合后重复的」，全删），新晶胞（克隆体物种已对调）按目标格点补同类球、删异类球。
+           ★ 氟化钙的目标格点是简单立方的 27 点（8 顶点 + 12 棱心 + 6 面心 + 1 体心，全为 F），
+             其余三种沿用旧晶胞里同类离子那一套位置（简单立方 8 个 / 面心立方 14 个）。 */
+        'function cornerSpecies(root){var S=sites();' +
+        '  var t=new THREE.Vector3(S.mn.x,S.mn.y,S.mn.z),best=null,bd=1e9;' +
+        '  eachSphere(root,function(o){if(!isAtomMesh(o))return;' +
+        '    var d=o.position.distanceTo(t);if(d<bd){bd=d;best=o;}});' +
+        '  return best?cls(best):null;}' +
+        'function trimCells(){' +
+        '  var pr=protos();if(!pr||pr.ks.length!==2)return null;' +
+        '  var spA=cornerSpecies(crystalGroup);if(!spA)return null;' +
+        '  var spB=(pr.ks[0]===spA)?pr.ks[1]:pr.ks[0];' +
+        '  var S=sites(),out={dropA:[],dropB:[],add:[],addMesh:[]},i,j,k;' +
+        '  eachSphere(crystalGroup,function(o){if(isAtomMesh(o)&&cls(o)!==spA)out.dropA.push(o);});' +
+        /* ★★ 氟化钙（2026-11-15 改）：原晶胞只留 14 颗 Ca²⁺（上面这行已经收好 8 颗 F⁻），
+           新晶胞本来就是「8 颗 F + 小立方体框」的完整一组，一颗都不用删、不用补。
+           合拢到位后由 joinF() 把 8 颗 F 交还给原晶胞（同位同种，看不出换手），
+           所以这里直接返回 —— 27 格点、补球、删假原子那一整套都不再走。 */
+        '  if(isFluor())return out;' +
+        /* ★★ 氯化钠单独一路（两个子晶格只差半个晶格 a/2）：克隆体平移半个晶格、物种一对调，
+           钠就正好落在钠该在的位点上 —— 位置本来就是对的，不需要按「另一种离子」的位置重扫。
+           原来走通用分支时 pts 取的是原晶胞 14 颗氯的位置，于是把 14 颗钠补到氯的位点上、
+           又把克隆体里位置正确的钠全藏了 —— 合拢后看着就是「没有重合的地方冒出一堆离子」。
+           这里改成：删掉混进来的 4 颗氯，再按晶体周期把新晶胞 27 个格点里缺的钠补齐。 */
+        '  if(isAxial()){' +
+        '    var pb=[S.mn.x,(S.mn.x+S.mx.x)/2,S.mx.x],qc=[S.mn.y,(S.mn.y+S.mx.y)/2,S.mx.y],rd=[S.mn.z,(S.mn.z+S.mx.z)/2,S.mx.z];' +
+        '    function fold(w){return new THREE.Vector3(' +
+        '      S.mn.x+(((w.x-S.mn.x)%S.per)+S.per)%S.per,' +
+        '      S.mn.y+(((w.y-S.mn.y)%S.per)+S.per)%S.per,' +
+        '      S.mn.z+(((w.z-S.mn.z)%S.per)+S.per)%S.per);}' +
+        '    function pk(w){var q=fold(w),b=null,bd=1e9;' +
+        '      S.old.forEach(function(a){var d=q.distanceTo(a.p);if(d<bd){bd=d;b=a;}});' +
+        '      return (b&&bd<0.15)?b:null;}' +
+        '    eachSphere(ghost,function(o){if(!isAtomMesh(o))return;if(cls(o)!==spB)out.dropB.push(o);});' +
+        '    var have2=[];' +
+        '    eachSphere(ghost,function(o){if(isAtomMesh(o)&&cls(o)===spB)have2.push(o.position.clone());});' +
+        '    var proto2=S.samp[spB]||pr.m[spB];' +
+        '    for(i=0;i<3;i++)for(j=0;j<3;j++)for(k=0;k<3;k++){' +
+        '      var c2=new THREE.Vector3(pb[i],qc[j],rd[k]);' +
+        '      var h2=pk(c2.clone().add(offB||off));if(!h2||h2.k!==spB)continue;' +
+        '      var nd=false;for(var t2=0;t2<have2.length;t2++){if(c2.distanceTo(have2[t2])<0.12)nd=true;}' +
+        '      if(nd)continue;' +
+        '      if(!proto2)continue;' +
+        '      var m2=copyNode(proto2,null);if(!m2)continue;' +
+        '      m2.position.copy(c2);m2.scale.copy(proto2.scale);ghost.add(m2);have2.push(c2.clone());' +
+        '      out.addMesh.push(m2);' +
+        '      var ms2=matsOf(m2);' +
+        '      ms2.forEach(function(x){x.transparent=true;x.opacity=0;' +
+        '        x.userData=x.userData||{};x.userData.crystalFrostMaterial=true;});' +
+        '      out.add=out.add.concat(ms2);' +
+        '    }' +
+        '    return out;' +
+        '  }' +
+        '  var pts=[];' +
+        '  if(fillN>0){' +
+        '    var A=[S.mn.x,(S.mn.x+S.mx.x)/2,S.mx.x],B=[S.mn.y,(S.mn.y+S.mx.y)/2,S.mx.y],C=[S.mn.z,(S.mn.z+S.mx.z)/2,S.mx.z];' +
+        '    for(i=0;i<3;i++)for(j=0;j<3;j++)for(k=0;k<3;k++)pts.push(new THREE.Vector3(A[i],B[j],C[k]));' +
+        '  }else{' +
+        '    eachSphere(crystalGroup,function(o){if(isAtomMesh(o)&&cls(o)===spA)pts.push(o.position.clone());});' +
+        '  }' +
+        '  function near(list,p){for(var t=0;t<list.length;t++){if(p.distanceTo(list[t])<0.12)return true;}return false;}' +
+        '  var have=[];' +
+        '  eachSphere(ghost,function(o){if(!isAtomMesh(o))return;' +
+        '    if(cls(o)!==spB||!near(pts,o.position)){out.dropB.push(o);return;}' +
+        '    have.push(o.position.clone());});' +
+        '  var proto=S.samp[spB]||pr.m[spB];' +
+        '  if(proto)pts.forEach(function(p){if(near(have,p))return;' +
+        '    var m=copyNode(proto,null);if(!m)return;' +
+        '    m.position.copy(p);m.scale.copy(proto.scale);ghost.add(m);have.push(p.clone());' +
+        '    out.addMesh.push(m);' +
+        '    var ms=matsOf(m);' +
+        '    ms.forEach(function(x){x.transparent=true;x.opacity=0;' +
+        '      x.userData=x.userData||{};x.userData.crystalFrostMaterial=true;});' +
+        '    out.add=out.add.concat(ms);});' +
+        /* 氯化钠那 8 颗 r≈0.04 的灰「格点标记」不算离子（isAtomMesh 把它们筛掉了），
+           但克隆时被去重删掉了几颗 —— 两个晶胞摆在一起会一个 8 颗、一个 4 颗，很扎眼。
+           按旧晶胞的位置补齐，两边一样。 */
+        '  var mark=[];' +
+        '  eachSphere(ghost,function(o){if(!isAtomMesh(o))mark.push(o.position.clone());});' +
+        '  eachSphere(crystalGroup,function(o){if(isAtomMesh(o))return;' +
+        '    if(near(mark,o.position))return;' +
+        '    var m=copyNode(o,null);if(!m)return;' +
+        '    m.position.copy(o.position);ghost.add(m);mark.push(o.position.clone());' +
+        '    var ms=matsOf(m);' +
+        '    ms.forEach(function(x){x.transparent=true;x.opacity=0;' +
+        '      x.userData=x.userData||{};x.userData.crystalFrostMaterial=true;});' +
+        '    out.add=out.add.concat(ms);});' +
+        '  return out;}' +
+        /* ★★★ 氯化钠专属：多一步「钠向右伸半个晶格」（2026-11-15 用户要求）
+           氯化钠两个子晶格只差半个晶格：以氯为顶点的立方 [0,a] 与以钠为顶点的立方 [a/2,3a/2]
+           只重叠一半。合拢后钠的盒子要从氯盒左面一直伸到右边多出的半格（长 3a/2），
+           这样每一个钠位上那颗钠都是「随晶胞平移过来」的 —— 不需要任何淡入补球。
+           这一步做两件事：① 在 -a/2 面补 4 颗钠（原晶胞 x=min 面上那 4 颗棱心钠，
+           被 trimCells 藏起来了，这里按晶体周期复现一份）；② 把立方框左面那 4 根棱和
+           4 个顶角接头球推到 -a/2，4 根沿 x 的棱同时拉长 —— 立方框就长成 1.5a 的长方体。 */
+        'function isAxial(){if(PAGE)return PAGE==="nacl";' +
+        '  return !!(off&&Math.abs(off.y)<1e-3&&Math.abs(off.z)<1e-3&&Math.abs(off.x)>0.1);}' +
+        'function applyGrow(k){var gr=(ghost&&ghost.__grow)||[];' +
+        '  gr.forEach(function(it){' +
+        '    if(it.kind==="move"){it.m.position.x=it.x0-k*off.x;}' +
+        '    else{it.m.position.x=it.x0-k*off.x*0.5;it.m.scale.y=it.sy0+(it.sy1-it.sy0)*k;}' +
+        '  });}' +
+        'function extendNaLong(){' +
+        '  var g=ghost;if(!g||g.__long)return [];' +
+        '  var S=sites(),ox=off.x,per=S.per,out=[];' +
+        '  var pr=protos();if(!pr||pr.ks.length!==2)return [];' +
+        '  var spA=cornerSpecies(crystalGroup);if(!spA)return [];' +
+        '  var spB=(pr.ks[0]===spA)?pr.ks[1]:pr.ks[0];' +
+        '  var proto=null;' +
+        '  eachSphere(g,function(o){if(!isAtomMesh(o))return;if(cls(o)!==spB)return;if(!proto)proto=o;});' +
+        '  if(!proto)return [];' +
+        '  g.__long=1;' +
+        '  var ys=[S.mn.y,(S.mn.y+S.mx.y)/2,S.mx.y],zs=[S.mn.z,(S.mn.z+S.mx.z)/2,S.mx.z];' +
+        '  var have=[];eachSphere(g,function(o){if(isAtomMesh(o))have.push(o.position.clone());});' +
+        '  function fold(w){return new THREE.Vector3(' +
+        '    S.mn.x+(((w.x-S.mn.x)%per)+per)%per,' +
+        '    S.mn.y+(((w.y-S.mn.y)%per)+per)%per,' +
+        '    S.mn.z+(((w.z-S.mn.z)%per)+per)%per);}' +
+        '  function hit(w){var q=fold(w),b=null,bd=1e9;' +
+        '    S.old.forEach(function(a){var d=q.distanceTo(a.p);if(d<bd){bd=d;b=a;}});' +
+        '    return (b&&bd<0.15)?b:null;}' +
+        '  var i,j,t;' +
+        '  for(i=0;i<3;i++)for(j=0;j<3;j++){' +
+        '    var c=new THREE.Vector3(S.mn.x-ox,ys[i],zs[j]);' +
+        '    var h=hit(c.clone().add(offB||off));if(!h||h.k!==spB)continue;' +
+        '    var dup=false;for(t=0;t<have.length;t++){if(c.distanceTo(have[t])<0.12)dup=true;}' +
+        '    if(dup)continue;' +
+        '    var m=copyNode(proto,null);if(!m)continue;' +
+        '    m.position.copy(c);m.scale.copy(proto.scale);g.add(m);have.push(c.clone());' +
+        '    var ms=matsOf(m);' +
+        '    ms.forEach(function(x){x.transparent=true;x.opacity=0;' +
+        '      x.userData=x.userData||{};x.userData.crystalFrostMaterial=true;});' +
+        '    out=out.concat(ms);' +
+        '  }' +
+        '  var grow=[];' +
+        '  g.traverse(function(o){' +
+        '    if(!o.isMesh||!o.geometry)return;' +
+        '    if(String(o.geometry.type).indexOf("Cylinder")>=0){' +
+        '      if(!isEdge(o))return;' +
+        '      var ax=new THREE.Vector3(0,1,0).applyQuaternion(o.quaternion);' +
+        '      if(Math.abs(ax.x)>0.7){' +
+        '        var h0=(o.geometry.parameters&&o.geometry.parameters.height)||1;' +
+        '        var sy0=o.scale.y||1,ext=(h0*sy0-per)/2;' +
+        '        grow.push({m:o,kind:"len",x0:o.position.x,sy0:sy0,sy1:sy0*(per+ox+2*ext)/(per+2*ext)});' +
+        '      }else if(Math.abs(o.position.x-S.mn.x)<0.12){' +
+        '        grow.push({m:o,kind:"move",x0:o.position.x});' +
+        '      }' +
+        '      return;' +
+        '    }' +
+        '    if(o.geometry.type==="SphereGeometry"){' +
+        '      var r=(o.geometry.parameters&&o.geometry.parameters.radius)||9;' +
+        '      if(r<scanMax()*0.25&&Math.abs(o.position.x-S.mn.x)<0.12)grow.push({m:o,kind:"move",x0:o.position.x});' +
+        '    }' +
+        '  });' +
+        '  g.__grow=grow;' +
+        '  return out;}' +
+        /* 合拢到位后做一次「无缝交接」：落在原晶胞范围内的钠由原晶胞自己那 13 颗接住
+           （同一位置、同一物种，换手的一瞬间看不出来），钠的长方体只剩探出去那半格。
+           这样后面补键时键两端都有可见的离子，而外伸半格那几颗钠也不会长出键。 */
+        'function swapInner(){' +
+        '  var S=sites();' +
+        '  eachSphere(ghost,function(o){if(!isAtomMesh(o))return;' +
+        '    var w=o.position.clone().add(off);' +
+        '    if(w.x>=S.mn.x-0.01&&w.x<=S.mx.x+0.01&&w.y>=S.mn.y-0.01&&w.y<=S.mx.y+0.01&&w.z>=S.mn.z-0.01&&w.z<=S.mx.z+0.01)o.visible=false;});' +
+        '  eachSphere(crystalGroup,function(o){if(!isAtomMesh(o))return;' +
+        /* 交接回来的球可能有两种「藏」法：瞬时搭帧只把 visible 关了（材质不透明度还是 1），
+           而从原晶胞推过去那一趟（anim）会把它们的材质淡到 0 —— 两种都得放开。 */
+        '    var m=o.material,op=(m&&m.opacity!==undefined)?m.opacity:1;' +
+        '    if(o.visible!==false&&op>0.5)return;' +
+        '    o.visible=true;' +
+        '    if(!m)return;if(m.__t===undefined)m.__t=1;' +
+        '    if(m.transparent===true)m.opacity=m.__t;' +
+        '    if(m.__tr===false){m.transparent=false;m.needsUpdate=true;}' +
+        '  });' +
+        '}' +
+        /* ★ 独立一步：钠向右伸半个晶格（phase 3 → 4）。只伸长、不移动，
+           下一步（合拢）再整体滑过去 —— 用户明确要求这一步单独占一拍。 */
+        'function growNa(){' +
+        '  var grow=[];try{grow=extendNaLong();}catch(e){fillErr=String(e&&e.message||e);}' +
+        '  tween(760,function(e,p){' +
+        '    try{applyGrow(p);}catch(e2){}' +
+        '    grow.forEach(function(m){m.opacity=p*(m.__t===undefined?1:m.__t);});' +
+        '  },function(){' +
+        '    try{applyGrow(1);}catch(e3){}' +
+        '    grow.forEach(function(m){m.opacity=(m.__t===undefined?1:m.__t);' +
+        '      if(m.__tr===false){m.transparent=false;m.needsUpdate=true;}});' +
+        '    phase=4;busy=false;pause(false);post();' +
+        '  });' +
+        '}' +
+        'function joinNaCl(){' +
+        /* 保险：万一没走伸长那一步就点到合拢，这里补一次，否则钠只有 14 颗 */
+        '  if(ghost&&!ghost.__long){try{extendNaLong();applyGrow(1);}catch(e0){}}' +
+        '  var em=[];try{em=edgeMats();}catch(e5){}' +
+        '  var from=ghost.position.clone(),to=off.clone();' +
+        '  var T=from.length()/(off.length()||1);' +
+        '  tween(DUR+220,function(e,p){' +
+        /* 原晶胞那 12 根棱合拢后会被钠的长方体框整个盖住，x=a 处还会多出一道隔断，
+           所以随合拢一起淡出；删界外原子那一步再淡回来。 */
+        '    var k2=Math.min(1,p/0.75);' +
+        '    em.forEach(function(m){m.opacity=1-k2;});' +
+        '    camSet(1+(T-1)*(1-e));' +
+        '    ghost.position.copy(from).lerp(to,e);' +
+        '  },function(){' +
+        '    em.forEach(function(m){m.opacity=0;});' +
+        '    ghost.position.copy(to);camSet(1);' +
+        '    try{swapInner();}catch(e4){}' +
+        '    phase=2;busy=false;pause(false);post();' +
+        '  });' +
+        '}' +
+        /* ★★ 第二步：只留晶胞边界。键和棱在源页里都是圆柱，靠粗细区分（isEdge）。
+           ★ 每根键/每颗球单独克隆一份材质再淡出：磨砂脚本的材质是整场共用的，直接改它的
+             opacity 会把棱框、别的原子一起淡掉。克隆体打 crystalFrostMaterial 标记，磨砂扫描
+             下一轮就不会再把 opacity 改回 1。 */
+        'function bondMeshes(root,out){if(!root)return out;' +
+        '  root.traverse(function(o){if(!o.isMesh||!o.geometry)return;' +
+        '    if(String(o.geometry.type).indexOf("Cylinder")<0)return;' +
+        '    if(isEdge(o))return;out.push(o);});return out;}' +
+        /* ★★★ 源页每根键两端还挂着两颗 Sprite 光晕（`userData.fuseSprites`，就是键和球接头
+           处那个小白点）。它们不是键的子节点、而是另外挂在 crystalGroup 上的独立 Sprite ——
+           所以只把键 visible=false 时，这两颗小亮点还留在原地：分开以后 F⁻ 已经藏了，
+           白点却散在钙的面心立方里，看着就是「残留的痕迹」（用户 2026-11-15 指出）。
+           凡是动键的可见性，都得连这两颗一起动。 */
+        'function bondSprites(root,out){if(!root)return out;' +
+        '  root.traverse(function(o){var s=o.userData&&o.userData.fuseSprites;if(!s||!s.length)return;' +
+        '    for(var i=0;i<s.length;i++){var sp=s[i];if(sp&&out.indexOf(sp)<0)out.push(sp);}});' +
+        '  return out;}' +
+        'function setSprites(root,vis){var sp=[];bondSprites(root,sp);' +
+        '  sp.forEach(function(s){if(s.material&&s.visible!==vis)s.visible=vis;});return sp;}' +
+        /* ★ 「键调细一点」（用户 2026-11-15）：只改键，晶胞边界（棱框）不碰。
+           用 scale.x/z 缩半径，不改 geometry —— isEdge() 认的是 geometry.parameters.radius，
+           一改几何就会把键当棱、棱当键（边界变粗、键反而不见）。scale.y 是长度，别动。 */
+        'var BONDT=0.6;' +
+        'function thinBonds(root){if(!root)return;' +
+        '  root.traverse(function(o){if(!o.isMesh||!o.geometry)return;' +
+        '    if(String(o.geometry.type).indexOf("Cylinder")<0)return;' +
+        '    if(isEdge(o))return;o.scale.x=BONDT;o.scale.z=BONDT;});}' +
+        'var hidA=[];' +
+        'function ownMat(o){var m=o.material;if(!m)return null;' +
+        '  if(!m.userData||!m.userData.__ydnOwn){var mm=cmat(m);mm.userData=mm.userData||{};' +
+        '    mm.userData.crystalFrostMaterial=true;mm.userData.__ydnOwn=1;' +
+        /* ★ 原始不透明度必须沿用 matsOf 记下的 __t：新晶胞的材质在 make() 里已经被压到 0，
+           直接从当前 opacity 取会把 0 当成「满」，第二轮回补键就再也淡不出来了。 */
+        '    mm.__t=(m.__t!==undefined?m.__t:(m.opacity===undefined?1:m.opacity));' +
+        '    mm.__tr=(m.__tr!==undefined?m.__tr:!!m.transparent);' +
+        '    o.material=mm;m=mm;}' +
+        '  return m;}' +
+        'function bondsFade(hide,dur,onDone,noGhost){' +
+        '  thinBonds(crystalGroup);thinBonds(ghost);' +
+        /* 键回来时，两端的 Sprite 光晕也得一起回来（分开时被 hideBondsNow 一起藏掉了） */
+        '  if(!hide){setSprites(crystalGroup,true);if(ghost&&!noGhost)setSprites(ghost,true);}' +
+        '  var l=[];bondMeshes(crystalGroup,l);if(ghost&&!noGhost)bondMeshes(ghost,l);' +
+        '  var mats=[];' +
+        '  l.forEach(function(o){var m=ownMat(o);if(!m)return;' +
+        '    if(o.visible===false)o.visible=true;' +
+        '    if(m.transparent!==true){m.transparent=true;m.needsUpdate=true;}mats.push(m);});' +
+        '  tween(dur,function(e){var v=hide?1-e:e;' +
+        '    mats.forEach(function(m){m.opacity=v*(m.__t===undefined?1:m.__t);});},' +
+        '  function(){' +
+        '    if(hide){l.forEach(function(o){o.visible=false;});setSprites(crystalGroup,false);setSprites(ghost,false);}' +
+        '    else{mats.forEach(function(m){if(m.__tr===false){m.transparent=false;m.needsUpdate=true;}});}' +
+        '    if(onDone)onDone();});}' +
+        'function ghostShow(){pause(true);camSet(1);' +
+        '  var list=ghost.__mats,to=off.clone();' +
+        '  tween(DUR,function(e){' +
+        '    list.forEach(function(m){m.opacity=e*(m.__t===undefined?1:m.__t);});' +
+        '    ghost.position.copy(to).multiplyScalar(e);},' +
+        '  function(){list.forEach(function(m){if(m.__tr===false)m.transparent=false;});' +
+        '    live=true;busy=false;pause(false);post();});}' +
+        /* 第三步：新晶胞沿原来平移的方向继续走，直到两个晶胞彻底分开。
+           走多远按晶胞边长算（不是写死倍数）：off 的每个分量都要挪够一个边长，
+           T = 边长 / max|off 分量| —— 氯化铯 off 是半个体对角线 ⇒ T=2；
+           氟化钙、硫化锌的 off 只有 1/4 条 ⇒ T=4。乘 1.45 让两个晶胞之间留出小半个边长的空。 */
+        'function splitOpen(){pause(true);' +
+        '  var info=null;try{info=trimCells();}catch(e){fillErr=String(e&&e.message||e);}' +
+        '  var added=(info&&info.add)||[],gone=[],mats=[];' +
+        '  hidA=[];' +
+        '  if(info){' +
+        '    info.dropA.forEach(function(o){var m=ownMat(o);if(m)hidA.push({o:o,m:m});});' +
+        '    info.dropA.concat(info.dropB).forEach(function(o){' +
+        '      var m=ownMat(o);if(!m)return;if(o.visible===false)o.visible=true;' +
+        '      if(m.transparent!==true){m.transparent=true;m.needsUpdate=true;}' +
+        '      if(gone.indexOf(o)<0)gone.push(o);' +
+        '      if(mats.indexOf(m)<0)mats.push(m);});' +
+        '  }' +
+        '  var S=sites();' +
+        '  var mx=Math.max(Math.abs(off.x),Math.abs(off.y),Math.abs(off.z))||1;' +
+        '  var T=splitT();' +
+        '  var from=off.clone(),to=off.clone().multiplyScalar(T);' +
+        '  tween(DUR+260,function(e){camSet(1+(T-1)*e);' +
+        '    ghost.position.copy(from).lerp(to,e);' +
+        '    var q=Math.min(1,e*2.0),r=Math.min(1,e*1.7);' +
+        '    added.forEach(function(m){m.opacity=q*(m.__t===undefined?1:m.__t);});' +
+        '    mats.forEach(function(m){m.opacity=(1-r)*(m.__t===undefined?1:m.__t);});},' +
+        '  function(){ghost.position.copy(to);camSet(T);' +
+        '    added.forEach(function(m){m.opacity=(m.__t===undefined?1:m.__t);});' +
+        '    gone.forEach(function(o){o.visible=false;});' +
+        '    busy=false;pause(false);post();});}' +
+        /* 1 → 0：不再整块抽走新晶胞，而是「删掉无关原子」—— 原晶胞边界之外的原子
+           （也就是新晶胞探出去的那半个胞）慢慢淡出，界内的原子原地留着。
+           实现上把新晶胞整体淡出、同时把被它「借」走的原晶胞原子淡回来：
+           同一位置的两位一体，看上去就是界外原子消失、界内原子一直没动。 */
+        'function trimOutside(){pause(true);' +
+        '  var list=[];' +
+        '  ghost.traverse(function(o){if(!o.isMesh||!o.material)return;var m=o.material;' +
+        '    if(list.indexOf(m)>=0)return;' +
+        '    if(m.transparent!==true){m.transparent=true;m.needsUpdate=true;}' +
+        '    m.__t=(m.__t===undefined?1:m.__t);list.push(m);});' +
+        '  var back=[];' +
+        '  eachSphere(crystalGroup,function(o){if(!isAtomMesh(o))return;' +
+        '    if(o.visible&&(o.material.opacity===undefined||o.material.opacity>0.5))return;' +
+        '    var m=ownMat(o);if(!m)return;o.visible=true;' +
+        '    if(m.transparent!==true){m.transparent=true;m.needsUpdate=true;}' +
+        '    back.push(m);});' +
+        '  var T=ghost.position.length()/(off.length()||1);' +
+        /* 原晶胞的棱在合拢时淡掉了（那时用钠的长方体框），这一步跟界外原子一起淡回来 */
+        '  var em2=[];try{em2=edgeMats();}catch(e6){}' +
+        '  tween(1500,function(e){camSet(T*(1-e));' +
+        '    em2.forEach(function(m){m.opacity=Math.min(1,e*1.5);});' +
+        '    list.forEach(function(m){m.opacity=(1-e)*(m.__t===undefined?1:m.__t);});' +
+        '    back.forEach(function(m){m.opacity=e*(m.__t===undefined?1:m.__t);});},' +
+        '  function(){' +
+        '    em2.forEach(function(m){m.opacity=1;if(m.transparent===true){m.transparent=false;m.needsUpdate=true;}});' +
+        '    list.forEach(function(m){if(m.dispose)m.dispose();});scene.remove(ghost);ghost=null;' +
+        '    back.forEach(function(m){m.opacity=(m.__t===undefined?1:m.__t);' +
+        '      if(m.__tr===false){m.transparent=false;m.needsUpdate=true;}});' +
+        '    hidA=[];phase=0;live=false;busy=false;pause(false);post();});}' +
+        /* ===== 倒放（2026-11-15）：顺序整段反转 =====
+           正放 = 原晶胞 → 长长出交叉晶胞 → 去掉化学键 → 分开成一胞一物种；
+           倒放 = 两个分开的晶胞 → 合拢成交错 → 补回化学键 → 收掉新晶胞回到原晶胞。
+           起点停在「分开」那一帧，所以一载入就要先把这一帧搭好（buildSplit）。 */
+        'var revAdd=[],revBack=[],bootN=-1,bootOK=0;' +
+        /* 两个晶胞彻底分开要走多远：off 的每个分量都挪够一个边长，T = 边长 / max|off 分量|。
+           氯化铯 off 是半个体对角线 ⇒ T=2；氟化钙、硫化锌的 off 只有 1/4 条 ⇒ T=4。 */
+        'function splitT(){var S=sites();' +
+        /* ★★ 氯化钠：钠的盒子合拢后长 3a/2，而且「伸半格」是朝原晶胞这边长的（-x）。
+           氯盒左面要站在 2.5a 处：伸完半格（-a/2）之后，两个盒子之间还隔整整一个边长 a。
+           原来是 (a+off+0.5)/off = 3.25，伸完只剩 0.4 —— 透视下两个盒子直接糊在一起
+           （用户：分开以后要远一些，给钠正方体变形留空间）。 */
+        '  if(isAxial())return Math.min(14,(S.per*2.5)/Math.abs(off.x));' +
+        /* 氟化钙的「分开距离」写在 fluorSep() 里（水平冲出 1.2a），这里只是个占位倍数 */
+        '  if(isFluor())return 1;' +
+        '  var mx=Math.max(Math.abs(off.x),Math.abs(off.y),Math.abs(off.z))||1;' +
+        /* ★ 硫化锌：分开走 2.0 个晶胞边长的倍数（原来 1.45），两个晶胞拉得更开（用户「远一些」）。 */
+        '  if(PAGE==="zns")return Math.min(14,(S.per/mx)*2.0);' +
+        '  return Math.min(14,(S.per/mx)*1.45);}' +
+        /* 键一次性藏掉（不淡出）：倒放的起点「只留晶胞边界」。
+           ★ 连键两端的 Sprite 光晕一起藏（见 bondSprites 注释），否则空中会飘一片小白点。 */
+        'function hideBondsNow(){var l=[];bondMeshes(crystalGroup,l);bondMeshes(ghost,l);' +
+        '  l.forEach(function(o){var m=ownMat(o);if(!m)return;' +
+        '    if(o.visible===false)o.visible=true;' +
+        '    if(m.transparent!==true){m.transparent=true;m.needsUpdate=true;}m.opacity=0;o.visible=false;});' +
+        '  setSprites(crystalGroup,false);setSprites(ghost,false);}' +
+        /* 棱框端点离最近一颗球有多远：源页自己的晶胞是多少，搭出来的新晶胞就该是多少。
+           源页载入后会播「组装」动画，万一半路被抓拍，克隆出来的晶胞会缺角、棱框悬空 ——
+           用这个量自检，超标就重建一次。 */
+        'function frameMax(root){var at=[];if(!root)return 0;' +
+        '  eachSphere(root,function(o){at.push(o.position.clone());});' +
+        '  if(!at.length)return 0;var worst=0;' +
+        '  root.traverse(function(o){if(!o.isMesh||!o.geometry)return;' +
+        '    if(String(o.geometry.type).indexOf("Cylinder")<0)return;if(!isEdge(o))return;' +
+        '    var h=(o.geometry.parameters&&o.geometry.parameters.height)||0;if(h<1e-4)return;' +
+        '    var ax=new THREE.Vector3(0,1,0).applyQuaternion(o.quaternion);' +
+        '    [1,-1].forEach(function(s){var q=o.position.clone().addScaledVector(ax,h*o.scale.y*0.5*s);' +
+        '      var bd=1e9;for(var i=0;i<at.length;i++){var d=q.distanceTo(at[i]);if(d<bd)bd=d;}' +
+        '      if(bd>worst)worst=bd;});});' +
+        '  return worst;}' +
+        'function dropGhost(){if(!ghost)return;try{ghost.__mats.forEach(function(m){if(m&&m.dispose)m.dispose();});}catch(e){}' +
+        '  try{scene.remove(ghost);}catch(e){}ghost=null;}' +
+        /* 直接把「分开」那一帧搭好：单物种 + 只剩边界。anim=false 瞬时（载入时用），
+           anim=true 时从原晶胞平滑推过去（循环回到起点时用，不至于硬跳）。 */
+        'var tries=0;' +
+        'function buildSplit(anim){' +
+        '  if(busy)return false;' +
+        /* 棱框材质先归一（氯化钠那份是灰线，其余三页本来就是金属棱），再复制给新晶胞 */
+        '  try{metalEdges();}catch(e){}' +
+        '  try{setEdgeOpacity(1);}catch(e7){}' +
+        '  try{offB=offset();if(!offB)return false;off=offB;if(PAGE==="cscl"||PAGE==="zns")off=mirrorOff(offB);make();}' +
+        '  catch(e){err=String(e&&e.message||e);try{if(ghost)scene.remove(ghost);}catch(e2){}ghost=null;busy=false;return false;}' +
+        '  busy=true;' +
+        '  var info=null;try{info=trimCells();}catch(e){fillErr=String(e&&e.message||e);}' +
+        /* 自检：新晶胞的棱框不能比源晶胞更「悬空」（缺角/半路抓拍），最多重搭三次 */
+        /* 阈值放宽：源页自己的棱框端点本来就可能离球心 0.4~0.9（球小、棱长），
+           只有明显崩掉（差半格以上）才值得重搭。 */
+        '  try{var fg=frameMax(ghost),fa=frameMax(crystalGroup);' +
+        '    if(fg>Math.max(fa+0.5,0.7)&&tries<2){tries++;dropGhost();busy=false;' +
+        '      setTimeout(function(){buildSplit(anim);},400);return true;}}catch(e){tries=0;}' +
+        '  tries=0;' +
+        '  var T=splitT(),to=isFluor()?fluorSep():off.clone().multiplyScalar(T),' +
+        '    from=isFluor()?new THREE.Vector3(0,0,0):off.clone();' +
+        '  revAdd=[];revBack=[];hidA=[];var dropM=[];' +
+        '  if(info)info.dropA.forEach(function(o){var m=ownMat(o);if(!m)return;' +
+        '    hidA.push({o:o,m:m});dropM.push(o);});' +
+        '  if(info)info.dropB.forEach(function(o){var m=ownMat(o);if(!m)return;o.visible=false;});' +
+        /* ★★ 重合的原子必须「平移过来」，不能在原处凭空淡入（用户原话：氯不该先消失、
+             再在铯中心突然冒出来）。两条判据都用「合拢后落在哪儿」来算：
+             · 补出来的球落到「原晶胞已经有球」的位置 → 是重复的，合拢时淡出（revAdd）；
+               落到空位（原晶胞那颗正好被隐藏了）→ 留着，它就是随晶胞平移回来的那颗。
+             · 被隐藏的原晶胞原子，如果新晶胞里有球会落到它头上 → 不许再淡入（revBack 不收）；
+               新晶胞到不了的（氯化钠靠近端面的 4 颗）才补淡入。 */
+        '  var keepAdd=[];' +
+        '  if(info)info.addMesh.forEach(function(g){var w=g.position.clone().add(offB||off),dup=false;' +
+        '    eachSphere(crystalGroup,function(a){if(dup||dropM.indexOf(a)>=0)return;' +
+        '      if(a.position.distanceTo(w)<0.15)dup=true;});' +
+        '    if(dup)revAdd=revAdd.concat(matsOf(g));else keepAdd.push(g);});' +
+        '  if(info&&!isFluor())info.dropA.forEach(function(o){var q=o.position.clone().sub(offB||off),cov=false,ck=cls(o);' +
+        '    eachSphere(ghost,function(g){if(cov||revAdd.indexOf(g.material)>=0)return;' +
+        '      if(cls(g)!==ck)return;' +
+        '      if(g.position.distanceTo(q)<0.15)cov=true;});' +
+        '    if(!cov)revBack.push({o:o,m:ownMat(o)});});' +
+        '  revAdd=(info?revAdd:[]);' +
+        '  if(!anim){' +
+        '    ghost.position.copy(to);' +
+        '    ghost.__mats.forEach(function(m){m.opacity=(m.__t===undefined?1:m.__t);' +
+        '      if(m.__tr===false)m.transparent=false;});' +
+        '    (info?info.add:[]).forEach(function(m){m.opacity=(m.__t===undefined?1:m.__t);});' +
+        '    hidA.forEach(function(it){it.o.visible=false;});' +
+        '    hideBondsNow();if(isFluor())camFit(1);else camSet(T);' +
+        '    phase=3;live=true;busy=false;post();guard();return true;}' +
+        '  pause(true);' +
+        '  ghost.position.copy(from);' +
+        '  var inG=[],inE=[];' +
+        '  eachSphere(ghost,function(o){if(!o.material)return;' +
+        '    for(var i=0;i<revBack.length;i++){if(revBack[i].o===o)return;}' +
+        '    if(inG.indexOf(o.material)<0)inG.push(o.material);});' +
+        '  ghost.traverse(function(o){if(!o.isMesh||!o.material)return;' +
+        '    if(String((o.geometry&&o.geometry.type)||"").indexOf("Cylinder")<0)return;' +
+        '    if(!isEdge(o))return;' +
+        '    if(inG.indexOf(o.material)<0)inG.push(o.material);' +
+        '    if(inE.indexOf(o.material)<0)inE.push(o.material);});' +
+        /* ★★★ 键在「分开」这一步不再淡出，而是点击的同一帧整批撤掉（2026-11-15 第 3 次返工）。
+           淡出时键一定是半透明的：一端球已经淡到 0.2、另一端还是 1.0，透视下半透明球挡不住
+           键，屏幕上就是一根「从球里伸出来、另一头什么都没有」的短棍 —— 用户反复说的
+           「键显示不完整」。而且此时新晶胞的棱框正从同一个位置滑出去，两套线叠在一起，
+           看着更像断成几截。相位 3 本来就只该有晶胞边界，所以直接切：
+           两个晶胞的键（含新晶胞克隆出来的那套）在这一帧全部 visible=false。 */
+        '  hideBondsNow();' +
+        '  var outA=[];' +
+        '  if(info)info.dropA.forEach(function(o){var m=ownMat(o);if(!m)return;if(o.visible===false)o.visible=true;' +
+        '    if(m.transparent!==true){m.transparent=true;m.needsUpdate=true;}if(outA.indexOf(m)<0)outA.push(m);});' +
+        '  tween(DUR+260,function(e){' +
+        '    if(isFluor())camFit(e);else camSet(1+(T-1)*e);ghost.position.copy(from).lerp(to,e);' +
+        /* 新晶胞：棱框（边界）比球亮得快一点，免得细棱在半透明状态下像「虚线、断成一段段」 */
+        '    inG.forEach(function(m){if(m.transparent!==true){m.transparent=true;m.needsUpdate=true;}' +
+        '      m.opacity=Math.min(1,e/(inE.indexOf(m)>=0?0.22:0.34))*(m.__t===undefined?1:m.__t);});' +
+        '    (info?info.add:[]).forEach(function(m){m.opacity=Math.min(1,e/0.34)*(m.__t===undefined?1:m.__t);});' +
+        '    outA.forEach(function(m){m.opacity=(1-Math.min(1,e/0.26))*(m.__t===undefined?1:m.__t);});},' +
+        '  function(){ghost.position.copy(to);if(isFluor())camFit(1);else camSet(T);' +
+        '    inG.forEach(function(m){m.opacity=(m.__t===undefined?1:m.__t);});' +
+        '    (info?info.add:[]).forEach(function(m){m.opacity=(m.__t===undefined?1:m.__t);});' +
+        '    hidA.forEach(function(it){it.o.visible=false;});' +
+        '    hideBondsNow();' +
+        '    phase=3;live=true;busy=false;pause(false);post();guard();});' +
+        '  return true;}' +
+        /* 载入后源页可能还在补键/组装，隔几拍再藏一遍，保证「只留边界」这一帧是干净的 */
+        'var gTimer=null,gTick=0;' +
+        'function guard(){clearInterval(gTimer);gTick=0;' +
+        '  gTimer=setInterval(function(){if(++gTick>10){clearInterval(gTimer);return;}' +
+        '    if(phase!==3||busy||!ghost)return;' +
+        '    hideBondsNow();revBack.forEach(function(it){it.o.visible=false;});},500);}' +
+        /* ★★ 合拢时把新晶胞自己的 27 个格点补齐：分开那一帧每个晶胞只留自己那一种离子
+           （氟化钙 27 点全是 F，其余是面心立方 14 点 / 简单立方 8 点），合拢后两颗晶胞
+           叠成同一个晶体，新晶胞还缺「另一端」那半个面的原子 —— 用户看到的就是
+           「最上层棱心上的离子丢了」。这里按晶体周期性补：格点既不在新晶胞里、
+           也不在原晶胞那儿站了离子的，就按晶体该有的物种补一颗，合拢过程中淡入。 */
+        'function joinFill(){' +
+        '  var S=sites(),out=[];if(!ghost||!(S.per>0.5))return out;' +
+        /* 氯化钠不需要补格点：钠的长方体已经把 13 个钠位全覆盖了 */
+        '  if(isAxial())return out;' +
+        '  var A=[S.mn.x,(S.mn.x+S.mx.x)/2,S.mx.x],B=[S.mn.y,(S.mn.y+S.mx.y)/2,S.mx.y],C=[S.mn.z,(S.mn.z+S.mx.z)/2,S.mx.z];' +
+        '  function at(root,p,t){var b=null;eachSphere(root,function(o){if(b||!isAtomMesh(o))return;' +
+        '    if(o.position.distanceTo(p)<t)b=o;});return b;}' +
+        '  function pick(w){var q=new THREE.Vector3(' +
+        '    S.mn.x+(((w.x-S.mn.x)%S.per)+S.per)%S.per,' +
+        '    S.mn.y+(((w.y-S.mn.y)%S.per)+S.per)%S.per,' +
+        '    S.mn.z+(((w.z-S.mn.z)%S.per)+S.per)%S.per);' +
+        '    var b=null,bd=1e9;S.old.forEach(function(a){var d=q.distanceTo(a.p);if(d<bd){bd=d;b=a;}});' +
+        '    return (b&&bd<0.15)?b:null;}' +
+        /* 分开那一帧藏起来的球（trimCells 的 dropB）里，有一部分其实是「新晶胞探出去那半个胞」
+           该有的原子，只是当时按单物种全藏了 —— 合拢时把它们唤回来一起淡入。 */
+        '  function revive(o){var ms=[];o.traverse(function(q){if(!q.material)return;var m=q.material;' +
+        '    if(ms.indexOf(m)>=0)return;if(m.__t===undefined)m.__t=(m.opacity===undefined?1:m.opacity);' +
+        '    if(m.transparent!==true){m.transparent=true;m.needsUpdate=true;}m.opacity=0;ms.push(m);});' +
+        '    o.visible=true;return ms;}' +
+        '  var i,j,k;' +
+        '  for(i=0;i<3;i++)for(j=0;j<3;j++)for(k=0;k<3;k++){' +
+        '    var c=new THREE.Vector3(A[i],B[j],C[k]);' +
+        '    var w=new THREE.Vector3(c.x+(offB||off).x,c.y+(offB||off).y,c.z+(offB||off).z);' +
+        '    if(at(crystalGroup,w,0.16))continue;' +
+        '    var hit=pick(w);if(!hit)continue;' +
+        '    var ex=at(ghost,c,0.16);' +
+        '    if(ex){if(ex.visible&&((ex.material.opacity===undefined?1:ex.material.opacity)>0.5))continue;' +
+        '      if(cls(ex)!==hit.k)continue;out=out.concat(revive(ex));continue;}' +
+        '    var pr=S.samp[hit.k];if(!pr)continue;' +
+        '    var m=copyNode(pr,null);if(!m)continue;' +
+        '    m.position.copy(c);m.scale.copy(pr.scale);ghost.add(m);' +
+        '    var ms=matsOf(m);' +
+        '    ms.forEach(function(x){x.transparent=true;x.opacity=0;' +
+        '      x.userData=x.userData||{};x.userData.crystalFrostMaterial=true;});' +
+        '    out=out.concat(ms);}' +
+        '  return out;}' +
+        /* ★★ 氟化钙合拢 = 8 颗 F⁻ 的小立方体沿 x 轴水平滑进 Ca²⁺ 的面心立方（2026-11-15）。
+           它只是「插进去」，不带任何晶胞外的东西 ⇒ 到位后不用删界外原子（用户要求去掉第四步）。
+           到位瞬间做一次无缝交接：原晶胞那 8 颗 F 重新显示（与 ghost 里那颗位置、物种、
+           尺寸完全一致，看不出换手），ghost 连同小立方体框整体撤掉 —— 画面回到完整晶胞。 */
+        'function joinF(){' +
+        '  var spA=cornerSpecies(crystalGroup);' +
+        '  var from=ghost?ghost.position.clone():new THREE.Vector3(0,0,0),to=new THREE.Vector3(0,0,0);' +
+        '  tween(DUR+260,function(e){' +
+        '    camFit(1-e);' +
+        '    if(ghost)ghost.position.copy(from).lerp(to,e);' +
+        '  },function(){' +
+        '    if(ghost)ghost.position.copy(to);camFit(0);' +
+        '    eachSphere(crystalGroup,function(o){if(!isAtomMesh(o))return;if(cls(o)===spA)return;' +
+        '      o.visible=true;var m=o.material;if(!m)return;' +
+        '      if(m.__t===undefined)m.__t=1;' +
+        '      if(m.transparent===true)m.opacity=m.__t;' +
+        '      if(m.__tr===false){m.transparent=false;m.needsUpdate=true;}});' +
+        '    hidA=[];revBack=[];revAdd=[];dropGhost();' +
+        '    phase=2;busy=false;pause(false);post();});}' +
+        /* 3 → 2：外侧晶胞沿原路退回半格与内侧交错；补出来的同类球收掉，
+           之前被删掉的「另一种离子」淡回来 —— 两个晶胞恢复成完整离子晶胞。 */
+        'function joinCells(){' +
+        '  pause(true);' +
+        /* 氯化钠走专属路径：先长半格再合拢，钠全部由平移带到位 */
+        '  if(isAxial()){joinNaCl();return;}' +
+        /* 氟化钙走专属路径：小立方体水平插入，插入即完整，没有界外原子 */
+        '  if(isFluor()){joinF();return;}' +
+        '  var from=ghost.position.clone(),to=off.clone();' +
+        '  var T=from.length()/(off.length()||1);' +
+        '  var addFill=[];try{addFill=joinFill();}catch(e){fillErr=String(e&&e.message||e);}' +
+        '  tween(DUR+260,function(e){' +
+        '    camSet(1+(T-1)*(1-e));' +
+        '    ghost.position.copy(from).lerp(to,e);' +
+        '    var r=Math.min(1,e*1.7);' +
+        '    revAdd.forEach(function(m){m.opacity=(1-r)*(m.__t===undefined?1:m.__t);});' +
+        '    addFill.forEach(function(m){m.opacity=r*(m.__t===undefined?1:m.__t);});' +
+        '    revBack.forEach(function(it){if(it.o.visible===false)it.o.visible=true;' +
+        '      if(it.m.transparent!==true){it.m.transparent=true;it.m.needsUpdate=true;}' +
+        '      it.m.opacity=r*(it.m.__t===undefined?1:it.m.__t);});},' +
+        '  function(){ghost.position.copy(to);camSet(1);' +
+        '    revAdd.forEach(function(m){m.opacity=0;});' +
+        '    addFill.forEach(function(m){m.opacity=(m.__t===undefined?1:m.__t);' +
+        '      if(m.__tr===false){m.transparent=false;m.needsUpdate=true;}});' +
+        '    revBack.forEach(function(it){it.m.opacity=(it.m.__t===undefined?1:it.m.__t);' +
+        '      if(it.m.__tr===false){it.m.transparent=false;it.m.needsUpdate=true;}});' +
+        '    revAdd=[];revBack=[];phase=2;busy=false;pause(false);post();});}' +
+        /* 页面一载入就停在「分开」那一帧 —— 倒放从终点开始。
+           ★ 不能只看球数：源页载入后会播一段「组装」动画，球数是齐的、位置还在飞。
+             这里连位置一起校验（累加坐标），两拍完全一致才算静止，否则会拿运动中的
+             半成品当原晶胞 —— 量出来的晶胞缺角、棱框悬空。 */
+        'function sig(){var s=0,n=0;eachSphere(crystalGroup,function(o){' +
+        '  s+=o.position.x*7.13+o.position.y*3.71+o.position.z*11.7;n++;});return n+"|"+s.toFixed(3);}' +
+        'function bootSplit(){' +
+        '  if(phase!==0||ghost||busy)return;' +
+        '  var n=0;eachSphere(crystalGroup,function(){n++;});' +
+        '  if(n<4){setTimeout(bootSplit,400);return;}' +
+        '  var k=sig();' +
+        '  if(bootN!==k){bootN=k;bootOK=0;setTimeout(bootSplit,600);return;}' +
+        '  if(++bootOK<2){setTimeout(bootSplit,600);return;}' +
+        '  if(!buildSplit(false))setTimeout(bootSplit,500);}' +
+        /* ★ 不自动分开（用户 2026-11-15）：切到某一页时要看到完整晶胞，
+           点「① 重新分开」才拆。bootSplit 留着给失败重试与调试用。 */
+        'function next(){' +
+        '  if(busy)return false;' +
+        /* phase 4 是氯化钠专有的「钠已伸成 1.5a 长方体」这一帧，独立占一步（用户要求）。
+           其余三页没有这一帧，phase 3 点下去直接合拢。 */
+        '  if(phase===4){busy=true;phase=2;post();joinCells();}' +
+        '  else if(phase===3){' +
+        '    if(isAxial()){busy=true;phase=4;post();growNa();}' +
+        '    else{busy=true;phase=2;post();joinCells();}' +
+        '  }' +
+        /* 只补原晶胞自己的键（noGhost=true）：新晶胞那一套键不回来，后面就是靠删原子收尾 */
+        '  else if(phase===2){busy=true;phase=1;post();bondsFade(false,760,function(){busy=false;post();},true);}' +
+        /* ★ 氟化钙到这里就结束了：F⁻ 全部在晶胞内部、一颗界外的都没有，
+           「删除多余原子」这一步没有对象 —— 再点就该直接重新分开（phase 0 那半拍不要，
+           否则要多点一次、画面还不变化）。 */
+        '  else if(phase===1){' +
+        '    if(isFluor()){return buildSplit(true);}' +
+        '    busy=true;phase=0;trimOutside();}' +
+        '  else{return buildSplit(true);}' +
+        '  return true;}' +
+        'var err="";' +
+        'window.__ydnState=function(){return {live:phase>0,phase:phase,ghost:!!ghost,off:off?off.toArray():null,err:err,fill:fillN,fillErr:fillErr};};' +
+        'window.__ydnPhase=function(){return phase;};' +
+        /* 调试用：分开数两个晶胞里「可见的原子/键」——自检脚本靠它，界面不显示 */
+        'window.__ydnDbg=function(){' +
+        '  var o={a:0,av:0,g:0,gv:0,b:0,bv:0,e:0,phase:phase,fill:fillN,' +
+        '    gp:ghost?ghost.position.toArray():null,T:off?splitT():0,addN:revAdd.length,backN:revBack.length};' +
+        '  function walk(root,tag){if(!root)return;root.traverse(function(m){' +
+        '    if(!m.isMesh||!m.geometry)return;' +
+        '    if(m.geometry.type==="SphereGeometry"){if(!isAtomMesh(m))return;' +
+        '      o[tag]++;if(m.visible&&(m.material.opacity===undefined||m.material.opacity>0.5))o[tag+"v"]++;return;}' +
+        '    if(String(m.geometry.type).indexOf("Cylinder")<0)return;' +
+        '    if(isEdge(m)){o.e++;return;}o.b++;' +
+        '    if(m.visible&&(m.material.opacity===undefined||m.material.opacity>0.5))o.bv++;});}' +
+        '  walk(crystalGroup,"a");walk(ghost,"g");' +
+        '  try{o.fmA=+frameMax(crystalGroup).toFixed(2);o.fmG=ghost?+frameMax(ghost).toFixed(2):null;}catch(e){}' +
+        '  return o;};' +
+        'window.__ydnNext=function(){return next();};' +
+        'window.__ydnG=function(){return ghost;};' +
+        'window.__ydnToggle=function(){return next();};' +
+        /* 模型自转就是 OrbitControls 的 autoRotate。
+           ★ 不能只「设一次」：源页载入时的组装动画、以及它自己的转换动画结束时都会把
+             autoRotate 重新打开（caf2 里就有 4 处 autoRotate=true），所以外壳这边
+             一设完就被它顶回去 —— 表现就是「刚打开那两秒还在转」。这里记下想要的状态、
+             每 250ms 兜一次，谁来抢都按外壳的意思走（用户要求：默认不旋转）。 */
+        'var ROTWANT=(window.__YDNROT===1);' +
+        'function rotKeep(){try{if(controls&&controls.autoRotate!==ROTWANT)controls.autoRotate=ROTWANT;}catch(e){}}' +
+        'rotKeep();setInterval(rotKeep,250);' +
+        'window.__ydnRot=function(on){ROTWANT=!!on;rotKeep();return ROTWANT;};' +
+        /* ★ 初始视角（用户 2026-11-15 定稿：方位 105°、仰角 18°）：
+           源页默认 (0.8,-0.8,0.6) 是「沿体对角线看」（方位 45°/仰角 31° ≈ 体对角线的 45°/35°），
+           相机正对**顶角**，最近的角原子挡住体心；这里方位挪到 105°、仰角压到 18°，
+           离体对角线 34°，体心露出来、顶面看到的是四个角而不是一个尖。
+           ★ 相机方位同时决定「分开时两个晶胞落在屏幕哪一边」，所以动它等于动分开的位置 ——
+             要改分开的位置别动这里，先问清楚。 */
+        'var VIEWD=new THREE.Vector3(-0.246,0.919,0.309).normalize();' +
+        'function setView(){try{' +
+        '  var c=(controls&&controls.object)||null,tg=(controls&&controls.target)||null;' +
+        '  if(!c||!tg||!c.position)return;' +
+        '  var L=c.position.distanceTo(tg);if(!(L>0.1))return;' +
+        '  c.position.copy(tg).addScaledVector(VIEWD,L);' +
+        '  if(controls.update)controls.update();}catch(e){}}' +
+        'var userDrag=false;' +
+        'try{window.addEventListener("pointerdown",function(){userDrag=true;},true);}catch(e){}' +
+        'function viewInit(n){if(userDrag)return;setView();if(n>0)setTimeout(function(){viewInit(n-1);},800);}' +
+        'window.__ydnView=setView;' +
+        /* ★ 正交 / 透视切换（用户 2026-11-15）：源页自己就有 orthoCamera 与 perspCamera，
+           渲染哪一个由「activeCamera」决定，但四页挂法不一样 —— cscl/nacl/caf2 挂在
+           stage.engineState.activeCamera，zns 是裸变量 activeCamera（顶层 let，注入脚本能按名拿到），
+           所以两个都写、最后再兜底 controls.object。切的时候保持用户当前朝向（拖过就按他拖的），
+           正交半高取「透视在 target 处的视野高」L*tan(fov/2)，两边的观感才对得上。 */
+        'var CAMWANT="persp";' +
+        'function grab(fn){try{return fn();}catch(e){return null;}}' +
+        'function camActive(){' +
+        '  return grab(function(){return (stage&&stage.engineState&&stage.engineState.activeCamera)||null;})||' +
+        '         grab(function(){return activeCamera||null;})||' +
+        '         grab(function(){return (controls&&controls.object)||null;});}' +
+        /* ★★ 名字不能叫 camSet：上面第 649 行已经有一个 camSet(mul) 负责「分开时相机拉远」，
+           同名会把那个函数覆盖掉 —— 表现就是点「分开」直接抛错、画面根本不分开。
+           这里叫 setActiveCam。camKeep 也只在用户点过按钮之后才接管，别跟源页启动抢相机。 */
+        'var CAMUSER=false;' +
+        'function setActiveCam(c){if(!c)return;' +
+        '  try{controls.object=c;}catch(e){}' +
+        '  grab(function(){if(stage&&stage.engineState)stage.engineState.activeCamera=c;});' +
+        '  grab(function(){activeCamera=c;});' +
+        '  grab(function(){if(engineState&&("activeCamera" in engineState))engineState.activeCamera=c;});' +
+        '  try{if(controls.update)controls.update();}catch(e){}}' +
+        'function applyCam(want){' +
+        '  var o=grab(function(){return orthoCamera||null;})||null;' +
+        '  var p=grab(function(){return perspCamera||null;})||null;' +
+        '  var c=(want==="ortho")?o:p;if(!c)return false;' +
+        '  var tg=(controls&&controls.target)?controls.target:null;' +
+        '  var cur=camActive(),L=(cur&&cur.position&&tg)?cur.position.distanceTo(tg):15;' +
+        '  var dir=(cur&&cur.position&&tg)?cur.position.clone().sub(tg).normalize():VIEWD.clone();' +
+        '  if(dir.lengthSq()<0.01)dir=VIEWD.clone();' +
+        '  if(tg)c.position.copy(tg).addScaledVector(dir,L);' +
+        '  c.up.set(0,0,1);' +
+        '  if(c.isOrthographicCamera){' +
+        '    var fov=((p&&p.fov)?p.fov:45)*Math.PI/180,hh=L*Math.tan(fov/2);' +
+        '    var cv=grab(function(){return (renderer&&renderer.domElement)||null;})||document.querySelector("canvas");' +
+        '    var asp=(cv&&cv.clientHeight)?(cv.clientWidth/cv.clientHeight):1;' +
+        '    c.left=-hh*asp;c.right=hh*asp;c.top=hh;c.bottom=-hh;c.zoom=1;c.updateProjectionMatrix();}' +
+        '  if(tg)c.lookAt(tg);' +
+        '  setActiveCam(c);return true;}' +
+        'window.__ydnCam=function(ortho){CAMUSER=true;CAMWANT=ortho?"ortho":"persp";return applyCam(CAMWANT);};' +
+        /* 源页的组装/分离动画结束会自己把 activeCamera 设回透视相机 —— 每 600ms 兜一次类型，
+           只在「类型不对」时才动，不会打断用户拖动 */
+        'function camKeep(){if(!CAMUSER)return;var a=camActive();if(!a)return;var isO=!!a.isOrthographicCamera;' +
+        '  if(CAMWANT==="ortho"&&!isO)applyCam("ortho");' +
+        '  else if(CAMWANT!=="ortho"&&isO)applyCam("persp");}' +
+        'setInterval(camKeep,600);' +
+        /* ★ 初始晶胞的键也要跟「补键后」一样细（用户 2026-11-15：初始视角的键比组装后粗）。
+           thinBonds 只缩 scale.x/z，几何半径不变 ⇒ isEdge() 判据不受影响，重复调用也安全。
+           源页可能还在跑组装动画，所以多补几次（幂等）。 */
+        'function thinInit(n){try{thinBonds(crystalGroup);}catch(e){}' +
+        '  if(n>0)setTimeout(function(){thinInit(n-1);},900);}' +
+        'function initLook(){thinInit(3);viewInit(9);}' +
+        'if(document.querySelector("canvas")){initLook();}' +
+        'else{var wt=setInterval(function(){if(!document.querySelector("canvas"))return;' +
+        '  clearInterval(wt);initLook();},250);}' +
+        '})();</scr' + 'ipt>';
+
+    function injectBase(html, key) {
+        var base = new URL('/chem-lab/visual-chem/', location.origin).href;
+        html = html.replace(/<script[^>]*>[\s\S]*?wb-root-base[\s\S]*?<\/script>/i, '');
+        html = html.replace(/<base\b[^>]*>/i, '');
+        html = html.replace(/<head[^>]*>/i, function (m) {
+            return m + '<base href="' + base + '">' +
+                /* 当前页 key：增强脚本要靠它区分氯化钠（水平、钠多一步）和氟化钙（水平插入、
+                   只有三步）—— 两页最后都走「纯 x 方向」，只看 off 已经分不出来了 */
+                '<scr' + 'ipt>window.__YDNKEY=' + JSON.stringify(String(key || '')) +
+                ';window.__YDNROT=' + (rotOn ? 1 : 0) + ';</scr' + 'ipt>' +
+                '<style id="__bare">' + BARE_CSS + '</style>';
+        });
+        return html.replace(/<\/body>/i, DRIVER + ENHANCE + '</body>');
+    }
+
+    var reqSeq = 0;
+    var bootTimer = null;
+    var fadeTimer = null;
+
+    function hideStage() { frame.classList.remove('shown'); }
+    function showStage() {
+        clearTimeout(fadeTimer); fadeTimer = null;
+        frame.classList.add('shown');
+    }
+    /* 等新页真画出 canvas 再淡入，避免淡进一块黑屏；最多等约 2 秒 */
+    function revealStage(my, n) {
+        if (my !== reqSeq) return;
+        try {
+            var d = frame.contentDocument;
+            if (d && d.querySelector('canvas')) { showStage(); return; }
+        } catch (e) {}
+        if (n > 0) setTimeout(function () { revealStage(my, n - 1); }, 90);
+        else showStage();
+    }
+
+    function load(key, file) {
+        current = key;
+        activate(key);
+        removeFail();
+        clearTimeout(bootTimer);
+        setState('加载中');
+        var my = ++reqSeq;
+        hideStage();
+        clearTimeout(fadeTimer);
+        fadeTimer = setTimeout(showStage, 2200);   /* 万一 load 事件没来，别把页面留黑 */
+        var stageUrl = '/chem-lab/visual-chem/' + file;
+        fetch(stageUrl, { cache: 'no-store' })
+            .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+            .then(function (html) {
+                if (my !== reqSeq) return;
+                /* 先让旧画面淡出走完再换 srcdoc：换得太快时，新页的 load 事件会
+                   立刻触发淡入，把只走到一半的淡出取消，看着仍是「啪」一下换掉。 */
+                setTimeout(function () {
+                    if (my !== reqSeq) return;
+                    frame.removeAttribute('src');
+                    frame.srcdoc = injectBase(html, key);
+                }, 260);
+            })
+            .catch(function () {
+                if (my !== reqSeq) return;
+                /* file:// 下浏览器不让 fetch 本地文件，只能整页引用：
+                   界面剪不掉、也点不到源页按钮，所以明说一句，别让人以为坏了 */
+                frame.removeAttribute('srcdoc');
+                frame.src = stageUrl;
+                setState('本地打开：仅整页模式');
+                barState.title = '双击本地文件时浏览器禁止网页读取同目录的源页面，' +
+                    '只能整页显示。用本地服务（http://127.0.0.1:8765/jingbao-yuandian.html）或线上地址打开，才是只留动画的版本。';
+            });
+    }
+
+    function activate(key) {
+        for (var i = 0; i < items.length; i++) {
+            items[i].classList.toggle('on', items[i].dataset.key === key);
+        }
+    }
+
+    /* 源页的相机是按横向画面取景的：手机竖屏下画布变成窄高，晶胞会左右被裁。
+       这里在竖屏时把 iframe 的内部画布撑宽（高度不变），再整体等比缩小回屏幕宽度 ——
+       页面底色是黑的，四周多出来的空白看不出来，晶胞就能完整入画。 */
+    function fitFrame() {
+        var vw = window.innerWidth, vh = window.innerHeight;
+        frame.style.transform = 'none';
+        frame.style.width = vw + 'px';
+        frame.style.height = vh + 'px';
+        frame.style.left = '0px';
+        if (vw >= vh * 0.95) return;
+        var w = Math.round(vh);
+        var sc = vw / w;
+        frame.style.width = w + 'px';
+        frame.style.left = Math.round((vw - w) / 2) + 'px';
+        frame.style.transform = 'scale(' + sc.toFixed(4) + ')';
+    }
+
+    function setState(txt) {
+        if (!txt) { barState.classList.remove('on'); barState.textContent = ''; return; }
+        barState.classList.add('on');
+        barState.textContent = txt;
+    }
+
+    function removeFail() {
+        var f = document.getElementById('fail-tip');
+        if (f) f.remove();
+    }
+
+    /* 源页通过 postMessage 回报状态：phase = 当前停在哪个画面
+       （0 原晶胞 / 1 交错有键 / 2 交错无键 / 3 两个分开 / 4 钠已伸成 1.5a 长方体） */
+    window.addEventListener('message', function (e) {
+        var m = e.data || {};
+        if (!m.__ydn) return;
+        setState('');
+        if (m.label) barStep.textContent = m.label;
+        if (typeof m.on === 'boolean') barAuto.textContent = '自动：' + (m.on ? '开' : '关');
+    });
+
+    function send(msg) {
+        try { frame.contentWindow.postMessage(msg, '*'); } catch (e) {}
+    }
+
+    for (var i = 0; i < items.length; i++) {
+        items[i].addEventListener('click', function () {
+            load(this.dataset.key, this.dataset.src);
+        });
+    }
+
+    /* 按钮文字由页面回报（label）：氯化钠比别的晶胞多一步「钠伸半格」，写死在壳里会错位 */
+    var stepLock = null;
+    barStep.addEventListener('click', function () {
+        send({ __cmd: 'step' });
+        /* 淡入淡出 0.76~1.1 秒，锁 1 秒防止连点一次跨两步 */
+        barStep.disabled = true;
+        clearTimeout(stepLock);
+        stepLock = setTimeout(function () { barStep.disabled = false; }, 1000);
+    });
+
+    barAuto.addEventListener('click', function () {
+        var on = barAuto.textContent.indexOf('开') < 0;
+        barAuto.textContent = '自动：' + (on ? '开' : '关');
+        send({ __cmd: 'auto', on: on });
+    });
+
+    /* 模型自转开关（源页是 OrbitControls 的 autoRotate 在转） */
+    barRot.addEventListener('click', function () {
+        rotOn = !rotOn;
+        barRot.textContent = '旋转：' + (rotOn ? '开' : '关');
+        send({ __cmd: 'rot', on: rotOn });
+    });
+
+    /* 正交 / 透视切换：源页两套相机都在，让哪套当 activeCamera 由壳决定（见 ENHANCE 里的 applyCam） */
+    barCam.addEventListener('click', function () {
+        camOrtho = !camOrtho;
+        barCam.textContent = '视角：' + (camOrtho ? '正交' : '透视');
+        send({ __cmd: 'cam', ortho: camOrtho });
+    });
+
+    toggle.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var open = switcher.classList.toggle('open');
+        var icon = document.getElementById('sw-toggle-icon');
+        if (icon) icon.textContent = open ? '▾' : '▸';
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        toggle.title = open ? '收起晶胞切换' : '展开晶胞切换';
+        toggle.setAttribute('aria-label', toggle.title);
+    });
+    document.addEventListener('click', function (e) {
+        if (!switcher.classList.contains('open')) return;
+        if (!switcher.contains(e.target)) {
+            switcher.classList.remove('open');
+            var icon = document.getElementById('sw-toggle-icon');
+            if (icon) icon.textContent = '▸';
+            toggle.setAttribute('aria-expanded', 'false');
+            toggle.title = '展开晶胞切换';
+            toggle.setAttribute('aria-label', toggle.title);
+        }
+    });
+    /* 操作栏现在也在 #switcher 里，点按钮不算「点外面」—— 窄屏收起列表要单独补一句 */
+    document.getElementById('bar').addEventListener('click', function () {
+        switcher.classList.remove('open');
+    });
+
+    /* 8 秒还没画出 canvas，说明依赖 404 —— 给出能看懂的提示 */
+    function checkBoot() {
+        clearTimeout(bootTimer);
+        bootTimer = setTimeout(function () {
+            try {
+                var doc = frame.contentDocument;
+                if (!doc) return;
+                if (doc.querySelectorAll('canvas').length > 0) return;
+                var msgEl = doc.getElementById('error-msg');
+                showFail(msgEl ? (msgEl.textContent || '').trim() : '3D 引擎没有启动');
+            } catch (err) {}
+        }, 8000);
+    }
+
+    function showFail(txt) {
+        if (document.getElementById('fail-tip')) return;
+        var box = document.createElement('div');
+        box.id = 'fail-tip';
+        box.innerHTML = '<b>3D 引擎没能启动</b>' +
+            '源页的 three.js 等依赖没有加载成功（多为目录层级不对导致 404）。' +
+            '<br>报错：<code></code>';
+        box.querySelector('code').textContent = txt;
+        var btn = document.createElement('button');
+        btn.textContent = '重试';
+        btn.onclick = function () {
+            removeFail();
+            var on = list.querySelector('.sw-item.on');
+            load(current, on ? on.dataset.src : 'cscl.html');
+        };
+        box.appendChild(btn);
+        document.body.appendChild(box);
+    }
+
+    frame.addEventListener('load', function () {
+        /* 快照本次请求号，稍等一下再找 canvas：避免 load 时 contentDocument 还指着旧页，
+           也避免上一次切换残留的 load 事件把这一次的淡入提前触发。 */
+        var my = reqSeq;
+        setTimeout(function () { revealStage(my, 24); }, 120);
+        fitFrame();
+        checkBoot();
+        setTimeout(function () { send({ __cmd: 'arm' }); }, 500);
+        setTimeout(function () { send({ __cmd: 'auto', on: autoOn }); }, 300);
+        setTimeout(function () { send({ __cmd: 'rot', on: rotOn }); }, 260);
+        setTimeout(function () { send({ __cmd: 'rot', on: rotOn }); }, 900);
+        setTimeout(function () { send({ __cmd: 'cam', ortho: camOrtho }); }, 1200);
+        setTimeout(function () { send({ __cmd: 'cam', ortho: camOrtho }); }, 4200);
+        setTimeout(function () { send({ __cmd: 'state' }); }, 2500);
+    });
+
+    window.addEventListener('resize', fitFrame);
+    fitFrame();
+    barAuto.textContent = '自动：' + (autoOn ? '开' : '关');
+    barRot.textContent = '旋转：' + (rotOn ? '开' : '关');
+    load('cscl', 'cscl.html');
+})();
+</script>
+
+<script>window.BACK_SUBNAV = 'subnav-crystal';</script>
+
+
+</body>
+</html>

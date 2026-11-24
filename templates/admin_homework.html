@@ -1,0 +1,238 @@
+{% extends 'base.html' %}
+{% block title %}作业管理{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-tasks me-2"></i>作业管理</h2>
+    <div class="d-flex gap-2">
+      <a href="/admin/statistics" class="btn btn-outline-info rounded-pill"><i class="fas fa-chart-bar me-1"></i>数据统计</a>
+      <a href="/admin/homework/create" class="btn btn-primary rounded-pill px-4"><i class="fas fa-plus me-1"></i>发布作业</a>
+    </div>
+  </div>
+
+  <!-- 附件投递进度区（进行中/最近完成） -->
+  <div id="deliveryArea">
+    {% for d in active_deliveries %}
+    <div class="card border-info mb-3 delivery-item" data-hw="{{ d.hw_id }}">
+      <div class="card-body py-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="fw-bold"><i class="fas fa-cloud-upload-alt text-info me-1"></i>附件投递中：{{ d.title }}</span>
+          <span class="text-muted small delivery-percent">{{ d.done }}/{{ d.total or '?' }}</span>
+        </div>
+        <div class="progress" style="height:10px;">
+          <div class="progress-bar progress-bar-striped progress-bar-animated bg-info delivery-bar"
+               style="width:{{ (d.done * 100 // d.total) if d.total else 0 }}%"></div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="row g-3">
+    {% for hw in homeworks %}
+    {% set stats = hw_stats.get(hw.id, {}) %}
+    <div class="col-12">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <h5 class="card-title mb-1">
+                <i class="fas fa-bookmark text-primary me-2"></i>{{ hw.title }}
+                {% if hw.subject %}<span class="badge bg-info ms-2">{{ hw.subject.name }}</span>{% endif %}
+                {% if hw.is_active %}<span class="badge bg-success ms-1">进行中</span>
+                {% else %}<span class="badge bg-secondary ms-1">已关闭</span>{% endif %}
+              </h5>
+              <small class="text-muted">
+                班级: {% for cname in hw_class_names.get(hw.id, []) %}{{ cname }}{% if not loop.last %}, {% endif %}{% else %}全部{% endfor %}
+                {% if hw.deadline %} | 截止: {{ hw.deadline.strftime('%Y-%m-%d %H:%M') }}{% endif %}
+                | 创建: {{ hw.create_time.strftime('%Y-%m-%d') }}
+              </small>
+            </div>
+            <div class="d-flex gap-2">
+              {% if stats.ungraded > 0 %}
+              <span class="badge bg-danger fs-6"><i class="fas fa-exclamation-circle"></i> {{ stats.ungraded }}份待批</span>
+              {% endif %}
+              <span class="btn btn-sm btn-outline-secondary rounded-pill disabled">{{ stats.total }}份提交</span>
+              <a href="/admin/homework/{{ hw.id }}/submissions" class="btn btn-outline-primary btn-sm rounded-pill"><i class="fas fa-list-check me-1"></i>批改</a>
+              {% if session.get('is_admin') or hw.id in editable_homework_ids %}
+              <a href="/admin/homework/{{ hw.id }}/edit" class="btn btn-outline-secondary btn-sm rounded-pill"><i class="fas fa-edit me-1"></i>编辑</a>
+              <form method="post" action="/admin/homework/{{ hw.id }}/delete" style="display:inline;" onsubmit="return confirm('确定删除此作业？')">
+                <button class="btn btn-outline-danger btn-sm rounded-pill"><i class="fas fa-trash"></i></button>
+              </form>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+    {% if not homeworks %}
+    <div class="col-12"><div class="alert alert-info">暂无作业，点击"发布作业"开始</div></div>
+    {% endif %}
+  </div>
+  {% if pagination and pagination.pages > 1 %}
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
+      <span class="text-muted small">共 {{ pagination.total }} 个作业，第 {{ pagination.page }} / {{ pagination.pages }} 页</span>
+      <nav aria-label="作业分页">
+          <ul class="pagination justify-content-center mb-0 flex-wrap">
+              <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                  <a class="page-link" href="{{ url_for('homework.admin_homework', page=pagination.prev_num) if pagination.has_prev else '#' }}">上一页</a>
+              </li>
+              {% for p in range(1, pagination.pages + 1) %}
+                  {% if p == 1 or p == pagination.pages or (p >= pagination.page - 2 and p <= pagination.page + 2) %}
+                  <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                      <a class="page-link" href="{{ url_for('homework.admin_homework', page=p) }}">{{ p }}</a>
+                  </li>
+                  {% elif p == 2 or p == pagination.pages - 1 %}
+                  <li class="page-item disabled"><span class="page-link">…</span></li>
+                  {% endif %}
+              {% endfor %}
+              <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                  <a class="page-link" href="{{ url_for('homework.admin_homework', page=pagination.next_num) if pagination.has_next else '#' }}">下一页</a>
+              </li>
+          </ul>
+      </nav>
+  </div>
+  {% endif %}
+</div>
+
+<!-- 投递结果明细模态框（容量不足名单醒目提示） -->
+<div class="modal fade" id="deliveryResultModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header" id="deliveryResultHeader">
+        <h5 class="modal-title"><i class="fas fa-cloud-upload-alt me-1"></i>附件投递结果</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-success py-2" id="deliverySummary"></div>
+        <div id="deliveryInsufficientWrap" style="display:none;">
+          <div class="alert alert-danger">
+            <h6 class="mb-2"><i class="fas fa-exclamation-triangle me-1"></i>以下学生网盘容量不足，未能投递附件：</h6>
+            <div id="deliveryInsufficientList" class="small" style="max-height:240px;overflow-y:auto;"></div>
+            <div class="mt-2 small text-muted">可在"学生网盘 → 批量管理"中为这些学生/班级调整容量后重新投递。</div>
+          </div>
+        </div>
+        <div id="deliveryFailedWrap" style="display:none;">
+          <div class="alert alert-warning py-2">
+            <h6 class="mb-1"><i class="fas fa-exclamation-circle me-1"></i>以下学生投递失败：</h6>
+            <div id="deliveryFailedList" class="small"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var area = document.getElementById('deliveryArea');
+  var pollTimer = null;
+  var seenDone = {};
+
+  // 转义 HTML，防止学生/班级名称等注入脚本
+  function escapeHtml(v) {
+    var d = document.createElement('div');
+    d.textContent = v == null ? '' : String(v);
+    return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  // 显示单个投递完成结果（含容量不足醒目名单）
+  function showResult(d) {
+    var modal = new bootstrap.Modal(document.getElementById('deliveryResultModal'));
+    document.getElementById('deliverySummary').textContent =
+      '作业「' + (d.title || '') + '」附件投递完成：成功 ' + (d.delivered || 0) + ' 个';
+    var ins = d.insufficient || [];
+    var fails = d.failed || [];
+    var insWrap = document.getElementById('deliveryInsufficientWrap');
+    var failWrap = document.getElementById('deliveryFailedWrap');
+    if (ins.length) {
+      insWrap.style.display = '';
+      var html = '';
+      ins.slice(0, 30).forEach(function (s) {
+        html += '<div class="d-flex justify-content-between border-bottom py-1">' +
+          '<span>' + escapeHtml(s.student) + (s['class'] ? '（' + escapeHtml(s['class']) + '）' : '') + '</span>' +
+          '<span class="text-danger">容量 ' + escapeHtml(s.quota_mb) + 'MB</span></div>';
+      });
+      if (ins.length > 30) html += '<div class="text-muted mt-1">…还有 ' + (ins.length - 30) + ' 名学生未列出</div>';
+      document.getElementById('deliveryInsufficientList').innerHTML = html;
+      document.getElementById('deliverySummary').classList.add('mb-3');
+    } else {
+      insWrap.style.display = 'none';
+    }
+    if (fails.length) {
+      failWrap.style.display = '';
+      document.getElementById('deliveryFailedList').textContent =
+        fails.slice(0, 10).map(function (f) { return f.student + '（' + f['class'] + '）: ' + (f.reason || '未知'); }).join('；');
+      if (fails.length > 10) document.getElementById('deliveryFailedList').textContent += '…等 ' + fails.length + ' 名学生';
+    } else {
+      failWrap.style.display = 'none';
+    }
+    modal.show();
+  }
+
+  function renderActive(list) {
+    // 移除已完成的进度条，保留进行中的
+    var alive = {};
+    list.forEach(function (d) {
+      if (d.status !== 'running') return;
+      alive[d.hw_id] = d;
+      var item = area.querySelector('.delivery-item[data-hw="' + d.hw_id + '"]');
+      var pct = d.total ? Math.round(d.done * 100 / d.total) : 0;
+      if (!item) {
+        var div = document.createElement('div');
+        div.className = 'card border-info mb-3 delivery-item';
+        div.dataset.hw = d.hw_id;
+        div.innerHTML = '<div class="card-body py-3">' +
+          '<div class="d-flex justify-content-between align-items-center mb-2">' +
+          '<span class="fw-bold"><i class="fas fa-cloud-upload-alt text-info me-1"></i>附件投递中：' + escapeHtml(d.title) + '</span>' +
+          '<span class="text-muted small delivery-percent"></span></div>' +
+          '<div class="progress" style="height:10px;"><div class="progress-bar progress-bar-striped progress-bar-animated bg-info delivery-bar" style="width:0%"></div></div>' +
+          '</div>';
+        area.appendChild(div);
+        item = div;
+      }
+      item.querySelector('.delivery-bar').style.width = pct + '%';
+      item.querySelector('.delivery-percent').textContent = d.done + '/' + d.total;
+    });
+    // 移除不在进行中列表的进度条（已完成）
+    area.querySelectorAll('.delivery-item').forEach(function (item) {
+      var hwId = item.dataset.hw;
+      if (!alive[hwId]) item.remove();
+    });
+    // 完成的：弹窗提示一次
+    list.forEach(function (d) {
+      if (d.status === 'done' && !seenDone[d.hw_id]) {
+        seenDone[d.hw_id] = true;
+        showResult(d);
+      }
+    });
+  }
+
+  function poll() {
+    fetch('/admin/homework/delivery-progress/active', { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j.success) return;
+        renderActive(j.data || []);
+        // 无进行中任务则停止轮询
+        var running = (j.data || []).some(function (d) { return d.status === 'running'; });
+        if (!running && pollTimer) {
+          clearInterval(pollTimer);
+          pollTimer = null;
+        }
+      })
+      .catch(function () { /* 网络错误忽略，下轮重试 */ });
+  }
+
+  // 若页面有进行中投递则开始轮询（每 1.5 秒）
+  if (area.querySelector('.delivery-item')) {
+    pollTimer = setInterval(poll, 1500);
+    poll();
+  }
+})();
+</script>
+{% endblock %}

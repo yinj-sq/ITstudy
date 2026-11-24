@@ -1,0 +1,51 @@
+# -*- coding: utf-8 -*-
+# ============================================================
+# ITstudy V6.0.0 依赖清单
+# 版权所有 (C) 2025-2026 YINJUN
+# 安装方式: pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+# ============================================================
+
+# --- Web 框架核心 ---
+# 下限 3.1：登录会话轮换依赖 session.rotate()（3.1 起提供）；3.0.x 会退化为
+# 仅 session.clear() 而不更换会话 ID，攻击者预置的固定会话无法在登录时失效
+Flask>=3.1,<4.0
+Werkzeug>=3.1,<4.0
+
+# --- 数据库 ORM ---
+# 显式限制 SQLAlchemy 2.0.x：2.1+ 的 postgresql:// 默认驱动可能切到 psycopg
+# (v3)，而本项目依赖 psycopg2-binary；config 已显式使用 postgresql+psycopg2://，
+# 这里再从依赖解析层锁住已验证的 2.0.x，避免在线安装漂移到未验证版本。
+SQLAlchemy>=2.0,<2.1
+Flask-SQLAlchemy>=3.1,<4.0
+Flask-Migrate>=4.0,<5.0
+psycopg2-binary>=2.9,<3.0
+
+# --- 生产服务器 ---
+waitress>=3.0.2,<4.0
+
+# --- 缓存 ---
+Flask-Caching>=2.1,<3.0
+
+# --- 响应压缩 (gzip/brotli) ---
+flask-compress>=1.17,<2.0
+
+# --- 请求数据校验 ---
+pydantic>=2.5,<3.0
+
+# --- Excel 读写 ---
+openpyxl>=3.1,<4.0
+
+# --- 图片处理 ---
+Pillow>=13.0.0,<14.0
+
+# --- HTTP 请求 ---
+requests>=2.31,<3.0
+
+# --- 敏感凭据加密 ---
+cryptography>=50.0.2,<51.0
+
+# --- PPT 解析 ---
+python-pptx>=0.6.21,<1.0
+
+# --- Windows 服务 (仅 Windows 部署需要) ---
+pywin32>=306; sys_platform == 'win32'

@@ -1,0 +1,356 @@
+{% extends 'base.html' %}
+{% block title %}学生网盘{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0"><i class="fas fa-cloud me-2"></i>学生网盘</h2>
+    <span class="badge bg-primary">全局默认 {{ default_quota_mb }} MB</span>
+  </div>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label">班级</label>
+          <select name="class_id" class="form-select">
+            <option value="">全部班级</option>
+            {% for c in classes %}
+            <option value="{{ c.id }}" {% if class_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-5">
+          <label class="form-label">学生姓名/学号</label>
+          <input type="text" name="q" class="form-control" value="{{ keyword or '' }}" placeholder="输入关键词">
+        </div>
+        <div class="col-md-3 d-flex gap-2">
+          <button class="btn btn-primary flex-fill"><i class="fas fa-search me-1"></i>筛选</button>
+          <a href="{{ url_for('student_drive.admin_student_drive') }}" class="btn btn-outline-secondary">重置</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 批量管理：容量设置 + 自动清理 -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+      <h6 class="mb-0"><i class="fas fa-cogs me-2"></i>批量管理</h6>
+    </div>
+    <div class="card-body">
+      <div class="row g-3">
+        <!-- 全局默认容量 -->
+        <div class="col-md-4">
+          <div class="border rounded-3 p-3 h-100">
+            <h6 class="mb-2"><i class="fas fa-globe text-primary me-1"></i>全局默认容量</h6>
+            <form id="quotaGlobalForm" class="d-flex gap-2">
+              <div class="input-group">
+                <input type="number" name="quota_mb" class="form-control" min="1"
+                       value="{{ default_quota_mb }}" placeholder="MB">
+                <span class="input-group-text">MB</span>
+              </div>
+              <button class="btn btn-primary btn-sm px-3" type="submit">保存</button>
+            </form>
+            <small class="text-muted">未单独设置的学生/班级使用此容量</small>
+          </div>
+        </div>
+        <!-- 按班级批量设置 -->
+        <div class="col-md-4">
+          <div class="border rounded-3 p-3 h-100">
+            <h6 class="mb-2"><i class="fas fa-school text-success me-1"></i>按班级批量设置</h6>
+            <form id="quotaClassForm" class="d-flex gap-2 flex-wrap">
+              <select name="class_id" class="form-select form-select-sm" style="flex:1;min-width:130px;" required>
+                <option value="">选择班级</option>
+                {% for c in classes %}
+                <option value="{{ c.id }}">{{ c.name }}</option>
+                {% endfor %}
+              </select>
+              <div class="input-group input-group-sm" style="width:120px;">
+                <input type="number" name="quota_mb" class="form-control" min="1" placeholder="MB" required>
+                <span class="input-group-text">MB</span>
+              </div>
+              <button class="btn btn-success btn-sm px-3" type="submit">应用</button>
+            </form>
+            <small class="text-muted">整班学生统一容量（可被单个学生覆盖）</small>
+          </div>
+        </div>
+        <!-- 自动清理配置 -->
+        <div class="col-md-4">
+          <div class="border rounded-3 p-3 h-100">
+            <h6 class="mb-2"><i class="fas fa-broom text-warning me-1"></i>自动清理</h6>
+            <form id="cleanupConfigForm" class="row g-2">
+              <div class="col-6">
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" name="enabled" id="cleanupEnabled"
+                         {% if cleanup_config and cleanup_config.enabled %}checked{% endif %}>
+                  <label class="form-check-label" for="cleanupEnabled">启用</label>
+                </div>
+              </div>
+              <div class="col-6 text-end">
+                <button type="button" class="btn btn-sm btn-outline-warning" id="cleanupPreviewBtn">
+                  <i class="fas fa-search me-1"></i>待清理清单
+                </button>
+              </div>
+              <div class="col-6">
+                <label class="form-label small mb-0">闲置天数</label>
+                <input type="number" name="idle_days" class="form-control form-control-sm" min="1"
+                       value="{{ cleanup_config.idle_days if cleanup_config else 90 }}">
+              </div>
+              <div class="col-6">
+                <label class="form-label small mb-0">检查周期(小时)</label>
+                <input type="number" name="interval_hours" class="form-control form-control-sm" min="1"
+                       value="{{ cleanup_config.interval_hours if cleanup_config else 24 }}">
+              </div>
+              <div class="col-12 d-flex gap-2">
+                <button class="btn btn-warning btn-sm flex-fill" type="submit">
+                  <i class="fas fa-save me-1"></i>保存配置
+                </button>
+                <button type="button" class="btn btn-danger btn-sm" id="cleanupRunBtn">
+                  <i class="fas fa-trash me-1"></i>立即清理
+                </button>
+              </div>
+            </form>
+            <small class="text-muted" id="cleanupHint">闲置 N 天未活动的个人网盘文件自动删除</small>
+          </div>
+        </div>
+      </div>
+      <!-- 批量勾选操作栏 -->
+      <div class="d-flex align-items-center gap-2 mt-3 pt-3 border-top flex-wrap">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="selectAll">
+          <label class="form-check-label small" for="selectAll">全选本页</label>
+        </div>
+        <span class="text-muted small" id="selectedCount">已选 0 名学生</span>
+        <div class="ms-auto d-flex align-items-center gap-2">
+          <div class="input-group input-group-sm" style="width:150px;">
+            <input type="number" id="batchQuotaMb" class="form-control" min="1" placeholder="容量(MB)">
+            <span class="input-group-text">MB</span>
+          </div>
+          <button class="btn btn-outline-primary btn-sm" id="batchQuotaBtn">
+            <i class="fas fa-tachometer-alt me-1"></i>批量设置容量
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th style="width:36px;"><input class="form-check-input" type="checkbox" id="selectAllHead"></th>
+            <th>学生</th><th>班级</th><th>文件数</th><th>已用空间</th><th>容量</th><th style="width:170px;">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in students %}
+          {% set st = stats.get(s.id, {'count': 0, 'size': 0}) %}
+          {% set q = quota_map.get(s.id, {'mb': default_quota_mb, 'source': 'default'}) %}
+          <tr>
+            <td><input class="form-check-input drive-select" type="checkbox" value="{{ s.id }}"></td>
+            <td>
+              <strong>{{ s.name }}</strong>
+              <div class="small text-muted">{{ s.student_number or '无学号' }}</div>
+            </td>
+            <td>{{ s.class_.name if s.class_ else (s.student_class or '未分班') }}</td>
+            <td>{{ st['count'] }}</td>
+            <td>{{ '%.1f' % (st['size'] / 1024 / 1024) }} MB</td>
+            <td>
+              {{ q.mb }} MB
+              {% if q.source == 'student' %}<span class="badge bg-primary ms-1" title="该学生单独设置">个</span>
+              {% elif q.source == 'class' %}<span class="badge bg-success ms-1" title="按班级设置">班</span>
+              {% else %}<span class="badge bg-secondary ms-1" title="使用全局默认">默</span>{% endif %}
+            </td>
+            <td>
+              <a href="{{ url_for('student_drive.admin_student_drive_detail', student_id=s.id) }}" class="btn btn-outline-primary btn-sm rounded-pill">
+                <i class="fas fa-folder-open me-1"></i>管理网盘
+              </a>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7" class="text-center text-muted py-4">没有匹配的学生</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if pagination and pagination.pages > 1 %}
+    <div class="card-footer bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span class="text-muted small">共 {{ pagination.total }} 名学生，第 {{ pagination.page }} / {{ pagination.pages }} 页</span>
+        <nav aria-label="学生网盘分页">
+            <ul class="pagination justify-content-center mb-0 flex-wrap">
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('student_drive.admin_student_drive', page=pagination.prev_num, class_id=class_id, q=keyword) if pagination.has_prev else '#' }}">上一页</a>
+                </li>
+                {% for p in range(1, pagination.pages + 1) %}
+                    {% if p == 1 or p == pagination.pages or (p >= pagination.page - 2 and p <= pagination.page + 2) %}
+                    <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                        <a class="page-link" href="{{ url_for('student_drive.admin_student_drive', page=p, class_id=class_id, q=keyword) }}">{{ p }}</a>
+                    </li>
+                    {% elif p == 2 or p == pagination.pages - 1 %}
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('student_drive.admin_student_drive', page=pagination.next_num, class_id=class_id, q=keyword) if pagination.has_next else '#' }}">下一页</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- 待清理清单模态框 -->
+<div class="modal fade" id="cleanupPreviewModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-warning">
+        <h5 class="modal-title"><i class="fas fa-broom me-1"></i>待清理闲置文件</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small" id="previewSummary"></p>
+        <div class="table-responsive" style="max-height:320px;overflow-y:auto;">
+          <table class="table table-sm table-hover mb-0">
+            <thead class="table-light"><tr><th>学生</th><th>班级</th><th>文件</th><th>大小</th><th>上传时间</th></tr></thead>
+            <tbody id="previewList"></tbody>
+          </table>
+        </div>
+        <p class="text-muted small mt-2 mb-0" id="previewMore"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+        <button type="button" class="btn btn-danger" id="previewCleanBtn">确认清理这些文件</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  function postJson(url, data, cb) {
+    var fd = new FormData();
+    Object.keys(data).forEach(function (k) { fd.append(k, data[k]); });
+    fetch(url, { method: 'POST', body: fd,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j.success) { alert(j.message || '操作失败'); return; }
+        cb && cb(j);
+      })
+      .catch(function () { alert('网络错误，请重试'); });
+  }
+  function alertAndReload(j) { alert(j.message); location.reload(); }
+
+  // 转义 HTML，防止学生姓名/文件名等注入脚本
+  function escapeHtml(v) {
+    var d = document.createElement('div');
+    d.textContent = v == null ? '' : String(v);
+    return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  // 全局默认容量
+  document.getElementById('quotaGlobalForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    postJson('/admin/student-drive/quota/global', {
+      quota_mb: this.quota_mb.value
+    }, alertAndReload);
+  });
+  // 按班级批量设置
+  document.getElementById('quotaClassForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (!this.class_id.value) { alert('请选择班级'); return; }
+    postJson('/admin/student-drive/quota/class', {
+      class_id: this.class_id.value, quota_mb: this.quota_mb.value
+    }, alertAndReload);
+  });
+  // 自动清理配置保存
+  document.getElementById('cleanupConfigForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    postJson('/admin/student-drive/cleanup-config', {
+      enabled: this.enabled.checked ? 'on' : '',
+      idle_days: this.idle_days.value,
+      interval_hours: this.interval_hours.value
+    }, alertAndReload);
+  });
+  // 勾选逻辑
+  function selectedIds() {
+    return Array.prototype.slice.call(document.querySelectorAll('.drive-select:checked'))
+      .map(function (c) { return c.value; });
+  }
+  function updateSelectedCount() {
+    document.getElementById('selectedCount').textContent = '已选 ' + selectedIds().length + ' 名学生';
+  }
+  document.getElementById('selectAll').addEventListener('change', function () {
+    document.querySelectorAll('.drive-select').forEach(function (c) { c.checked = this.checked; }, this);
+    updateSelectedCount();
+  });
+  document.getElementById('selectAllHead').addEventListener('change', function () {
+    document.getElementById('selectAll').checked = this.checked;
+    document.querySelectorAll('.drive-select').forEach(function (c) { c.checked = this.checked; }, this);
+    updateSelectedCount();
+  });
+  document.querySelectorAll('.drive-select').forEach(function (c) {
+    c.addEventListener('change', updateSelectedCount);
+  });
+  // 批量设置容量
+  document.getElementById('batchQuotaBtn').addEventListener('click', function () {
+    var ids = selectedIds();
+    var mb = document.getElementById('batchQuotaMb').value;
+    if (!ids.length) { alert('请先勾选学生'); return; }
+    if (!mb || parseInt(mb) < 1) { alert('请输入有效容量(MB)'); return; }
+    if (!confirm('为 ' + ids.length + ' 名学生设置容量 ' + mb + ' MB？')) return;
+    postJson('/admin/student-drive/quota/students', {
+      student_ids: ids.join(','), quota_mb: mb
+    }, alertAndReload);
+  });
+  // 待清理清单。bootstrap.bundle 为 defer 加载，本脚本在解析期执行时
+  // bootstrap 尚未定义——必须在点击时再取实例（此前在此处 new 抛
+  // ReferenceError，下方三个清理按钮的监听器全部没挂上）
+  function previewModal() {
+    return bootstrap.Modal.getOrCreateInstance(document.getElementById('cleanupPreviewModal'));
+  }
+  function loadPreview() {
+    fetch('/admin/student-drive/cleanup-preview', { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j.success) { alert(j.message); return; }
+        var d = j.data;
+        document.getElementById('previewSummary').textContent =
+          '闲置 ' + d.idle_days + ' 天以上：共 ' + d.total + ' 个文件，约 ' + d.total_mb + ' MB';
+        var tbody = document.getElementById('previewList');
+        tbody.innerHTML = '';
+        (d.preview || []).forEach(function (f) {
+          var tr = document.createElement('tr');
+          tr.innerHTML = '<td>' + escapeHtml(f.student) + '</td><td>' + escapeHtml(f.class) + '</td><td>' + escapeHtml(f.filename) +
+            '</td><td>' + escapeHtml(f.size_mb) + ' MB</td><td>' + escapeHtml(f.upload_time) + '</td>';
+          tbody.appendChild(tr);
+        });
+        document.getElementById('previewMore').textContent =
+          d.total > (d.preview || []).length ? '…还有 ' + (d.total - (d.preview || []).length) + ' 个文件未列出' : '';
+      })
+      .catch(function () { alert('加载清单失败'); });
+  }
+  document.getElementById('cleanupPreviewBtn').addEventListener('click', function () {
+    loadPreview();
+    previewModal().show();
+  });
+  document.getElementById('previewCleanBtn').addEventListener('click', function () {
+    if (!confirm('确定清理这些闲置文件吗？此操作不可恢复！')) return;
+    postJson('/admin/student-drive/cleanup-run', {}, function (j) {
+      previewModal().hide();
+      alert(j.message);
+      location.reload();
+    });
+  });
+  document.getElementById('cleanupRunBtn').addEventListener('click', function () {
+    // 确认弹窗移入监听器内（此前挂在 onclick 上返回值无人消费，点击即删除）
+    if (!confirm('确定立即清理闲置网盘文件吗？此操作不可恢复！')) return;
+    postJson('/admin/student-drive/cleanup-run', {}, function (j) {
+      alert(j.message);
+      location.reload();
+    });
+  });
+})();
+</script>
+{% endblock %}

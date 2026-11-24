@@ -1,0 +1,408 @@
+{% extends 'base.html' %}
+{% block title %}资源管理{% endblock %}
+{% block content %}
+<div class="container py-4">
+  {% if request.args.get('created') == 'true' %}
+  <div class="alert alert-success alert-dismissible fade show" role="alert">
+    <i class="fas fa-check-circle me-2"></i>资源 "<strong>{{ request.args.get('title', '') }}</strong>" 创建成功！
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="关闭"></button>
+  </div>
+  {% endif %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-book me-2"></i>资源管理</h2>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('resources.admin_resource_audience_batch') }}" class="btn btn-outline-success rounded-pill">
+        <i class="fas fa-user-check me-1"></i>内置资源批量授权
+      </a>
+      <button class="btn btn-outline-info rounded-pill" data-bs-toggle="modal" data-bs-target="#linkModal">
+        <i class="fas fa-link me-1"></i>外链资源
+      </button>
+      <a href="{{ url_for('resources.admin_resources_upload_page') }}" class="btn btn-primary rounded-pill px-4">
+        <i class="fas fa-upload me-2"></i>上传资源
+      </a>
+    </div>
+  </div>
+
+  {% if suppressed_builtins %}
+  <div class="alert alert-warning d-flex flex-wrap align-items-center gap-2">
+    <span><i class="fas fa-eye-slash me-1"></i>已停用的内置资源（重启不会自动恢复）：</span>
+    {% for item in suppressed_builtins %}
+    <form method="post" action="{{ url_for('resources.admin_builtin_restore') }}" class="d-inline m-0">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="key" value="{{ item.key }}">
+      <button class="btn btn-sm btn-outline-success rounded-pill">
+        <i class="fas fa-rotate-left me-1"></i>恢复「{{ item.label }}」
+      </button>
+    </form>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- 学科管理 -->
+  <div class="card mb-4 border-primary">
+    <div class="card-header bg-primary bg-opacity-10 py-2 d-flex justify-content-between align-items-center">
+      <strong><i class="fas fa-tags text-primary me-2"></i>学科分类管理</strong>
+      <div>
+        <button class="btn btn-outline-danger btn-sm rounded-pill" onclick="batchDeleteSubjects()">
+          <i class="fas fa-trash me-1"></i>删除选中学科
+        </button>
+      </div>
+    </div>
+    <div class="card-body py-2">
+      <div class="d-flex flex-wrap align-items-start gap-2 mb-2">
+        <label class="subject-chip subject-chip-all">
+          <input class="subject-check" type="checkbox" value="all" checked onchange="filterBySubjects(event, true)">
+          <span>全部</span>
+        </label>
+        {% for s in subjects %}
+        <label class="subject-chip">
+          <input class="subject-check" type="checkbox" value="{{ s.id }}" onchange="filterBySubjects(event, false)">
+          <i class="fas fa-tag me-1"></i><span>{{ s.name }}</span>
+        </label>
+        {% endfor %}
+      </div>
+      <style>
+      .subject-chip { display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:2px solid #dee2e6;border-radius:25px;cursor:pointer;font-size:0.9rem;background:#fff;transition:all 0.2s;user-select:none; }
+      .subject-chip:hover { border-color:#0d6efd;background:#f0f6ff; }
+      .subject-chip:has(input:checked) { border-color:#0d6efd;background:#e7f1ff;color:#0d6efd;font-weight:600; }
+      .subject-chip-all:has(input:checked) { background:#0d6efd;color:#fff;border-color:#0d6efd; }
+      .subject-chip input { width:16px;height:16px;accent-color:#0d6efd;cursor:pointer; }
+      </style>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <form method="post" action="{{ url_for('resources.add_subject') }}" class="d-flex gap-1">
+          <input type="text" class="form-control form-control-sm" name="name" placeholder="新学科名称" style="width:150px;">
+          <button class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> 添加学科</button>
+        </form>
+        {% if subjects %}
+        <form method="post" action="{{ url_for('resources.rename_subject') }}" class="d-flex flex-wrap gap-1">
+          <select name="sid" class="form-select form-select-sm" style="width:160px;" required>
+            <option value="">选择学科</option>
+            {% for s in subjects %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+          </select>
+          <input type="text" class="form-control form-control-sm" name="name" placeholder="新学科名称" style="width:150px;" required>
+          <button class="btn btn-outline-primary btn-sm" title="原地改名：保留教师任教学科、资源与授权关联">
+            <i class="fas fa-pen"></i> 重命名学科
+          </button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+<!-- 外链资源弹窗 -->
+<div class="modal fade" id="linkModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('resources.admin_resources') }}">
+        <div class="modal-header bg-info text-white"><h5 class="modal-title"><i class="fas fa-link me-1"></i>添加外链资源</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="关闭"></button></div>
+        <div class="modal-body">
+          <div class="mb-3"><label class="form-label">资源标题</label><input type="text" class="form-control" name="title" required></div>
+          <div class="mb-3"><label class="form-label">资源网址</label><input type="url" class="form-control" name="url" placeholder="https://..." required></div>
+          <div class="mb-3"><label class="form-label">所属学科</label><select class="form-select" name="subject_id"><option value="">未分类</option>{% for s in subjects %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select></div>
+        </div>
+        <div class="modal-footer"><button type="submit" class="btn btn-info">添加</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+  <!-- 资源列表 -->
+  <div class="row g-3" id="resourceList">
+    {% for rd in resource_data %}
+    {% set res = rd.res %}{% set files = rd.files %}{% set is_link = rd.is_external_link %}{% set hw_count = rd.homework_count %}{% set activity_count = rd.activity_count %}{% set survey_count = rd.survey_count %}
+    <div class="col-12 resource-item" data-subject="{{ res.subject_id or 'none' }}">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+            <div>
+              <h5 class="card-title mb-1">
+                <label class="btn btn-sm btn-outline-success rounded-pill res-vis-toggle {{ 'active' if res.show_in_student }}" data-res="{{ res.id }}" data-flag="show_in_student" title="学生端可见">
+                  <i class="fas fa-user-graduate me-1"></i>学生
+                </label>
+                <label class="btn btn-sm btn-outline-info rounded-pill res-vis-toggle {{ 'active' if res.show_in_classroom }}" data-res="{{ res.id }}" data-flag="show_in_classroom" title="教师端可见">
+                  <i class="fas fa-chalkboard-teacher me-1"></i>教师
+                </label>
+                {% if is_link %}
+                <i class="fas fa-globe text-info me-2"></i>
+                {% else %}
+                <i class="fas fa-folder-open text-primary me-2"></i>
+                {% endif %}
+                {{ res.title }}
+                {% if res.subject %}<span class="badge bg-info ms-2">{{ res.subject.name }}</span>{% endif %}
+                {% if res.creator_name %}<span class="badge bg-light text-dark border ms-1">创建者：{{ res.creator_name }}</span>{% endif %}
+                {% if res.shared_teachers %}<span class="badge bg-light text-dark border ms-1">共享 {{ res.shared_teachers|length }} 人</span>{% endif %}
+                {% if is_link %}<span class="badge bg-secondary ms-2">外链</span>{% endif %}
+                {% if hw_count > 0 %}
+                <span class="badge bg-warning text-dark ms-1"><i class="fas fa-tasks"></i> {{ hw_count }}个作业</span>
+                {% endif %}
+                {% if activity_count > 0 %}
+                <span class="badge bg-success ms-1"><i class="fas fa-list"></i> {{ activity_count }}个活动</span>
+                {% endif %}
+                {% if survey_count > 0 %}
+                <span class="badge bg-primary ms-1"><i class="fas fa-poll"></i> {{ survey_count }}个问卷</span>
+                {% endif %}
+                {% if res.is_builtin %}
+                <span class="badge bg-info ms-1" title="内置资源：管理员可编辑、授权、停用"><i class="fas fa-box"></i> 内置</span>
+                <span class="badge bg-light text-dark border ms-1" title="课堂授权范围（年级 × 学科）">授权：{{ audience_summaries.get(res.id, '未配置') }}</span>
+                {% elif res.is_public %}<span class="badge bg-info ms-1" title="全体教师课堂可见"><i class="fas fa-globe"></i> 公开</span>{% endif %}
+                {% if not res.show_in_student and not res.show_in_classroom %}<span class="badge bg-dark ms-1">仅后台</span>{% endif %}
+              </h5>
+              {% if res.url and res.url.startswith('/chem-lab') %}
+              <small class="text-muted"><i class="fas fa-flask me-1"></i>化学仿真（系统内置，无需上传文件）</small>
+              {% elif is_link %}
+              <small class="text-muted">{{ res.url }}</small>
+              {% else %}
+              <small class="text-muted">共 <span data-admin-file-count-for="{{ res.id }}">…</span> 个文件</small>
+              {% endif %}
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+              {% if not is_link and not (res.url and res.url.startswith('/chem-lab')) %}
+              <button class="btn btn-outline-primary btn-sm rounded-pill toggle-files" data-target="files-{{ res.id }}">
+                <i class="fas fa-list me-1"></i>浏览文件
+              </button>
+              {% endif %}
+              <a href="/admin/resources/edit/{{ res.id }}" class="btn btn-outline-primary btn-sm rounded-pill">
+                <i class="fas fa-edit me-1"></i>编辑
+              </a>
+              {% if res.is_builtin %}
+              <a href="/admin/resources/edit/{{ res.id }}#audienceCard" class="btn btn-outline-success btn-sm rounded-pill" title="年级 × 学科课堂授权">
+                <i class="fas fa-user-check me-1"></i>授权
+              </a>
+              {% endif %}
+              <a href="{{ url_for('activities.admin_activities', res_id=res.id) }}" class="btn btn-outline-success btn-sm rounded-pill">
+                <i class="fas fa-tasks me-1"></i>活动
+              </a>
+              <a href="{{ url_for('surveys.survey_list', res_id=res.id) }}" class="btn btn-outline-primary btn-sm rounded-pill">
+                <i class="fas fa-poll me-1"></i>问卷
+              </a>
+              <a href="/admin/resources/quiz_results/{{ res.id }}" class="btn btn-outline-warning btn-sm rounded-pill" title="查看测验成绩">
+                <i class="fas fa-chart-bar me-1"></i>成绩
+              </a>
+              {% if res.quiz_mode == 'inject' and res.injected %}
+              <button class="btn btn-outline-secondary btn-sm rounded-pill" title="从备份还原注入前的 HTML 文件"
+                      onclick="revertInjection({{ res.id }})">
+                <i class="fas fa-undo me-1"></i>撤销注入
+              </button>
+              {% endif %}
+              {% if not is_link and not (res.url and res.url.startswith('/chem-lab')) %}
+              <a href="/admin/resources/download/{{ res.id }}" class="btn btn-outline-success btn-sm rounded-pill">
+                <i class="fas fa-download me-1"></i>下载全部
+              </a>
+              {% endif %}
+              <form method="post" action="/admin/resources/delete/{{ res.id }}" style="display:inline;" onsubmit="return confirm('确定删除整个资源？');">
+                <button class="btn btn-outline-danger btn-sm rounded-pill"><i class="fas fa-trash me-1"></i>删除</button>
+              </form>
+            </div>
+          </div>
+          <!-- 文件列表（默认折叠） -->
+          {% if not is_link and not (res.url and res.url.startswith('/chem-lab')) %}
+          <div id="files-{{ res.id }}" class="border rounded p-2 bg-light" style="display:none;"
+               data-files-url="{{ url_for('resources.admin_resource_files', res_id=res.id) }}">
+            <small class="text-muted">点击“浏览文件”后加载…</small>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+    {% if not resource_data %}
+    <div class="col-12"><div class="alert alert-info text-center py-4">暂无资源，点击右上角"上传资源"开始添加。</div></div>
+    {% endif %}
+  </div>
+  {% if pagination and pagination.pages > 1 %}
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
+      <span class="text-muted small">共 {{ pagination.total }} 个资源，第 {{ pagination.page }} / {{ pagination.pages }} 页</span>
+      <nav aria-label="资源分页">
+          <ul class="pagination justify-content-center mb-0 flex-wrap">
+              <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                  <a class="page-link" href="{{ url_for('resources.admin_resources', page=pagination.prev_num) if pagination.has_prev else '#' }}">上一页</a>
+              </li>
+              {% for p in range(1, pagination.pages + 1) %}
+                  {% if p == 1 or p == pagination.pages or (p >= pagination.page - 2 and p <= pagination.page + 2) %}
+                  <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                      <a class="page-link" href="{{ url_for('resources.admin_resources', page=p) }}">{{ p }}</a>
+                  </li>
+                  {% elif p == 2 or p == pagination.pages - 1 %}
+                  <li class="page-item disabled"><span class="page-link">…</span></li>
+                  {% endif %}
+              {% endfor %}
+              <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                  <a class="page-link" href="{{ url_for('resources.admin_resources', page=pagination.next_num) if pagination.has_next else '#' }}">下一页</a>
+              </li>
+          </ul>
+      </nav>
+  </div>
+  {% endif %}
+
+<script>
+// 资源可见性切换
+document.querySelectorAll('.res-vis-toggle').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    var resId=this.dataset.res, flag=this.dataset.flag;
+    var isActive=this.classList.contains('active');
+    var newVal=!isActive;
+    var form=new FormData();
+    form.append('flag',flag);form.append('value',newVal);
+    fetch('/admin/resources/toggle_vis/'+resId,{method:'POST',body:form})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if(d.success){
+          if(newVal){btn.classList.add('active');}else{btn.classList.remove('active');}
+          // 更新"仅后台"标签
+          var card=btn.closest('.card-body');
+          var studentBtn=card.querySelector('[data-flag=\"show_in_student\"]');
+          var classBtn=card.querySelector('[data-flag=\"show_in_classroom\"]');
+          var badge=card.querySelector('.badge.bg-dark');
+          var bothOff=!studentBtn.classList.contains('active') && !classBtn.classList.contains('active');
+          if(bothOff && !badge){
+            var h5=card.querySelector('h5');
+            var span=document.createElement('span');
+            span.className='badge bg-dark ms-1';span.textContent='仅后台';
+            h5.appendChild(span);
+          }else if(!bothOff && badge){
+            badge.remove();
+          }
+        }
+      });
+  });
+});
+
+// 学科筛选
+function getCheckedSubjects(){
+  var ids=[];
+  document.querySelectorAll('.subject-check:checked').forEach(function(cb){
+    if(cb.value!=='all') ids.push(cb.value);
+  });
+  return ids;
+}
+function filterBySubjects(event, isAll){
+  // 互斥（按事件源区分）：
+  // - 勾选/取消"全部" → 勾选时取消所有具体学科
+  // - 勾选具体学科 → 自动取消"全部"
+  var allCb=document.querySelector('.subject-check[value=\"all\"]');
+  if(isAll){
+    if(allCb.checked){
+      document.querySelectorAll('.subject-check:not([value=\"all\"])').forEach(function(cb){
+        cb.checked=false;
+      });
+    }
+  }else{
+    var concreteChecked=document.querySelectorAll(
+      '.subject-check:checked:not([value=\"all\"])').length;
+    if(concreteChecked>0) allCb.checked=false;
+  }
+  var ids=getCheckedSubjects();
+  var allChecked=allCb.checked;
+  document.querySelectorAll('.resource-item').forEach(function(item){
+    if(allChecked||ids.length===0||ids.includes(item.dataset.subject)||(ids.includes('')&&item.dataset.subject==='none')){
+      item.style.display='';
+    }else{
+      item.style.display='none';
+    }
+  });
+}
+function batchDeleteSubjects(){
+  var ids=getCheckedSubjects();
+  if(ids.length===0){alert('请先勾选要删除的学科');return;}
+  // 两阶段：先检查学科下的资源，有资源时醒目提示将同步删除
+  fetch('/admin/subjects/delete-check?ids='+ids.join(','),{credentials:'same-origin'})
+    .then(function(r){return r.json();})
+    .then(function(j){
+      if(!j.success){alert(j.message||'检查失败');return;}
+      var withRes = (j.data||[]).filter(function(s){return s.resource_count>0;});
+      var noRes = (j.data||[]).filter(function(s){return s.resource_count===0;});
+      var msg = '';
+      // 换行用 String.fromCharCode(10) 生成（不使用 \n 转义，
+      // 避免编辑器/linter 把转义改写破坏 JS 字符串）
+      var NL = String.fromCharCode(10);
+      if(withRes.length>0){
+        msg += '以下学科下存在资源，删除将同步清除其全部资源：' + NL + NL;
+        withRes.forEach(function(s){
+          msg += '【'+s.name+'】'+s.resource_count+' 个资源';
+          if(s.resources.length>0){
+            msg += NL + '  - ' + s.resources.join(NL + '  - ');
+            if(s.more>0) msg += NL + '  - …等 ' + s.more + ' 个';
+          }
+          msg += NL;
+        });
+        msg += NL + '共 ' + j.total_resources + ' 个资源将被删除，此操作不可恢复！';
+      } else {
+        msg = '确认删除选中的 '+ids.length+' 个学科？';
+      }
+      if(noRes.length>0){
+        msg += NL + NL + '无资源学科：' + noRes.map(function(s){return s.name;}).join('、');
+      }
+      if(!confirm(msg)) return;
+      doDeleteSubjects(ids);
+    })
+    .catch(function(){alert('检查失败，请重试');});
+}
+function doDeleteSubjects(ids){
+  // 逐个 fetch 异步提交（原实现用多个 form 逐个 submit，第一个即触发
+  // 页面跳转，后续学科永远不会被删除——选多个时只删第一个）
+  var done=0, failed=0;
+  ids.forEach(function(sid){
+    fetch('/admin/subjects/delete/'+sid,{method:'POST',credentials:'same-origin'})
+      .then(function(){done++; finish();})
+      .catch(function(){failed++; finish();});
+  });
+  function finish(){
+    if(done+failed===ids.length){
+      if(failed>0){
+        alert('删除完成：成功 '+done+' 个'+(failed>0?'，失败 '+failed+' 个':''));
+      }
+      location.reload();
+    }
+  }
+}
+
+document.querySelectorAll('.toggle-files').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    var el=document.getElementById(this.dataset.target);
+    if(el.style.display==='none'){
+      el.style.display='';
+      this.innerHTML='<i class=\"fas fa-list me-1\"></i>收起文件';
+      if(el.dataset.filesUrl && el.dataset.loaded!=='1'){
+        el.dataset.loaded='1';
+        var rid=el.id.replace('files-','');
+        fetch(el.dataset.filesUrl,{credentials:'same-origin'})
+          .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.text();})
+          .then(function(html){
+            var tmp=document.createElement('div');tmp.innerHTML=html;
+            var frag=tmp.firstElementChild;
+            if(!frag)throw new Error('empty');
+            el.innerHTML=frag.innerHTML;
+            var count=frag.getAttribute('data-file-count');
+            if(count!==null){
+              document.querySelectorAll('[data-admin-file-count-for=\"'+rid+'\"]').forEach(function(x){x.textContent=count;});
+            }
+          })
+          .catch(function(){
+            delete el.dataset.loaded;
+            el.innerHTML='<small class=\"text-danger\">文件加载失败，请重试</small>';
+          });
+      }
+    }
+    else{el.style.display='none';this.innerHTML='<i class=\"fas fa-list me-1\"></i>浏览文件';}
+  });
+});
+
+// 撤销采集器注入（fetch 提交，避免跳转到 JSON 响应页）
+function revertInjection(resId){
+  if(!confirm('撤销采集器注入？将从 .bak 备份还原注入前的 HTML 文件（未注入过的不受影响）。')) return;
+  fetch('/admin/resources/' + resId + '/revert-injection', {
+    method: 'POST',
+    credentials: 'same-origin'
+  }).then(function(r){return r.json();})
+    .then(function(d){
+      if(d.success){
+        alert(d.msg || '已还原');
+        location.reload();
+      }else{
+        alert(d.msg || '还原失败');
+      }
+    })
+    .catch(function(){ alert('网络错误，请重试'); });
+}
+</script>
+</div>
+{% endblock %}

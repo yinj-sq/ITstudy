@@ -1,0 +1,345 @@
+{% extends 'base.html' %}
+{% block title %}预览 - {{ filename }}{% endblock %}
+{% block head %}
+{% set embed_view = request.args.get('embed') == '1' %}
+<link rel="stylesheet" href="{{ versioned_static('css/jit-viewer.min.css') }}">
+<style>
+  #jitViewerContainer { width: 100%; height: calc(100vh - 120px); min-height: 500px; }
+  .preview-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .preview-header h5 { margin: 0; }
+  .xlsx-toolbar { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .xlsx-table-wrap { width:100%; height:calc(100vh - 190px); min-height:420px; overflow:auto;
+    background:#fff; border:1px solid #dee2e6; border-radius:6px; }
+  .xlsx-table { border-collapse:collapse; font-size:13px; min-width:100%; }
+  .xlsx-table td, .xlsx-table th { border:1px solid #e5e7eb; padding:4px 8px;
+    white-space:pre-wrap; max-width:320px; vertical-align:top; }
+  .xlsx-table tr:first-child td { background:#f1f5f9; font-weight:600; position:sticky; top:0; }
+  .preview-support { margin: 6px 0 10px; }
+  .preview-support summary { cursor:pointer; color:#6c757d; font-size:.82rem; }
+  .preview-support-body { margin-top:6px; padding:8px 10px; background:#f8f9fa; border:1px solid #e9ecef;
+    border-radius:6px; color:#495057; font-size:.78rem; line-height:1.55; }
+  .html-sandbox-note { margin:0 0 8px; padding:8px 10px; background:#f8f9fa; border:1px solid #e9ecef;
+    border-radius:6px; color:#495057; font-size:.8rem; }
+  .html-sandbox-host { width:100%; height:calc(100vh - 220px); min-height:480px; overflow:hidden;
+    border:1px solid #dee2e6; border-radius:6px; background:#fff; }
+  .html-sandbox-frame { width:100%; height:100%; border:0; background:#fff; }
+  {% if embed_view %}
+  /* 评价页内嵌预览：去掉预览页自身的标题/返回/说明和容器留白，
+     iframe 直接铺满“作品内容”框；缩放由宿主评价页控制。 */
+  html, body { background:#fff; }
+  .container, .container-fluid { padding:0 !important; max-width:none !important; width:100% !important; }
+  .preview-header, .preview-support { display:none !important; }
+  #jitViewerContainer { height:100vh; min-height:0; }
+  .xlsx-table-wrap { height:calc(100vh - 70px); min-height:0; }
+  .html-sandbox-host { height:calc(100vh - 56px); min-height:0; }
+  .html-sandbox-note { margin:0; border-radius:0; }
+  {% endif %}
+</style>
+{% endblock %}
+{% block content %}
+<div class="container-fluid py-3" style="max-width:1400px;">
+  <div class="preview-header">
+    <h5><i class="fas fa-file-alt me-2"></i>{{ filename }}</h5>
+    <div>
+      {% if download_url %}
+      <a href="{{ download_url }}" class="btn btn-success btn-sm" download>
+        <i class="fas fa-download me-1"></i>下载
+      </a>
+      {% endif %}
+      {% if back_url %}
+      <a href="{{ back_url }}" class="btn btn-outline-secondary btn-sm ms-1">
+        <i class="fas fa-arrow-left me-1"></i>{{ back_label|default('返回', true) }}
+      </a>
+      {% else %}
+      <a href="javascript:history.back()" class="btn btn-outline-secondary btn-sm ms-1">
+        <i class="fas fa-arrow-left me-1"></i>返回
+      </a>
+      {% endif %}
+    </div>
+  </div>
+  <div class="preview-support">
+    <details>
+      <summary><i class="fas fa-info-circle me-1"></i>支持的预览格式</summary>
+      <div class="preview-support-body">
+        PDF、DOCX、PPTX / PPT、XLSX / XLS、OFD、TXT、MD / Markdown、CSV / TSV、
+        JSON / YAML / 代码文件、图片（PNG/JPG/JPEG/GIF/BMP/WEBP/ICO/SVG/TIF/TIFF）、
+        音频（MP3/WAV/OGG/M4A/FLAC/AAC/OPUS/WEBA/AIF/AIFF）、
+        视频（MP4/WEBM/OGV/MOV）、CAD（DXF/DWG/DWF/DWFX/DWT）、
+        3D（GLB/GLTF/STL/OBJ/PLY）。
+        HTML / HTM 以安全沙箱内联预览（脚本可运行，但无法访问本站会话/父页）；
+        DOC / RTF / ODT / ODS / EPUB 等请下载后查看。
+      </div>
+    </details>
+  </div>
+  <div id="jitViewerContainer"></div>
+</div>
+
+<script>
+(function(){
+  var container = document.getElementById('jitViewerContainer');
+  var fileUrl = {{ file_url|tojson }};
+  var filename = {{ filename|tojson }};
+  // 结果会拼进 alt="…"/src="…"/href="…" 属性：textContent→innerHTML 只转义
+  // <>&，不转义引号，必须补上（name 参数来自 URL，否则可闭合属性注入事件）
+  function escapeHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s == null ? '' : String(s);
+    return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  var safeFileUrl = escapeHtml(fileUrl);
+  var safeFilename = escapeHtml(filename);
+
+  // JitViewer 文档/代码/CAD/3D 预览白名单（与 JitViewer 的 EXTENSION_MAP
+  // 对齐；pptx/ppt 也走 JitViewer，活动/作业/网盘预览不再误判为“不支持”）。
+  // 图片/音频/视频不在此列：走下方原生 <img>/<audio>/<video>，避免为
+  // 一张图片加载 9.7MB 预览脚本。HTML/HTM 也不在此列：JitViewer 的
+  // HtmlRender 使用 allow-scripts + allow-same-origin，用户上传 HTML 可
+  // 读取同源会话/父页 DOM，本页保持“下载后查看”。
+  var jitSupported = [
+    // 文档 / 表格 / 演示
+    'pdf', 'docx', 'xlsx', 'xls', 'pptx', 'ppt', 'ofd',
+    'txt', 'md', 'markdown', 'csv', 'tsv',
+    // 代码 / 文本
+    'js', 'mjs', 'cjs', 'jsx', 'ts', 'mts', 'cts', 'tsx',
+    'css', 'scss', 'sass', 'less', 'styl',
+    'cs', 'java', 'kt', 'kts', 'go', 'rs', 'c', 'cc', 'cpp', 'cxx',
+    'h', 'hh', 'hpp', 'hxx', 'rb', 'php', 'py', 'swift', 'sql', 'sh', 'bash',
+    'zsh', 'env', 'ini', 'conf', 'toml', 'vue', 'json', 'jsonc', 'yaml', 'yml',
+    'dockerfile', 'gemfile', 'makefile', 'podfile', 'rakefile',
+    // CAD
+    'dwg', 'dxf', 'dwf', 'dwfx', 'dwt',
+    // 3D
+    'glb', 'gltf', 'stl', 'obj', 'ply',
+  ];
+  // 图片/音视频走原生预览（不加载 JitViewer）
+  var nativeSupported = [
+    'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'ico', 'svg', 'tif', 'tiff',
+    'mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', 'opus', 'weba', 'aif', 'aiff',
+    'mp4', 'webm', 'ogv', 'mov', 'm4v',
+  ];
+  // HTML/HTM：以 sandbox="allow-scripts allow-downloads allow-modals" + srcdoc
+  // 内联渲染。无 allow-same-origin → opaque origin，脚本可运行但不能读取本站
+  // 会话/父页 DOM/localStorage；下载/打印只由沙箱内的用户操作触发。
+  var sandboxedHtml = ['html', 'htm'];
+  {# 扩展名以「路由显式传入」优先；未传时从真实文件名推导。
+     此模板有 8 个渲染入口（资源/个人网盘/小组网盘/作业/活动/作品），
+     任何一处漏传 ext 都会让 Undefined 进入 tojson → 整页 500。 #}
+  {% set _ext = ext if ext is defined and ext else (filename.rsplit('.', 1)[-1].lower() if filename and '.' in filename else '') %}
+  var ext = {{ _ext|tojson }};
+
+  // xlsx/xls 不交给 JitViewer（其对表格支持不稳定），改用 SheetJS 渲染表格。
+  if (ext === 'xlsx' || ext === 'xls') {
+    renderSpreadsheet();
+    return;
+  }
+
+  // HTML/HTM：沙箱内联预览（脚本可运行，但不能访问本站会话/父页）
+  if (sandboxedHtml.indexOf(ext) !== -1) {
+    renderSandboxedHtml();
+    return;
+  }
+
+  if (jitSupported.indexOf(ext) === -1) {
+    // 非 JitViewer 支持格式，先尝试原生图片/音视频/文本
+    var mediaTypeMap = {
+      'png': 'image', 'jpg': 'image', 'jpeg': 'image', 'gif': 'image',
+      'bmp': 'image', 'webp': 'image', 'ico': 'image', 'svg': 'image',
+      'tif': 'image', 'tiff': 'image',
+      'mp3': 'audio', 'wav': 'audio', 'ogg': 'audio', 'm4a': 'audio',
+      'flac': 'audio', 'aac': 'audio', 'opus': 'audio', 'weba': 'audio',
+      'aiff': 'audio', 'aif': 'audio',
+      'mp4': 'video', 'webm': 'video', 'ogv': 'video', 'm4v': 'video',
+      'mov': 'video',
+      'txt': 'text', 'md': 'text', 'csv': 'text',
+    };
+    var mediaType = mediaTypeMap[ext] || '';
+    if (mediaType === 'image') {
+      container.innerHTML = '<div style="text-align:center;"><img src="' + safeFileUrl + '" style="max-width:100%;max-height:calc(100vh - 160px);" alt="' + safeFilename + '"></div>';
+    } else if (mediaType === 'audio') {
+      container.innerHTML = '<div style="text-align:center;padding-top:60px;"><audio controls style="width:100%;max-width:600px;"><source src="' + safeFileUrl + '">浏览器不支持音频播放</audio></div>';
+    } else if (mediaType === 'video') {
+      container.innerHTML = '<video controls style="width:100%;max-height:calc(100vh - 160px);"><source src="' + safeFileUrl + '">浏览器不支持视频播放</video>';
+    } else if (mediaType === 'text') {
+      container.innerHTML = '<div class="card bg-dark text-light"><div class="card-body"><pre id="textPreview" style="white-space:pre-wrap;word-break:break-all;"></pre></div></div>';
+      fetch(fileUrl).then(function(r){return r.text();}).then(function(t){document.getElementById('textPreview').textContent=t;}).catch(function(){document.getElementById('textPreview').textContent='无法加载文件内容';});
+    } else {
+      container.innerHTML = '<div style="text-align:center;padding-top:80px;"><i class="fas fa-file" style="font-size:48px;color:#ccc;"></i><p class="mt-3 text-muted">此文件格式不支持在线预览</p><p class="small text-muted" style="max-width:720px;margin:0 auto 12px;">支持 PDF / DOCX / PPTX / PPT / XLSX / XLS / OFD / TXT / MD / CSV / 代码 / 图片 / 音视频 / HTML（沙箱） / CAD / 3D；DOC / RTF / ODT / ODS / EPUB 等请下载后查看。</p><a href="' + safeFileUrl + '" class="btn btn-primary" download><i class="fas fa-download me-1"></i>下载文件</a></div>';
+    }
+    return;
+  }
+
+  function renderSandboxedHtml() {
+    container.innerHTML = '<div class="html-sandbox-note"><i class="fas fa-shield-alt me-1"></i>安全沙箱预览：脚本可运行，但不能访问本站会话/父页；外部资源与接口已限制。<a href="' + safeFileUrl + '" class="ms-2" download>下载文件</a></div>' +
+      '<div class="html-sandbox-host" id="htmlSandboxHost"><div class="text-center text-muted py-5">正在加载网页…</div></div>';
+    fetch(fileUrl, { credentials: 'same-origin', cache: 'reload' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.text();
+      })
+      .then(function (html) {
+        var host = document.getElementById('htmlSandboxHost');
+        if (!host) return;
+        host.innerHTML = '';
+        var frame = document.createElement('iframe');
+        frame.className = 'html-sandbox-frame';
+        frame.title = filename + ' 沙箱预览';
+        frame.setAttribute('sandbox', 'allow-scripts allow-downloads allow-modals');
+        frame.setAttribute('referrerpolicy', 'no-referrer');
+        frame.srcdoc = html;
+        host.appendChild(frame);
+      })
+      .catch(function (e) {
+        var host = document.getElementById('htmlSandboxHost');
+        if (host) {
+          host.innerHTML = '<div class="text-center py-5"><i class="fas fa-exclamation-triangle" style="font-size:42px;color:#e67e22;"></i><p class="mt-3 text-muted">网页加载失败：' + escapeHtml(e && e.message ? e.message : '') + '</p><a href="' + safeFileUrl + '" class="btn btn-primary" download>下载文件</a></div>';
+        }
+      });
+  }
+
+  function renderSpreadsheet() {
+    function fail(msg) {
+      container.innerHTML = '<div style="text-align:center;padding-top:80px;"><i class="fas fa-file-excel" style="font-size:48px;color:#198754;"></i><p class="mt-3 text-muted">' +
+        escapeHtml(msg || '表格预览失败') + '</p><a href="' + safeFileUrl + '" class="btn btn-primary mt-2" download><i class="fas fa-download me-1"></i>下载文件</a></div>';
+    }
+    function loadXlsx(callback) {
+      if (window.XLSX) { callback(); return; }
+      var s = document.createElement('script');
+      s.src = '{{ versioned_static('xlsx/xlsx.full.min.js') }}';
+      s.onload = callback;
+      s.onerror = function () { fail('表格预览组件加载失败'); };
+      document.body.appendChild(s);
+    }
+    container.innerHTML = '<div class="text-center text-muted py-5">正在加载表格…</div>';
+    loadXlsx(function () {
+      fetch(fileUrl, { credentials: 'same-origin', cache: 'reload' })
+        .then(function (r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.arrayBuffer();
+        })
+        .then(function (buf) {
+          var wb = XLSX.read(new Uint8Array(buf), { type: 'array' });
+          var names = wb.SheetNames || [];
+          if (!names.length) throw new Error('工作簿没有工作表');
+          container.innerHTML =
+            '<div class="xlsx-toolbar"><label class="small text-muted">工作表</label>' +
+            '<select id="xlsxSheetSelect" class="form-select form-select-sm" style="width:auto;"></select>' +
+            '<span id="xlsxLimit" class="small text-muted"></span></div>' +
+            '<div class="xlsx-table-wrap"><table class="xlsx-table"><tbody></tbody></table></div>';
+          var select = document.getElementById('xlsxSheetSelect');
+          names.forEach(function (name) {
+            var opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            select.appendChild(opt);
+          });
+          var limitEl = document.getElementById('xlsxLimit');
+          var tbody = container.querySelector('.xlsx-table tbody');
+          function draw(name) {
+            var ws = wb.Sheets[name];
+            var rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+            var maxRows = Math.min(rows.length, 300);
+            var maxCols = 0;
+            for (var r = 0; r < maxRows; r++) maxCols = Math.max(maxCols, (rows[r] || []).length);
+            maxCols = Math.min(maxCols, 60);
+            tbody.innerHTML = '';
+            for (var r2 = 0; r2 < maxRows; r2++) {
+              var tr = document.createElement('tr');
+              var row = rows[r2] || [];
+              for (var c = 0; c < maxCols; c++) {
+                var td = document.createElement('td');
+                var v = row[c];
+                td.textContent = v == null ? '' : String(v);
+                tr.appendChild(td);
+              }
+              tbody.appendChild(tr);
+            }
+            limitEl.textContent = (rows.length > maxRows || maxCols >= 60)
+              ? '仅显示前 ' + maxRows + ' 行、' + maxCols + ' 列' : '';
+          }
+          select.addEventListener('change', function () { draw(select.value); });
+          draw(names[0]);
+        })
+        .catch(function (e) { fail('表格读取失败：' + (e && e.message ? e.message : '')); });
+    });
+  }
+
+  // 按需加载 jit-viewer.min.js（9.7MB），加载完成后初始化
+  function loadJitViewer(callback) {
+    if (window.JitViewer) { callback(); return; }
+    var s = document.createElement('script');
+    // 带版本参数：nginx 对 ?v= 资源长缓存 immutable（docs/itstudy.conf），
+    // 9.7MB JS 首次加载后不再重新校验；配合 gzip_static 预压缩 ~2.5MB
+    s.src = '{{ versioned_static('js/jit-viewer.min.js') }}';
+    s.onload = callback;
+    s.onerror = function () {
+      container.innerHTML = '<div style="text-align:center;padding-top:80px;"><i class="fas fa-exclamation-triangle" style="font-size:48px;color:#e67e22;"></i><p class="mt-3 text-muted">预览组件加载失败</p><a href="' + safeFileUrl + '" class="btn btn-primary" download><i class="fas fa-download me-1"></i>下载文件</a></div>';
+    };
+    document.body.appendChild(s);
+  }
+
+  loadJitViewer(function () {
+    try {
+      function createViewer(fileOrUrl) {
+        var viewer = JitViewer.createViewer({
+          target: container,
+          file: fileOrUrl,
+          filename: filename,
+          theme: 'light',
+          toolbar: true,
+          width: '100%',
+          height: '100%',
+          locale: 'zh-CN',
+          onError: function(err) {
+            console.error('JitViewer error:', err);
+            var detail = '';
+            try { detail = (err && (err.message || err.toString())) || ''; } catch(e) {}
+            container.innerHTML = '<div style="text-align:center;padding-top:80px;"><i class="fas fa-exclamation-triangle" style="font-size:48px;color:#e67e22;"></i><p class="mt-3 text-muted">预览加载失败，请尝试下载后查看</p>' + (detail ? '<p class="small text-muted" style="max-width:640px;margin:0 auto;word-break:break-all;">' + escapeHtml(detail).slice(0, 300) + '</p>' : '') + '<a href="' + safeFileUrl + '" class="btn btn-primary mt-2" download><i class="fas fa-download me-1"></i>下载文件</a></div>';
+          }
+        });
+        viewer.mount();
+      }
+
+      // .xls 是 OLE2 复合文档：以 URL 形态传入会因内部 fetch 无法解析复合结构
+      // 而报"未获取到数据"，必须先取为 blob 再包成 File 喂给查看器。
+      // pdf 同样 blob 化（≤30MB）：JitViewer 内部对 URL 的缓存/Range 交互
+      // 在部分浏览器下产生空响应（真实 E2E 实证），blob 形态完全可控；
+      // 超大文件仍走 URL 让查看器流式拉取，避免内存峰值
+      function feedBlob() {
+        return fetch(fileUrl, { credentials: 'same-origin', cache: 'reload' })
+          .then(function(r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.blob();
+          })
+          .then(function(b) {
+            if (!container.isConnected) return;   // 关闭竞态防护
+            createViewer(new File([b], filename, { type: b.type || '' }));
+          });
+      }
+
+      if (ext === 'xls') {
+        feedBlob().catch(function() {
+          container.innerHTML = '<div style="text-align:center;padding-top:80px;"><i class="fas fa-exclamation-triangle" style="font-size:48px;color:#e67e22;"></i><p class="mt-3 text-muted">文件加载失败</p><a href="' + safeFileUrl + '" class="btn btn-primary" download><i class="fas fa-download me-1"></i>下载文件</a></div>';
+        });
+        return;
+      }
+
+      if (ext === 'pdf') {
+        fetch(fileUrl, { method: 'HEAD', credentials: 'same-origin' })
+          .then(function(h) {
+            var size = parseInt(h.headers.get('Content-Length') || '0', 10);
+            if (size > 0 && size <= 30 * 1024 * 1024) return feedBlob();
+            createViewer(fileUrl);
+          })
+          .catch(function() { createViewer(fileUrl); });
+        return;
+      }
+
+      createViewer(fileUrl);
+    } catch(e) {
+      console.error('JitViewer init error:', e);
+      container.innerHTML = '<div style="text-align:center;padding-top:80px;"><i class="fas fa-exclamation-triangle" style="font-size:48px;color:#e67e22;"></i><p class="mt-3 text-muted">预览组件加载失败</p><a href="' + safeFileUrl + '" class="btn btn-primary" download><i class="fas fa-download me-1"></i>下载文件</a></div>';
+    }
+  });
+})();
+</script>
+{% endblock %}

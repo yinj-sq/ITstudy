@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Python 填空题批量导入 — 识别预览工具（独立测试版）</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; background: #f0f2f5; color: #1f2937; }
+  .header { background: #1e3a5f; color: #fff; padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; }
+  .header h1 { font-size: 18px; font-weight: 600; }
+  .header .badge { background: #ff9800; color: #000; font-size: 12px; padding: 3px 10px; border-radius: 12px; }
+  .container { display: flex; gap: 16px; padding: 16px; min-height: calc(100vh - 60px); }
+  .panel { background: #fff; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.08); padding: 16px; }
+  .left { width: 38%; display: flex; flex-direction: column; gap: 12px; }
+  .right { width: 62%; overflow-y: auto; max-height: calc(100vh - 90px); }
+  .block h3 { font-size: 14px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
+  .block h3 .hint { font-weight: 400; color: #6b7280; font-size: 11px; }
+  textarea { width: 100%; min-height: 150px; border: 1px solid #d1d5db; border-radius: 6px; padding: 8px; font-size: 13px; font-family: Consolas, monospace; resize: vertical; }
+  textarea:focus { outline: 2px solid #3b82f6; border-color: #3b82f6; }
+  .answers-area textarea { min-height: 120px; }
+  .file-box { border: 2px dashed #9ca3af; border-radius: 8px; padding: 18px; text-align: center; color: #6b7280; cursor: pointer; transition: all .2s; }
+  .file-box:hover, .file-box.drag { border-color: #3b82f6; background: #eff6ff; }
+  .file-box.has-file { border-style: solid; border-color: #22c55e; color: #15803d; }
+  .file-box input { display: none; }
+  .actions { display: flex; gap: 8px; }
+  .actions button { flex: 1; padding: 10px; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; font-weight: 600; }
+  .btn-run { background: #2563eb; color: #fff; }
+  .btn-run:hover { background: #1d4ed8; }
+  .btn-clear { background: #e5e7eb; color: #374151; }
+  .btn-clear:hover { background: #d1d5db; }
+  .summary { background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 14px; font-size: 13px; display: flex; flex-wrap: wrap; gap: 14px; }
+  .summary .num { font-weight: 700; color: #1d4ed8; }
+  .summary .warn { color: #dc2626; }
+  .q-card { border: 1px solid #e5e7eb; border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
+  .q-head { background: #f1f5f9; padding: 8px 14px; font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+  .q-head .tags { display: flex; gap: 6px; }
+  .tag { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+  .tag-ok { background: #dcfce7; color: #15803d; }
+  .tag-fail { background: #fee2e2; color: #b91c1c; }
+  .tag-info { background: #e0f2fe; color: #0369a1; }
+  .q-body { padding: 10px 14px; font-size: 13px; }
+  .q-content { margin-bottom: 8px; white-space: pre-wrap; word-break: break-all; background: #fafafa; padding: 8px; border-radius: 6px; border-left: 3px solid #93c5fd; }
+  .q-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; }
+  .q-meta .row { display: flex; gap: 6px; }
+  .q-meta .label { color: #6b7280; flex-shrink: 0; }
+  .q-meta .val { word-break: break-all; }
+  .q-meta .val.ok { color: #15803d; }
+  .q-meta .val.fail { color: #b91c1c; font-weight: 600; }
+  .answer-box { background: #fefce8; border: 1px solid #fde68a; border-radius: 6px; padding: 8px; margin-top: 8px; }
+  .answer-box pre { white-space: pre-wrap; font-family: Consolas, monospace; font-size: 12px; margin: 0; }
+  .empty { text-align: center; color: #9ca3af; padding: 60px 20px; }
+  .file-list { font-size: 12px; color: #4b5563; }
+  @media (max-width: 900px) { .container { flex-direction: column; } .left, .right { width: 100%; } }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Python 填空题批量导入 — 识别预览工具</h1>
+  <span class="badge">独立测试版 · 不写库</span>
+</div>
+
+<div class="container">
+  <!-- ============ 左侧：输入区 ============ -->
+  <div class="panel left">
+    <div class="block">
+      <h3>① 试题文本 <span class="hint">从 Word 复制，含【第N题】</span></h3>
+      <textarea id="questionsText" placeholder="示例：
+【第1题】打开"91"文件夹中的文件"main.py"，将程序补充完整，计算圆的面积。
+【第2题】打开"92"文件夹中的文件 main.py，实现列表排序。"></textarea>
+    </div>
+
+    <div class="block answers-area">
+      <h3>② 答案文本 <span class="hint">按文件夹名称对应</span></h3>
+      <textarea id="answersText" placeholder="示例（以文件夹名作为每题的标题）：
+91
+import math
+r = float(input())
+s = math.pi * r * r
+print(s)
+
+92
+lst.sort()"></textarea>
+    </div>
+
+    <div class="block">
+      <h3>③ 文件夹 zip <span class="hint">含各题 .py（占位符 ①②③④）</span></h3>
+      <div class="file-box" id="fileBox">
+        <div id="fileBoxText">点击选择或拖入 zip 文件</div>
+        <input type="file" id="zipInput" accept=".zip">
+      </div>
+      <div class="file-list" id="zipStatus"></div>
+    </div>
+
+    <div class="actions">
+      <button class="btn-run" onclick="runParse()">▶ 开始识别</button>
+      <button class="btn-clear" onclick="clearAll()">清空</button>
+    </div>
+
+    <div class="block">
+      <h3>识别规则说明</h3>
+      <ul style="font-size:12px;color:#4b5563;line-height:1.8;padding-left:18px;">
+        <li>题目按 <b>【第N题】</b> 切分</li>
+        <li>文件夹名提取自「<b>打开"XX"文件夹</b>」（引号内，取最后一级）</li>
+        <li>py 文件名提取自「文件"xx.py"」（两端引号可省略）</li>
+        <li>空数按 <b>①②③④</b> 统计（____ 兜底）</li>
+        <li>分值：3 空 3/3/4，4 空 2.5×4，2 空 5/5，5 空 2×5，其他均分</li>
+        <li>答案按<b>文件夹名称</b>分节（行首匹配，支持 91 / 91： / 【91】）</li>
+        <li>zip 按<b>最后一级目录名</b>匹配文件夹</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============ 右侧：识别结果 ============ -->
+  <div class="panel right" id="resultPanel">
+    <div class="empty" id="emptyState">输入三份材料后点击「开始识别」<br>识别结果将显示在这里（仅预览，不写入任何数据）</div>
+    <div id="resultArea" style="display:none;"></div>
+  </div>
+</div>
+
+<!-- JSZip：CDN 多源回退（离线时 zip 匹配不可用，文本解析不受影响） -->
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script>
+if (typeof JSZip === 'undefined') {
+  var s = document.createElement('script');
+  s.src = 'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js';
+  document.head.appendChild(s);
+}
+
+/* ───────────── 状态 ───────────── */
+var zipEntries = null;   // JSZip 解压后的 entries
+var zipName = '';
+
+/* ───────────── zip 文件选择/拖拽 ───────────── */
+var fileBox = document.getElementById('fileBox');
+var zipInput = document.getElementById('zipInput');
+fileBox.addEventListener('click', function () { zipInput.click(); });
+zipInput.addEventListener('change', function (e) { if (e.target.files[0]) loadZip(e.target.files[0]); });
+['dragover', 'drop'].forEach(function (ev) {
+  fileBox.addEventListener(ev, function (e) {
+    e.preventDefault();
+    if (ev === 'dragover') fileBox.classList.add('drag');
+    else { fileBox.classList.remove('drag'); if (e.dataTransfer.files[0]) loadZip(e.dataTransfer.files[0]); }
+  });
+});
+fileBox.addEventListener('dragleave', function () { fileBox.classList.remove('drag'); });
+
+function loadZip(file) {
+  zipName = file.name;
+  var reader = new FileReader();
+  reader.onload = function () {
+    if (typeof JSZip === 'undefined') {
+      document.getElementById('zipStatus').textContent = 'JSZip 库加载失败（需联网），zip 匹配暂不可用';
+      return;
+    }
+    JSZip.loadAsync(reader.result).then(function (zip) {
+      zipEntries = [];
+      zip.forEach(function (path, entry) {
+        if (!entry.dir) zipEntries.push({
+          path: path, name: path.split('/').pop(),
+          dir: path.split('/').slice(0, -1).join('/'),
+          entry: entry   // 保留 JSZip entry，读取 .py 内容统计空数用
+        });
+      });
+      fileBox.classList.add('has-file');
+      document.getElementById('fileBoxText').textContent = '已选择：' + file.name + '（' + zipEntries.length + ' 个文件）';
+      document.getElementById('zipStatus').textContent = '解压完成，点击「开始识别」匹配文件夹';
+    }).catch(function () {
+      document.getElementById('zipStatus').textContent = 'zip 解压失败，请确认是标准 zip 格式';
+    });
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/* ───────────── 解析：试题文本 ───────────── */
+function parseQuestions(text) {
+  var lines = text.split(/\r?\n/);
+  var questions = [];
+  var current = null;
+  lines.forEach(function (line) {
+    var m = line.match(/【\s*第\s*(\d+)\s*题\s*】/);
+    if (m) {
+      if (current) questions.push(current);
+      current = { num: parseInt(m[1], 10), raw: [], folderName: null, fileName: null };
+      // 标记行内、标记之后的内容同样属于题干（【第1题】后直接跟题目描述）
+      var rest = line.slice(m[0].length);
+      if (rest.trim()) current.raw.push(rest);
+      return;
+    }
+    if (current) current.raw.push(line);
+  });
+  if (current) questions.push(current);
+
+  questions.forEach(function (q) {
+    var full = q.raw.join('\n');
+    q.content = full.trim();
+    // 文件夹名：覆盖多种表述（题目意思表达差异）——
+    //   "打开"91"文件夹中的文件" / 打开91文件夹 / 打开“91”目录中的文件
+    //   / 在“91”文件夹下 / “91”文件夹中的文件 / 文件夹“91”中的 xx.py
+    // 取引号内或"打开/在...文件夹"之间的路径，再取最后一级目录
+    var fm = full.match(/打开["“]?\s*([^"”\n]+?)\s*["”]?\s*文件夹/) ||
+             full.match(/(?:在|到|于)["“]?\s*([^"”\n]+?)\s*["”]?\s*(?:文件夹|目录)/) ||
+             full.match(/(?:文件夹|目录)["“]\s*([^"”\n]+?)\s*["”]/) ||
+             full.match(/["“]([^"”\n]*?[\\/]?[^"”\n]*?)["”]\s*(?:文件夹|目录)/);
+    if (fm) {
+      var folder = fm[1].replace(/\\/g, '/').trim();
+      q.folderName = folder.split('/').pop().trim();
+      q.folderFull = folder;
+    }
+    // py 文件名：覆盖变体——"文件"xx.py"" / 文件 xx.py / 文件：xx.py /
+    //   引号包裹的 "xx.py"。注意"文件"后必须是引号/冒号/空白
+    //   （不能是"夹"——"文件夹"不误匹配）
+    var fnm = full.match(/文件(?:["“]|[:：]|\s)\s*([^"”\s、，,；;：:\n]+\.py)/i) ||
+              full.match(/["“]([^"”\n]+\.py)["”]/i) ||
+              full.match(/([a-zA-Z0-9_\-一-龥]+\.py)/i);
+    if (fnm) q.fileName = (fnm[1] || fnm[0]).trim();
+    // 空数：①②③④（____ 兜底）
+    var circle = (full.match(/[①②③④⑤⑥⑦⑧⑨⑩]/g) || []).length;
+    var under = (full.match(/_{3,}/g) || []).length;
+    q.blankCount = Math.max(circle, under);
+    if (!q.blankCount) q.blankCount = null;
+    // 分值
+    q.blankScores = calcScores(q.blankCount);
+    q.answerText = null;
+  });
+  return questions;
+}
+
+function calcScores(n) {
+  if (!n || n <= 0) return null;
+  if (n === 3) return [3, 3, 4];
+  if (n === 4) return [2.5, 2.5, 2.5, 2.5];
+  if (n === 2) return [5, 5];
+  if (n === 5) return [2, 2, 2, 2, 2];
+  var base = Math.floor(10 / n);
+  var remain = 10 - base * n;
+  var arr = new Array(n).fill(base);
+  arr[n - 1] += remain;
+  return arr;
+}
+
+/* ───────────── 解析：答案文本（按文件夹名分节） ─────────────
+ * 支持两种格式：
+ *  A) 行首即文件夹名（91 / 91： / 【91】），后续行是答案
+ *  B) Word 表格粘贴：行首以文件夹名开头后跟制表符/空格再是答案列
+ *      （91\t\t6\tmoney\tmoney），同空多写法按换行/列区分
+ * 答案列分组：按制表符切列，每列 = 一空的全部写法；无制表符时按
+ * 空白切分后依顺序分配到空（空数 N 来自题目 ①②③④）。
+ */
+function parseAnswers(text, questions) {
+  var lines = text.split(/\r?\n/);
+  var qByFolder = {};
+  questions.forEach(function (q) {
+    if (q.folderName) qByFolder[q.folderName] = q;
+  });
+  var folders = Object.keys(qByFolder);
+  var current = null;
+  lines.forEach(function (line) {
+    var t = line.trim();
+    if (!t) return;
+    // 分节：行首以文件夹名开头（后随制表符/空格/：等分隔）
+    var hit = null;
+    for (var f = 0; f < folders.length; f++) {
+      var fld = folders[f];
+      if (t === fld ||
+          t.indexOf(fld + '\t') === 0 ||
+          t.indexOf(fld + '  ') === 0 ||
+          t.indexOf('【' + fld + '】') === 0 ||
+          t.indexOf(fld + '：') === 0) {
+        hit = fld;
+        break;
+      }
+    }
+    if (hit) {
+      current = qByFolder[hit];
+      current.answerRows = [];
+      // 分节行内、文件夹名之后的内容可能是第一行答案（表格格式）
+      var rest = t.slice(hit.length).replace(/^[\t  ：、]+/, '');
+      if (rest) current.answerRows.push(rest);
+      return;
+    }
+    if (current && current.answerRows) current.answerRows.push(t);
+  });
+  questions.forEach(function (q) {
+    if (!q.answerRows || !q.answerRows.length) { q.answerText = null; q.answerParts = []; return; }
+    // 按制表符切列 → 每列 = 一空的写法集合
+    var cols = [];
+    var lastRowCols = 0;
+    q.answerRows.forEach(function (row) {
+      var cells = row.split(/\t+/).filter(function (x) { return x.trim(); });
+      // 单单元格续行（Word 表格空列折叠后复制）：并入上一行最后一列，
+      // 视为该空位的第二种写法（如 92\t\tmoney<60000\n...\nyear+=1 中
+      // 的 year+=1 是空3的续写）
+      if (cells.length === 1 && cols.length > 0) {
+        var lastCol = cols.length - 1;
+        if (cols[lastCol].indexOf(cells[0].trim()) < 0) cols[lastCol].push(cells[0].trim());
+        return;
+      }
+      for (var c = 0; c < cells.length; c++) {
+        var cell = cells[c].trim();
+        if (!cell) continue;
+        if (!cols[c]) cols[c] = [];
+        if (cols[c].indexOf(cell) < 0) cols[c].push(cell);
+      }
+      lastRowCols = cells.length;
+    });
+    q.answerParts = cols;   // cols[k] = 第 k+1 空的全部写法
+    q.answerText = q.answerRows.join('\n').trim();
+  });
+}
+
+/* ───────────── zip 匹配 ───────────── */
+function matchZip(questions, done) {
+  // 匹配文件夹/文件；匹配到 .py 后异步读取内容，按其中的 ①②③④ 统计
+  // 空数（py 模板的空数比题干更可靠，优先采用；题干统计作兜底/参考）
+  var pending = 0;
+  var allDone = function () { if (pending === 0 && done) done(); };
+
+  questions.forEach(function (q) {
+    q.zipDir = null; q.zipFiles = []; q.pyBlanks = null; q.pyContents = [];
+    if (!zipEntries) return;
+    var target = q.folderName;
+    var matched = zipEntries.filter(function (e) {
+      var lastDir = e.dir.split('/').pop();
+      return lastDir === target || e.path.indexOf(target + '/') >= 0;
+    });
+    if (!matched.length) return;
+    q.zipDir = matched[0].dir;
+    q.zipFiles = matched.map(function (e) { return e.name; });
+    if (q.fileName) {
+      var exact = matched.filter(function (e) { return e.name === q.fileName; });
+      if (exact.length) { q.zipFiles = exact.map(function (e) { return e.name; }); }
+    }
+    // 读取匹配到的 .py 内容（前 200KB 足够统计占位符）
+    var pyMatched = matched.filter(function (e) {
+      return /\.py$/i.test(e.name) && (!q.fileName || e.name === q.fileName);
+    });
+    pyMatched.forEach(function (e) {
+      pending++;
+      e.entry.async('string').then(function (content) {
+        q.pyContents.push({ name: e.name, content: content });
+        var circles = (content.match(/[①②③④⑤⑥⑦⑧⑨⑩]/g) || []).length;
+        if (q.pyBlanks === null || circles > 0) q.pyBlanks = circles;
+        pending--;
+        allDone();
+      }).catch(function () { pending--; allDone(); });
+    });
+  });
+  allDone();
+}
+
+/* ───────────── 空数最终确定：py 优先，题干兜底 ───────────── */
+function finalizeBlanks(questions) {
+  questions.forEach(function (q) {
+    if (q.pyBlanks) {
+      q.blankCount = q.pyBlanks;
+      q.blankSource = 'py';
+    } else {
+      q.blankSource = q.blankCount ? '题干' : null;
+    }
+    q.blankScores = calcScores(q.blankCount);
+  });
+}
+
+/* ───────────── 渲染 ───────────── */
+/* 渲染：每题可人工校对（题干/文件夹/文件/空数/分值/答案全部可编辑） */
+function render(questions) {
+  var area = document.getElementById('resultArea');
+  var empty = document.getElementById('emptyState');
+  empty.style.display = 'none';
+  area.style.display = 'block';
+
+  var html = '';
+  html += '<div class="summary" style="align-items:center;flex-wrap:wrap;">';
+  html += '<span>识别题目：<span class="num">' + questions.length + '</span> 题</span>';
+  html += '<span style="font-size:12px;color:#6b7280;">试卷拆分：每卷</span><input type="number" min="1" id="splitPerVolume" value="' + (window.__splitCfg ? window.__splitCfg.per_volume : 10) + '" style="width:56px;font-size:12px;" onchange="previewSplit()">';
+  html += '<span style="font-size:12px;color:#6b7280;">题（最后剩余组成一卷）；时长</span><input type="number" min="1" id="splitDuration" value="' + (window.__splitCfg ? window.__splitCfg.duration : 40) + '" style="width:56px;font-size:12px;" onchange="previewSplit()">';
+  html += '<span style="font-size:12px;color:#6b7280;">分钟；前缀</span><input type="text" id="splitPrefix" value="' + (window.__splitCfg ? window.__splitCfg.prefix : 'Python填空题') + '" style="width:110px;font-size:12px;" onchange="previewSplit()">';
+  html += '<button class="btn-run" style="flex:0;padding:6px 16px;" onclick="exportReview()">⬇ 导出校对结果 JSON</button>';
+  html += '</div>';
+  html += '<div class="summary" id="splitPreview" style="margin-top:8px;font-size:13px;"></div>';
+  html += '<span style="font-size:12px;color:#6b7280;">所有字段可编辑，改完点「导出」保存校对结果与试卷拆分配置</span>';
+
+  questions.forEach(function (q, i) {
+    var folderOk = q.zipDir ? 'ok' : 'fail';
+    var answerOk = q.answerParts && q.answerParts.length ? 'ok' : 'fail';
+    var blankOk = q.blankCount ? 'ok' : 'fail';
+    html += '<div class="q-card" id="qcard-' + i + '">';
+    html += '  <div class="q-head"><span>第 ' + q.num + ' 题</span><div class="tags" id="tags-' + i + '">';
+    html += '    <span class="tag ' + (folderOk === 'ok' ? 'tag-ok' : 'tag-fail') + '" id="tagF-' + i + '">文件夹 ' + (folderOk === 'ok' ? '✓' : '✗') + '</span>';
+    html += '    <span class="tag ' + (answerOk === 'ok' ? 'tag-ok' : 'tag-fail') + '" id="tagA-' + i + '">答案 ' + (answerOk === 'ok' ? '✓' : '✗') + '</span>';
+    html += '    <span class="tag tag-info" id="tagB-' + i + '">空数 ' + (q.blankCount || '?') + '（' + (q.blankSource || '未定') + '）｜ 分值 ' + (q.blankScores ? q.blankScores.join('/') : '?') + '</span>';
+    html += '  </div></div>';
+    html += '  <div class="q-body">';
+    html += '    <div style="margin-bottom:6px;"><b style="font-size:12px;">题干（可编辑）</b></div>';
+    html += '    <textarea class="edit-content" data-i="' + i + '" style="min-height:80px;font-size:12px;">' + escapeHtml(q.content || '') + '</textarea>';
+    html += '    <div class="q-meta" style="margin-top:8px;">';
+    html += '      <div class="row"><span class="label">提取文件夹：</span><span class="val">' + escapeHtml(q.folderName || '未识别') + '</span></div>';
+    html += '      <div class="row"><span class="label">匹配文件夹：</span><input class="edit-zippath" data-i="' + i + '" value="' + escapeHtml(q.zipDir || '') + '" style="flex:1;min-width:80px;" placeholder="zip 内实际目录（可改，改后点下方「按此目录重配」）">' +
+            '<button class="btn-run" style="flex:0;padding:4px 10px;font-size:12px;" onclick="rematchByDir(' + i + ')">重配</button></div>';
+    html += '      <div class="row"><span class="label">匹配文件：</span><input class="edit-zippath" data-i="' + i + '" value="' + escapeHtml((q.zipFiles || []).join('、')) + '" style="flex:1;min-width:80px;" placeholder="逗号/顿号分隔（可改）"></div>';
+    html += '      <div class="row"><span class="label">空数：</span><input type="number" min="1" max="10" class="edit-blanks" data-i="' + i + '" value="' + (q.blankCount || '') + '" style="width:60px;">' +
+            '<span class="val" style="margin-left:6px;">分值 ' + (q.blankScores ? q.blankScores.join('/') : '?') + '</span></div>';
+    html += '    </div>';
+    // 答案：按识别出的空数（blankCount）生成每空输入框——答案识别
+    // 不足/错误时空仍可人工逐空填写正确内容到对应位置
+    html += '    <div class="answer-box" id="answers-' + i + '">';
+    html += '      <div style="font-size:12px;color:#6b7280;margin-bottom:4px;">按空数 ' + (q.blankCount || '?') + ' 生成，可逐空填写（一空多解用 // 分隔，如 s += 1 // s = s + 1）</div>';
+    var answerCount = q.blankCount || 1;
+    for (var k = 0; k < answerCount; k++) {
+      var variants = (q.answerParts && q.answerParts[k]) ? q.answerParts[k] : [];
+      html += '<div style="font-size:12px;margin-bottom:4px;"><b>空' + (k + 1) + '</b>：<input class="edit-answer" data-i="' + i + '" data-k="' + k + '" value="' + escapeHtml(variants.join(' // ')) + '" style="flex:1;min-width:200px;font-size:12px;"></div>';
+    }
+    html += '</div>';
+    html += '  </div></div>';
+  });
+  area.innerHTML = html;
+  previewSplit();
+
+  // 事件委托：编辑即更新 questions + 重算分值/状态
+  area.addEventListener('input', function (e) {
+    var t = e.target;
+    if (!t.dataset || t.dataset.i === undefined) return;
+    var q = questions[parseInt(t.dataset.i, 10)];
+    if (!q) return;
+    if (t.classList.contains('edit-content')) q.content = t.value;
+    else if (t.classList.contains('edit-folder')) { q.folderName = t.value.trim() || null; }
+    else if (t.classList.contains('edit-file')) { q.fileName = t.value.trim() || null; }
+    else if (t.classList.contains('edit-zippath')) {
+      // 匹配文件夹/匹配文件两个输入框：按行号索引区分（行 0 = 目录，行 1 = 文件）
+      var card = t.closest('.q-card');
+      var idx = Array.prototype.indexOf.call(card.querySelectorAll('.edit-zippath'), t);
+      if (idx === 0) q.zipDir = t.value.trim() || null;
+      else q.zipFiles = t.value.split(/[、，,，;；]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+      var tf = document.getElementById('tagF-' + t.dataset.i);
+      if (tf) {
+        var has = !!(q.zipDir && (q.zipFiles || []).length);
+        tf.textContent = '文件夹 ' + (has ? '✓' : '✗');
+        tf.className = 'tag ' + (has ? 'tag-ok' : 'tag-fail');
+      }
+    }
+    else if (t.classList.contains('edit-blanks')) {
+      var n = parseInt(t.value, 10);
+      if (n > 0) {
+        q.blankCount = n;
+        q.blankScores = calcScores(n);
+        q.blankSource = '人工';
+        // 答案区对齐新空数：不足补空、超出并入最后一空（不丢已填内容）
+        if (q.answerParts) {
+          var old = q.answerParts;
+          var merged = [];
+          for (var k = 0; k < n; k++) {
+            merged.push(k < old.length ? (old[k] || []) : []);
+          }
+          // 超出部分并入最后一空
+          for (var k2 = n; k2 < old.length; k2++) {
+            (old[k2] || []).forEach(function (v) {
+              if (merged[n - 1].indexOf(v) < 0) merged[n - 1].push(v);
+            });
+          }
+          q.answerParts = merged;
+        }
+        render(questions);   // 重渲染使答案输入框数量与空数一致
+        return;
+      }
+      var tb = document.getElementById('tagB-' + t.dataset.i);
+      if (tb) tb.textContent = '空数 ' + (q.blankCount || '?') + '（' + (q.blankSource || '未定') + '）｜ 分值 ' + (q.blankScores ? q.blankScores.join('/') : '?');
+    }
+    else if (t.classList.contains('edit-answer')) {
+      var k = parseInt(t.dataset.k, 10);
+      if (!q.answerParts) q.answerParts = [];
+      // 一空多解用 // 分隔（项目判分格式）；兼容旧的全角 ／ 与顿号
+      q.answerParts[k] = t.value.split(/\s*\/\/\s*|[／、,，\t]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+      var ta = document.getElementById('tagA-' + t.dataset.i);
+      if (ta) {
+        var has = q.answerParts.some(function (v) { return v && v.length; });
+        ta.textContent = '答案 ' + (has ? '✓' : '✗');
+        ta.className = 'tag ' + (has ? 'tag-ok' : 'tag-fail');
+      }
+    }
+  });
+}
+
+/* 按手动指定的匹配目录重新匹配文件（zipEntries 内查找） */
+function rematchByDir(i) {
+  var q = (window.__reviewQuestions || [])[i];
+  if (!q || !zipEntries) return;
+  var dir = q.zipDir;
+  if (!dir) { alert('请先填写匹配文件夹（zip 内实际目录）'); return; }
+  var matched = zipEntries.filter(function (e) {
+    return e.dir === dir || e.path.indexOf(dir + '/') === 0 || e.path.indexOf(dir) === 0;
+  });
+  if (!matched.length) { alert('未在 zip 中找到目录：' + dir); return; }
+  q.zipFiles = matched.map(function (e) { return e.name; });
+  var card = document.getElementById('qcard-' + i);
+  if (card) {
+    var inputs = card.querySelectorAll('.edit-zippath');
+    if (inputs[1]) inputs[1].value = q.zipFiles.join('、');
+    var tf = document.getElementById('tagF-' + i);
+    if (tf) { tf.textContent = '文件夹 ✓'; tf.className = 'tag tag-ok'; }
+  }
+}
+
+/* 试卷拆分预览：每卷 N 题（最后剩余组成一卷），名称与时长可调 */
+function previewSplit() {
+  var qs = window.__reviewQuestions || [];
+  var per = parseInt(document.getElementById('splitPerVolume').value, 10) || 10;
+  var duration = parseInt(document.getElementById('splitDuration').value, 40) || 40;
+  var prefix = (document.getElementById('splitPrefix').value || 'Python填空题').trim();
+  window.__splitCfg = { per_volume: per, duration: duration, prefix: prefix };
+  var el = document.getElementById('splitPreview');
+  if (!el) return;
+  if (!qs.length) { el.textContent = '（待识别）'; return; }
+  var parts = [];
+  var n = qs.length;
+  for (var start = 1; start <= n; start += per) {
+    var end = Math.min(start + per - 1, n);
+    var vol = Math.floor((start - 1) / per) + 1;
+    parts.push(prefix + ' 第' + vol + '卷（第' + start + '-' + end + '题，' + duration + '分钟）');
+  }
+  el.textContent = parts.join('；') || '（无题目）';
+}
+
+/* 导出校对结果 JSON（仅导出确认修改后的最终结果）
+ * 格式对齐项目 python_answers 判分约定：
+ *   answers[k] = 第 k 空答案串，一空多解用 // 分隔（判分智能区分整数除法）
+ *   （如 's += 1 // s = s + 1'；多组答案可用 | 分隔，组内再 // 拆解）
+ * 附试卷拆分配置：split.per_volume / duration / prefix（正式导入按此建卷，
+ * 最后剩余组成一卷，试卷名不与现有重名）
+ */
+function exportReview() {
+  var qs = window.__reviewQuestions || [];
+  if (!qs.length) { alert('请先点击「开始识别」'); return; }
+  var splitEl = document.getElementById('splitPerVolume');
+  var durEl = document.getElementById('splitDuration');
+  var prefixEl = document.getElementById('splitPrefix');
+  var split = {
+    per_volume: parseInt(splitEl ? splitEl.value : '10', 10) || 10,
+    duration: parseInt(durEl ? durEl.value : '40', 10) || 40,
+    prefix: (prefixEl ? prefixEl.value : 'Python填空题').trim() || 'Python填空题'
+  };
+  var data = qs.map(function (q) {
+    return {
+      num: q.num,
+      content: (q.content || '').trim(),
+      folder: q.zipDir || q.folderName || '',
+      files: q.zipFiles || [],
+      blank_count: q.blankCount || null,
+      blank_scores: q.blankScores || null,
+      answers: (q.answerParts || []).map(function (v) { return (v || []).join(' // '); })
+    };
+  });
+  var payload = { split: split, questions: data };
+  var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  var link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'python_fill_review.json';
+  link.click();
+  setTimeout(function () { URL.revokeObjectURL(link.href); }, 0);
+}
+
+function escapeHtml(s) {
+  var d = document.createElement('div');
+  d.textContent = s == null ? '' : String(s);
+  return d.innerHTML;
+}
+
+/* ───────────── 主流程 ───────────── */
+function runParse() {
+  var qText = document.getElementById('questionsText').value;
+  var aText = document.getElementById('answersText').value;
+  if (!qText.trim()) { alert('请先粘贴试题文本'); return; }
+  var questions = parseQuestions(qText);
+  if (!questions.length) { alert('未识别到题目（需要【第N题】格式）'); return; }
+  parseAnswers(aText, questions);
+  window.__reviewQuestions = questions;
+  // zip 匹配（异步读 .py 内容统计空数）完成后定稿空数并渲染
+  matchZip(questions, function () {
+    finalizeBlanks(questions);   // py 空数优先，题干兜底
+    render(questions);
+  });
+  // 无 zip 时 matchZip 同步完成（done 立即回调）
+}
+
+function clearAll() {
+  document.getElementById('questionsText').value = '';
+  document.getElementById('answersText').value = '';
+  zipEntries = null; zipName = '';
+  fileBox.classList.remove('has-file');
+  document.getElementById('fileBoxText').textContent = '点击选择或拖入 zip 文件';
+  document.getElementById('zipStatus').textContent = '';
+  document.getElementById('emptyState').style.display = '';
+  document.getElementById('resultArea').style.display = 'none';
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,236 @@
+{% extends 'base.html' %}
+{% block title %}{{ '编辑问卷' if survey else '新建问卷' }} - {{ resource.title }}{% endblock %}
+{% block head %}
+<style>
+  .sq-card { border:1px solid #dee2e6; border-radius:10px; padding:14px; margin-bottom:12px; background:#fff; }
+  .sq-card .sq-type-select { min-width:150px; }
+  .sq-options-box, .sq-rows-box { display:none; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container py-4" style="max-width:980px;">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2 class="mb-1"><i class="fas fa-poll me-2"></i>{{ '编辑问卷' if survey else '新建问卷' }}</h2>
+      <div class="text-muted">{{ resource.title }}</div>
+    </div>
+    <a href="{{ back_url }}" class="btn btn-outline-secondary rounded-pill"><i class="fas fa-arrow-left me-1"></i>返回问卷列表</a>
+  </div>
+
+  <form method="post" id="surveyForm" onsubmit="return beforeSubmit();">
+    <div class="card shadow-sm mb-3">
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label">问卷标题 <span class="text-danger">*</span></label>
+          <input type="text" name="title" class="form-control" maxlength="200" required
+                 value="{{ survey.title if survey else '' }}" placeholder="例如：本课学习体验小调查">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">问卷说明</label>
+          <textarea name="description" class="form-control" rows="2" placeholder="告诉学生这份问卷的目的">{{ survey.description if survey else '' }}</textarea>
+        </div>
+        <div class="row g-3 mb-3">
+          <div class="col-md-6">
+            <label class="form-label">开始时间（可空=立即开始）</label>
+            <input type="datetime-local" name="start_time" class="form-control"
+                   value="{{ survey.start_time.strftime('%Y-%m-%dT%H:%M') if survey and survey.start_time else '' }}">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">截止时间（可空=不限）</label>
+            <input type="datetime-local" name="end_time" class="form-control"
+                   value="{{ survey.end_time.strftime('%Y-%m-%dT%H:%M') if survey and survey.end_time else '' }}">
+          </div>
+        </div>
+        <div class="form-check form-check-inline mb-0">
+          <input class="form-check-input" type="checkbox" name="is_anonymous" value="1" id="sqAnonymous"
+                 {% if survey and survey.is_anonymous %}checked{% endif %}>
+          <label class="form-check-label" for="sqAnonymous">匿名问卷（结果与导出不显示学生姓名）</label>
+        </div>
+      </div>
+    </div>
+
+    <div id="questionList">
+      {% if survey %}
+      {% for q in questions %}
+      <div class="sq-card" data-index="{{ loop.index0 }}">
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+          <span class="badge bg-primary rounded-pill sq-index">第 {{ loop.index }} 题</span>
+          <select class="form-select form-select-sm sq-type-select" name="q_type" onchange="syncCard(this)">
+            {% for t in q_types %}
+            <option value="{{ t }}" {% if q.q_type == t %}selected{% endif %}>{{ q_type_names[t] }}</option>
+            {% endfor %}
+          </select>
+          <label class="form-check form-check-inline small ms-1 mb-0">
+            <input class="form-check-input" type="checkbox" name="q_required" value="{{ q.q_type }}"
+                   {% if q.required %}checked{% endif %} data-sync="required"> 必答
+          </label>
+          <button type="button" class="btn btn-sm btn-outline-danger rounded-pill ms-auto" onclick="removeCard(this)"><i class="fas fa-trash me-1"></i>删除本题</button>
+        </div>
+        <input type="text" name="q_title" class="form-control mb-2" maxlength="500" required
+               value="{{ q.title }}" placeholder="题目标题，例如：你觉得本节课的难度如何？">
+        <div class="row g-2">
+          <div class="col-md-7 sq-options-box" data-kind="choice">
+            <label class="form-label small text-muted mb-1">选项（每行一个）</label>
+            <textarea name="q_options" class="form-control" rows="4" placeholder="选项A&#10;选项B">{{ q.options_text }}</textarea>
+          </div>
+          <div class="col-md-5 sq-rows-box" data-kind="matrix">
+            <label class="form-label small text-muted mb-1">行标题（每行一个，如：教师讲解、实验操作）</label>
+            <textarea name="q_rows" class="form-control" rows="4" placeholder="行1&#10;行2">{{ q.rows_text }}</textarea>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+      {% endif %}
+    </div>
+
+    <button type="button" id="addQuestion" class="btn btn-outline-primary rounded-pill mb-4">
+      <i class="fas fa-plus me-1"></i>添加题目
+    </button>
+
+    <div class="card shadow-sm">
+      <div class="card-body d-flex align-items-center gap-3">
+        <button type="submit" class="btn btn-primary rounded-pill px-4"><i class="fas fa-save me-1"></i>保存问卷</button>
+        <div class="form-check form-check-inline mb-0 ms-2">
+          <input class="form-check-input" type="checkbox" name="status" value="published" id="sqPublish"
+                 {% if survey and survey.status != 'draft' %}checked{% endif %}>
+          <label class="form-check-label" for="sqPublish">保存后立即发布（学生可填写）</label>
+        </div>
+        <span class="small text-muted">未勾选则保存为草稿</span>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var list = document.getElementById('questionList');
+  var types = {{ q_types|tojson }};
+  var typeNames = {{ q_type_names|tojson }};
+  var seed = {% if survey %}{{ questions|length }}{% else %}0{% endif %};
+  var counter = seed;
+
+  function templateCard(q) {
+    q = q || { q_type: 'radio', title: '', options: '', rows: '', required: false };
+    var optionsHtml = types.map(function (t) {
+      return '<option value="' + t + '"' + (q.q_type === t ? ' selected' : '') + '>' + typeNames[t] + '</option>';
+    }).join('');
+    return '<div class="sq-card" data-index="' + counter + '">' +
+      '<div class="d-flex flex-wrap gap-2 align-items-center mb-2">' +
+      '<span class="badge bg-primary rounded-pill">新题目</span>' +
+      '<select class="form-select form-select-sm sq-type-select" name="q_type" onchange="syncCard(this)">' + optionsHtml + '</select>' +
+      '<label class="form-check form-check-inline small ms-1 mb-0">' +
+      '<input class="form-check-input" type="checkbox" name="q_required" value="' + q.q_type + '" data-sync="required"' + (q.required ? ' checked' : '') + '> 必答</label>' +
+      '<button type="button" class="btn btn-sm btn-outline-danger rounded-pill ms-auto" onclick="removeCard(this)"><i class="fas fa-trash me-1"></i>删除本题</button>' +
+      '</div>' +
+      '<input type="text" name="q_title" class="form-control mb-2" maxlength="500" required placeholder="题目标题，例如：你觉得本节课的难度如何？">' +
+      '<div class="row g-2">' +
+      '<div class="col-md-7 sq-options-box" data-kind="choice">' +
+      '<label class="form-label small text-muted mb-1">选项（每行一个）</label>' +
+      '<textarea name="q_options" class="form-control" rows="4" placeholder="选项A&#10;选项B"></textarea>' +
+      '</div>' +
+      '<div class="col-md-5 sq-rows-box" data-kind="matrix">' +
+      '<label class="form-label small text-muted mb-1">行标题（每行一个，如：教师讲解、实验操作）</label>' +
+      '<textarea name="q_rows" class="form-control" rows="4" placeholder="行1&#10;行2"></textarea>' +
+      '</div>' +
+      '</div>' +
+      '</div>';
+  }
+
+  window.syncCard = function (select) {
+    var card = select.closest('.sq-card');
+    var type = select.value;
+    var choice = card.querySelector('[data-kind="choice"]');
+    var matrix = card.querySelector('[data-kind="matrix"]');
+    var isChoice = ['radio', 'checkbox', 'select', 'matrix_radio', 'matrix_score'].indexOf(type) >= 0;
+    var isMatrix = ['matrix_radio', 'matrix_score'].indexOf(type) >= 0;
+    var isPlain = ['text', 'textarea'].indexOf(type) >= 0;
+    // 注意：样式表对这两个框有 display:none，必须写内联 'block' 覆盖，
+    // 置空字符串只会回落到样式表规则（仍是隐藏）。
+    choice.style.display = isChoice ? 'block' : 'none';
+    matrix.style.display = isMatrix ? 'block' : 'none';
+    if (!isChoice && !isMatrix) {
+      choice.style.display = 'block';
+      choice.querySelector('textarea').placeholder = '（该题型无需选项）';
+    } else {
+      choice.querySelector('textarea').placeholder = '选项A\n选项B';
+    }
+    // 必答勾选的 value 跟随题型（服务端按 q_type 对齐）
+    var req = card.querySelector('[data-sync="required"]');
+    if (req) req.value = type;
+    // 评分题固定列提示
+    var label = choice.querySelector('label');
+    if (label) {
+      label.textContent = type === 'score' ? '（评分题固定 1-5 分，无需填写选项）' : (isMatrix ? '列选项（每行一个）' : '选项（每行一个）');
+    }
+    // 文本题不需要选项，隐藏并清空
+    if (isPlain) choice.style.display = 'none';
+  };
+
+  window.removeCard = function (btn) {
+    var card = btn.closest('.sq-card');
+    if (card) card.remove();
+    renumber();
+  };
+
+  function renumber() {
+    list.querySelectorAll('.sq-card').forEach(function (card, i) {
+      card.dataset.index = i;
+      var badge = card.querySelector('.sq-index, .badge.bg-primary');
+      if (badge) badge.textContent = '第 ' + (i + 1) + '题';
+    });
+  }
+
+  document.getElementById('addQuestion').addEventListener('click', function () {
+    counter++;
+    list.insertAdjacentHTML('beforeend', templateCard());
+    var card = list.lastElementChild;
+    syncCard(card.querySelector('.sq-type-select'));
+    renumber();
+  });
+
+  // 服务端预填的题目：初始化时同步显示状态并回填选项文本
+  list.querySelectorAll('.sq-card').forEach(function (card) {
+    var sel = card.querySelector('.sq-type-select');
+    if (sel) syncCard(sel);
+  });
+
+  window.beforeSubmit = function () {
+    // 文本/多行文本题的选项框服务端忽略；矩阵行/选项服务端校验
+    var cards = list.querySelectorAll('.sq-card');
+    if (!cards.length) {
+      alert('至少需要一道题目');
+      return false;
+    }
+    for (var i = 0; i < cards.length; i++) {
+      var title = cards[i].querySelector('input[name="q_title"]');
+      if (title && !title.value.trim()) {
+        alert('第 ' + (i + 1) + ' 题的标题不能为空');
+        title.focus();
+        return false;
+      }
+      var sel = cards[i].querySelector('.sq-type-select');
+      var type = sel ? sel.value : '';
+      var opts = cards[i].querySelector('textarea[name="q_options"]');
+      if (['radio', 'checkbox', 'select'].indexOf(type) >= 0 && opts) {
+        var n = opts.value.split('\n').filter(function (s) { return s.trim(); }).length;
+        if (n < 2) {
+          alert('第 ' + (i + 1) + ' 题至少需要 2 个选项');
+          opts.focus();
+          return false;
+        }
+      }
+      if (['matrix_radio', 'matrix_score'].indexOf(type) >= 0) {
+        var rows = cards[i].querySelector('textarea[name="q_rows"]');
+        var rn = rows ? rows.value.split('\n').filter(function (s) { return s.trim(); }).length : 0;
+        var on = opts ? opts.value.split('\n').filter(function (s) { return s.trim(); }).length : 0;
+        if (rn < 1) { alert('第 ' + (i + 1) + ' 题矩阵至少需要 1 个行标题'); rows.focus(); return false; }
+        if (on < 2) { alert('第 ' + (i + 1) + ' 题矩阵至少需要 2 个列选项'); opts.focus(); return false; }
+      }
+    }
+    return true;
+  };
+})();
+</script>
+{% endblock %}

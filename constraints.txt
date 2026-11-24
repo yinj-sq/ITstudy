@@ -1,0 +1,47 @@
+# ITstudy 交付依赖版本锁（constraints）
+# 版本唯一来源：本文件。build-installer.ps1 按本文件下载 pack/wheels
+# （--only-binary=:all:），容器镜像也按本文件安装——两个交付通道使用同一组
+# 版本，避免在线解析到比已验证版本更新的依赖（2026-09-13 曾因
+# flask-caching 2.5 删除小写后端名垫片导致装机即崩，而开发环境停在 2.4
+# 察觉不到）。升级依赖时：先修改并验证本文件，再运行
+# pack/build-installer.ps1 重新下载 wheels 并编译安装包。
+alembic==1.20.0
+annotated-types==0.8.0
+backports-zstd==1.7.0
+blinker==1.9.0
+brotli==1.2.0
+cachelib==0.17.0
+certifi==2026.7.22
+cffi==2.1.1
+charset-normalizer==3.5.1
+click==8.5.0
+cryptography==50.0.2
+et-xmlfile==2.0.0
+flask==3.1.3
+flask-caching==2.5.1
+flask-compress==1.24
+flask-migrate==4.1.0
+flask-sqlalchemy==3.1.1
+greenlet==3.5.5
+idna==3.19
+itsdangerous==2.2.0
+jinja2==3.1.6
+lxml==6.1.3
+mako==1.4.1
+markupsafe==3.0.3
+openpyxl==3.1.5
+pillow==13.0.0
+psycopg2-binary==2.9.13
+pycparser==3.0
+pydantic==2.13.5
+pydantic-core==2.46.5
+python-pptx==0.6.23
+pywin32==312; sys_platform == 'win32'
+requests==2.34.2
+sqlalchemy==2.0.52
+typing-extensions==4.16.0
+typing-inspection==0.4.4
+urllib3==2.7.0
+waitress==3.0.2
+werkzeug==3.1.8
+xlsxwriter==3.2.9

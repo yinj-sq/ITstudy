@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>思维导图 · 知识梳理</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%235b5bd6'/%3E%3Cpath d='M12 16h4v-7h4M16 16v7h4' stroke='%23fff' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='9' cy='16' r='3' fill='%23fff'/%3E%3Ccircle cx='23' cy='9' r='2.6' fill='%23fff'/%3E%3Ccircle cx='23' cy='23' r='2.6' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="app" id="app">
+
+  <!-- ───────────── 顶栏 ───────────── -->
+  <header class="topbar" id="topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+          <circle cx="5" cy="12" r="2.4"/><circle cx="18.5" cy="5.5" r="2.2"/><circle cx="18.5" cy="18.5" r="2.2"/>
+          <path d="M7.4 12h3.4a2 2 0 0 0 2-2V7.5h3.5M7.4 12h3.4a2 2 0 0 1 2 2v2.5h3.5"/>
+        </svg>
+      </div>
+      <div class="doc-title" id="docTitle" contenteditable="true" spellcheck="false" role="textbox" aria-label="文档标题">思维导图</div>
+      <div class="save-state" id="saveState">已保存</div>
+    </div>
+
+    <div class="actions">
+      <!-- 命名规范见《专家评审三轮》第三节：一级入口 ≤11 个、全部带文字、
+           一个词只指一件事。分组用竖线隔开：做图 / 放给学生看 / 收尾 / 帮助 -->
+      <div class="menu-wrap">
+        <button class="btn" data-menu="doc" title="文档：打开、导入、复制、分享" aria-haspopup="menu" aria-label="文档">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 7.2A2.2 2.2 0 0 1 6.2 5h3.2l2 2.4h6.4A2.2 2.2 0 0 1 20 9.6v7.2A2.2 2.2 0 0 1 17.8 19H6.2A2.2 2.2 0 0 1 4 16.8z"/></svg>
+          <span>文档</span>
+        </button>
+        <div class="menu" id="menu-doc"></div>
+      </div>
+
+      <div class="menu-wrap">
+        <button class="btn" data-menu="template" title="新建：从一张白纸开始，或按「你要做什么」选一种图" aria-haspopup="menu" aria-label="新建">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M12 9v6M9 12h6"/></svg>
+          <span>新建</span>
+        </button>
+        <div class="menu" id="menu-template"></div>
+      </div>
+
+      <div class="menu-wrap">
+        <button class="btn" data-menu="layout" title="版式：节点怎么排" aria-haspopup="menu" aria-label="版式">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.8" y="9.6" width="5" height="4.8" rx="1.4"/><rect x="16.2" y="2.8" width="5" height="4.8" rx="1.4"/><rect x="16.2" y="16.4" width="5" height="4.8" rx="1.4"/><path d="M7.8 12h4.2V5.2h4.2M12 12v6.8h4.2"/></svg>
+          <span>版式</span>
+        </button>
+        <div class="menu" id="menu-layout"></div>
+      </div>
+
+      <div class="menu-wrap">
+        <button class="btn" data-menu="theme" title="配色：六套配色，以及连线样式" aria-haspopup="menu" aria-label="配色">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.4"/><path d="M12 3.6v16.8" /><circle cx="12" cy="12" r="8.4" fill="currentColor" fill-opacity=".16" stroke="none"/></svg>
+          <span>配色</span>
+        </button>
+        <div class="menu" id="menu-theme"></div>
+      </div>
+
+      <div class="tb-sep" aria-hidden="true"></div>
+
+      <div class="menu-wrap">
+        <button class="btn" data-menu="show" title="放映：把这张图放给学生看（投影放大，逐条逐个出现，可以一起开）" aria-haspopup="menu" aria-label="放映">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M8 5.2v13.6l11-6.8z"/></svg>
+          <span>放映</span>
+        </button>
+        <div class="menu" id="menu-show">
+          <div class="menu-label">把这张图放给学生看</div>
+          <button class="menu-item show-item" id="btnPresent">
+            <span>逐条展示</span><span class="mi-sub">按空格，一个一个出现</span>
+          </button>
+          <button class="menu-item show-item" id="btnProjector" aria-pressed="false">
+            <span>投影模式</span><span class="mi-sub">字号放大，整张图看</span>
+            <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l5 5 10-11"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <button class="btn toggle" id="btnBlank" title="挖空：遮住节点文字，学生先回忆，你逐个揭示" aria-label="挖空" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.2" y="5.4" width="17.6" height="13.2" rx="2.4" stroke-dasharray="3 2.6"/><path d="M9.9 10.4a2.2 2.2 0 1 1 3 2.1c-.5.2-.8.7-.8 1.2v.4"/><circle cx="12.1" cy="16.1" r=".85" fill="currentColor" stroke="none"/></svg>
+        <span>挖空</span>
+      </button>
+
+      <div class="tb-sep" aria-hidden="true"></div>
+
+      <button class="btn" id="btnScore" title="评估：这张图想得清不清楚（结构成熟度）" aria-label="评估">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5h16"/><rect x="5.4" y="12.2" width="3.4" height="5.8" rx="1"/><rect x="10.3" y="8.4" width="3.4" height="9.6" rx="1"/><rect x="15.2" y="4.6" width="3.4" height="13.4" rx="1"/></svg>
+        <span>评估</span>
+      </button>
+
+      <button class="btn" id="btnPractice" title="自测：遮住图，学生自己写、自己对、自己评" aria-label="自测">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 5.5h15v13h-15z" stroke-dasharray="3 2.6"/><path d="M9.4 12.2l1.9 1.9 3.4-3.9"/></svg>
+        <span>自测</span>
+      </button>
+
+      <div class="menu-wrap">
+        <button class="btn" data-menu="export" title="导出：图片、学案、备份、打印" aria-haspopup="menu" aria-label="导出">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3.6v11.2M8 11l4 4 4-4"/><path d="M4.4 17.2v1.6a1.6 1.6 0 0 0 1.6 1.6h12a1.6 1.6 0 0 0 1.6-1.6v-1.6"/></svg>
+          <span>导出</span>
+        </button>
+        <div class="menu" id="menu-export"></div>
+      </div>
+
+      <button class="btn" id="btnFlow" title="流程：一节课的五个动作，从新建走到学案" aria-label="流程">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.4 6.4h5.2l2.4 2.4h7.6"/><path d="M4.4 12h15.2"/><path d="M4.4 17.6h5.2l2.4-2.4h7.6"/></svg>
+        <span>流程</span>
+      </button>
+
+      <button class="btn icon-only ghost" id="btnHelp" title="快捷键与使用说明" aria-label="快捷键与使用说明">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="8.6"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.3 2.4c-.6.2-.8.8-.8 1.4v.5"/><circle cx="12" cy="16.7" r=".9" fill="currentColor" stroke="none"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ───────────── 练习模式顶栏（替代教师顶栏） ───────────── -->
+  <div class="practice-head" id="practiceHead" hidden role="region" aria-label="自测状态">
+    <div class="ph-left">
+      <span class="ph-badge">自测</span>
+      <span class="ph-title" id="phTitle">—</span>
+    </div>
+    <div class="ph-right">
+      <span class="ph-prog" id="phProg">0 / 0</span>
+      <button class="ph-exit" id="phExit">退出自测</button>
+    </div>
+  </div>
+
+  <!-- ───────────── 结课流程条 ───────────── -->
+  <div class="flow" id="flow" hidden role="region" aria-label="一节课的流程">
+    <span class="flow-title" id="flowTitle">一节课的流程</span>
+    <ol class="flow-steps" id="flowSteps"></ol>
+    <button class="flow-x" id="flowClose" type="button" aria-label="关闭流程条">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+
+  <!-- ───────────── 投影 + 暗色主题提示 ───────────── -->
+  <div class="proj-hint" id="projHint" hidden role="status">
+    <span class="ph-text">投影仪投不出真正的黑色，暗色主题在开灯的教室里会发灰。</span>
+    <button class="ph-btn" id="phSwitch" type="button">换成「墨白」</button>
+    <button class="ph-x" id="phClose" type="button" aria-label="关闭提示">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+
+  <!-- ───────────── 画布 ───────────── -->
+  <div class="stage" id="stage" role="main">
+    <div class="world" id="world">
+      <svg class="edges" id="edges" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"></svg>
+      <div class="nodes" id="nodes" role="tree" aria-label="思维导图节点" aria-describedby="stageHint"></div>
+    </div>
+
+    <div class="stage-hint" id="stageHint">
+      <span><b>双击</b> 改文字</span><span class="dot"></span>
+      <span><b>Tab</b> 子节点</span><span class="dot"></span>
+      <span><b>Enter</b> 同级</span><span class="dot"></span>
+      <span><b>Shift</b>+点 建关系</span>
+    </div>
+
+    <!-- 空文档时的三步引导。只在「真的是一张白纸」时出现，
+         有内容、投影、演示、挖空、练习模式下一律不打扰。 -->
+    <div class="onboard" id="onboard" hidden>
+      <div class="ob-card" role="region" aria-label="开始使用">
+        <h3>从这三步开始</h3>
+        <ol class="ob-steps">
+          <li><b>双击</b>中间那个框，把它改成这节课的主题</li>
+          <li>按 <kbd>Tab</kbd> 加一个分支，按 <kbd>Enter</kbd> 加同级</li>
+          <li>把节点拖到另一个节点上，它就换到那下面</li>
+        </ol>
+        <div class="ob-actions">
+          <button class="btn" id="obTemplate">先选个模板</button>
+          <button class="btn primary" id="obOk">知道了</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───────────── 浮动工具岛 ───────────── -->
+  <div class="dock" id="dock">
+    <div class="dock-group">
+      <button class="dock-btn" data-act="add-child" title="添加子节点 (Tab)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        <span>子节点</span>
+      </button>
+      <button class="dock-btn" data-act="add-sibling" title="添加同级节点 (Enter)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 7h9M4 17h9M18 7v10M13 12h10"/></svg>
+        <span>同级</span>
+      </button>
+      <button class="dock-btn" data-act="edit" title="编辑文字 (F2)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4.2L19 9.2a2 2 0 0 0 0-2.8l-1.4-1.4a2 2 0 0 0-2.8 0L4 15.8z"/><path d="M13.6 6.6l3.8 3.8"/></svg>
+        <span>编辑</span>
+      </button>
+      <button class="dock-btn" data-act="link" title="建立关系：先选中一个节点，点这里，再点另一个节点（鼠标可 Shift+点击）">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.6" cy="6.4" r="2.7"/><circle cx="18.4" cy="17.6" r="2.7"/><path d="M7.6 8.4c2.4 2.5 4.4 4.5 8.4 7.2" stroke-dasharray="2.6 2.4"/></svg>
+        <span>关系</span>
+      </button>
+      <button class="dock-btn" data-act="collapse" title="折叠 / 展开 (Ctrl+/)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="8.4"/><path d="M8.4 12h7.2"/></svg>
+        <span>折叠</span>
+      </button>
+      <button class="dock-btn danger" data-act="delete" title="删除节点 (Delete)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.6 6.8h14.8M9.4 6.8V5.2a1.2 1.2 0 0 1 1.2-1.2h2.8a1.2 1.2 0 0 1 1.2 1.2v1.6"/><path d="M6.6 6.8l.8 11.6a1.6 1.6 0 0 0 1.6 1.5h6a1.6 1.6 0 0 0 1.6-1.5l.8-11.6"/></svg>
+        <span>删除</span>
+      </button>
+    </div>
+    <div class="dock-sep"></div>
+    <div class="dock-group">
+      <button class="dock-btn slim" data-act="undo" title="撤销 (Ctrl+Z)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8.4 7.4L4.4 11.4l4 4"/><path d="M4.4 11.4h9.2a5.6 5.6 0 0 1 0 11.2H11"/></svg>
+      </button>
+      <button class="dock-btn slim" data-act="redo" title="重做 (Ctrl+Shift+Z)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15.6 7.4l4 4-4 4"/><path d="M19.6 11.4h-9.2a5.6 5.6 0 0 0 0 11.2H13"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ───────────── 缩放条 ───────────── -->
+  <div class="zoombar" id="zoombar">
+    <button data-zoom="out" title="缩小 (-)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 12h12"/></svg>
+    </button>
+    <button class="zoom-val" data-zoom="reset" title="重置为 100%"><span id="zoomVal">100%</span></button>
+    <button data-zoom="in" title="放大 (+)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 6v12M6 12h12"/></svg>
+    </button>
+    <div class="zoom-sep"></div>
+    <button data-zoom="fit" title="适应画布 (Ctrl+0)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V5.6A1.6 1.6 0 0 1 5.6 4H9M15 4h3.4A1.6 1.6 0 0 1 20 5.6V9M20 15v3.4a1.6 1.6 0 0 1-1.6 1.6H15M9 20H5.6A1.6 1.6 0 0 1 4 18.4V15"/></svg>
+    </button>
+  </div>
+
+  <!-- ───────────── 课堂节奏 ───────────── -->
+  <div class="pacer" id="pacer" role="region" aria-label="课堂节奏">
+    <button class="pacer-toggle" id="pcToggle" aria-expanded="false" title="课堂节奏：按阶段计时，并给出对应的元认知提示">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="13" r="7.6"/><path d="M12 9.4V13l2.6 1.6M9.4 2.8h5.2"/></svg>
+      <span>课堂节奏</span>
+    </button>
+    <div class="pacer-body" id="pcBody" hidden>
+      <div class="pc-head">
+        <select id="pcPreset" aria-label="节奏脚本"></select>
+        <span class="pc-phase" id="pcPhase">—</span>
+      </div>
+      <div class="pc-time" id="pcTime">00:00</div>
+      <div class="pc-bar"><i id="pcBar"></i></div>
+      <p class="pc-prompt" id="pcPrompt"></p>
+      <div class="pc-actions">
+        <button id="pcPlay" class="pc-btn primary" type="button">开始</button>
+        <button id="pcNext" class="pc-btn" type="button">下一段</button>
+        <button id="pcReset" class="pc-btn" type="button">重置</button>
+        <button id="pcShuffle" class="pc-btn ghost" type="button" title="换一张元认知提示卡">换提示</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───────────── 元认知提示卡（放大版） ───────────── -->
+  <div class="prompt-card" id="promptCard" hidden>
+    <div class="pcard" role="dialog" aria-label="元认知提示卡" tabindex="-1">
+      <span class="pcard-stage" id="pcardStage">提示</span>
+      <p class="pcard-text" id="pcardText"></p>
+      <span class="pcard-foot">点击任意处关闭 · Esc</span>
+    </div>
+  </div>
+
+  <!-- ───────────── 演示模式条 ───────────── -->
+  <div class="present-bar" id="presentBar">
+    <button class="pb-btn" id="pbPrev" title="上一个 (Shift+空格)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 6.5L9 12l5.5 5.5"/></svg>
+    </button>
+    <div class="pb-info">
+      <div class="pb-progress"><i id="pbBar"></i></div>
+      <div class="pb-text"><span id="pbCount">0 / 0</span><span class="pb-tip">空格键显示下一个知识点</span></div>
+    </div>
+    <button class="pb-btn accent" id="pbNext" title="下一个 (空格)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 6.5L15 12l-5.5 5.5"/></svg>
+    </button>
+    <div class="pb-sep"></div>
+    <button class="pb-btn text" id="pbAll" title="全部展开">全部</button>
+    <button class="pb-btn text" id="pbExit" title="退出演示 (Esc)">退出</button>
+  </div>
+
+  <!-- ───────────── 挖空练习条 ───────────── -->
+  <div class="present-bar blank-bar" id="blankBar" role="region" aria-label="挖空练习控制">
+    <button class="pb-btn" id="bbPrev" title="收起上一个">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 6.5L9 12l5.5 5.5"/></svg>
+    </button>
+    <div class="pb-info">
+      <div class="pb-progress"><i id="bbBar"></i></div>
+      <div class="pb-text"><span id="bbCount">0 / 0</span><span class="pb-tip">空格键揭示下一个 · 点节点也能揭示</span></div>
+    </div>
+    <button class="pb-btn accent" id="bbNext" title="揭示下一个 (空格)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 6.5L15 12l-5.5 5.5"/></svg>
+    </button>
+    <div class="pb-sep"></div>
+    <button class="pb-btn text" id="bbAll" title="全部揭示">全部</button>
+    <button class="pb-btn text" id="bbAgain" title="清空已揭示，并换一个顺序重新练">重来</button>
+    <button class="pb-btn text" id="bbExit" title="退出挖空">退出</button>
+  </div>
+
+  <!-- ───────────── 练习模式：答题条 ───────────── -->
+  <div class="practice-bar" id="practiceBar" hidden role="region" aria-label="答题">
+    <div class="pq-top">
+      <span class="pq-idx" id="pqIdx">第 1 / 0 题</span>
+      <span class="pq-ctx" id="pqCtx"></span>
+    </div>
+    <div class="pq-row">
+      <input id="pqInput" type="text" placeholder="这里应该是什么？想好再写" autocomplete="off" autocapitalize="off" spellcheck="false" />
+      <button class="pq-btn primary" id="pqCheck">对答案</button>
+    </div>
+    <div class="pq-ans" id="pqAns" hidden>
+      <div class="pa-line"><b id="pqAnsText"></b><span id="pqSim"></span></div>
+      <div class="pa-judge">
+        <button class="pq-btn ok" id="pqOk">答对了</button>
+        <button class="pq-btn no" id="pqNo">没答上</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───────────── 练习模式：结果 ───────────── -->
+  <div class="modal-mask" id="practiceResult" role="dialog" aria-modal="true" aria-labelledby="prTitle">
+    <div class="modal pr-card">
+      <div class="modal-head">
+        <h3 id="prTitle">自测完成</h3>
+      </div>
+      <div class="modal-body">
+        <div class="pr-score"><b id="prNum">0 / 0</b><span id="prRate">正确率 0%</span></div>
+        <div class="pr-wrong" id="prWrong"></div>
+        <div class="pr-actions">
+          <button class="btn" id="prWrongOnly">只练错的</button>
+          <button class="btn primary" id="prAgain">再来一次</button>
+          <button class="btn" id="prExit">退出自测</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───────────── 帮助弹窗 ───────────── -->
+  <div class="modal-mask" id="helpMask" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <div class="modal">
+      <div class="modal-head">
+        <h3 id="helpTitle">思维导图 · 使用说明</h3>
+        <button class="modal-x" id="helpClose" aria-label="关闭">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="help-tabs" role="tablist" aria-label="使用说明">
+          <button class="help-tab on" id="helpTab1" role="tab" aria-selected="true" aria-controls="helpPane1">三分钟上手</button>
+          <button class="help-tab" id="helpTab2" role="tab" aria-selected="false" aria-controls="helpPane2">全部按钮与快捷键</button>
+        </div>
+
+        <div id="helpPane1" role="tabpanel" aria-labelledby="helpTab1" tabindex="0">
+          <h4>第一次用，按这个顺序走一遍</h4>
+          <ol class="help-steps">
+            <li><b>双击</b>中间那个框，把它改成这节课的主题</li>
+            <li>按 <kbd>Tab</kbd> 加一个分支，按 <kbd>Enter</kbd> 加同级</li>
+            <li>把节点拖到另一个节点上，它就换到那下面</li>
+            <li>按住 <kbd>Shift</kbd> 点两个节点，画一条跨分支关系——这是概念图区别于普通树状图的地方</li>
+            <li>课上点「<b>放映</b>」：<b>投影模式</b>放大字号，<b>逐条展示</b>让节点一个一个出现，两个可以一起开</li>
+            <li>课后点「<b>自测</b>」，或「<b>文档 → 复制自测链接</b>」发给学生（学生要能打开这个地址；双击打开时链接只在你自己的电脑上有效）</li>
+          </ol>
+
+          <p class="help-note">想看每个按钮的完整说明和全部快捷键，切到「<b>全部按钮与快捷键</b>」那一页。</p>
+          <p class="help-link">要收集同行对这个工具的可用性评价，用 <a href="sus.html">SUS 可用性问卷</a>（10 题，约 3 分钟，可导出 CSV）。</p>
+        </div>
+
+        <div id="helpPane2" role="tabpanel" aria-labelledby="helpTab2" tabindex="0" hidden>
+          <h4>顶栏每个按钮是干什么的</h4>
+          <dl class="keys">
+            <dt>文档</dt><dd>最近打开的图、导入别的工具做的图、复制、删除、把自测链接发给学生</dd>
+            <dt>新建</dt><dd>从一张白纸开始，或按「你要做什么」选一种图。菜单上写的是你要做的事，图型名在后面小字里</dd>
+            <dt>版式</dt><dd>节点怎么排。换成「左右分支 / 中心发散 / 上下分层 / 环形」等等，内容不动</dd>
+            <dt>配色</dt><dd>六套配色，以及连线用曲线还是折线</dd>
+            <dt>放映</dt><dd>放给学生看：投影模式放大字号，逐条展示按空格一个一个出现</dd>
+            <dt>挖空</dt><dd>把节点文字遮住，学生先回忆，你逐个揭示。按空格推进</dd>
+            <dt>评估</dt><dd>看这张图想得清不清楚：一句话结论 + 结构成熟度，想看细节再展开六个维度</dd>
+            <dt>自测</dt><dd>把界面换成学生端：一格一格问「这里应该是什么」，学生先写、再对答案、然后自评，最后看正确率。相似度只给一句提示（「很接近」），不判对错——中文表述千变万化，判分权交给学生自己</dd>
+            <dt>导出</dt><dd>图片放进课件、留白学案给学生填、备份文件、直接打印</dd>
+            <dt>流程</dt><dd>把一节课的五个动作串成一条路：新建 → 计时 → 挖空 → 评估 → 学案。可以跳着点，也可以随时关掉</dd>
+            <dt>课堂节奏</dt><dd>按阶段计时（结课 10 分钟 / 完整一课时 / 习题讲评），每段配一条元认知提示卡</dd>
+            <dt>成熟度变化</dt><dd>每次打开评估会记一笔，同一张图改动后再看，就能看到成熟度怎么变的——只和自己比</dd>
+          </dl>
+          <div class="help-cols">
+            <div>
+              <h4>编辑节点</h4>
+              <dl class="keys">
+                <dt>Tab</dt><dd>添加子节点并输入</dd>
+                <dt>Enter</dt><dd>添加同级节点并输入</dd>
+                <dt>F2 / 双击</dt><dd>编辑当前节点</dd>
+                <dt>Delete</dt><dd>删除节点及其分支</dd>
+                <dt>Ctrl + /</dt><dd>折叠或展开分支</dd>
+                <dt>方向键</dt><dd>在节点间移动选中</dd>
+                <dt>拖拽</dt><dd>把节点拖到另一个节点上即可换父级</dd>
+                <dt>Shift + 点击</dt><dd>在两个节点间建立一条跨分支关系（含关系词）</dd>
+              </dl>
+            </div>
+            <div>
+              <h4>画布与展示</h4>
+              <dl class="keys">
+                <dt>滚轮</dt><dd>缩放画布</dd>
+                <dt>双指捏合</dt><dd>触屏缩放（一体机 / 平板）</dd>
+                <dt>空白处拖动</dt><dd>平移画布</dd>
+                <dt>Ctrl + 0</dt><dd>适应窗口</dd>
+                <dt>Ctrl + Z</dt><dd>撤销（Shift+Z 重做）</dd>
+                <dt>空格</dt><dd>放映 · 逐条展示，或挖空时逐个揭示</dd>
+                <dt>Esc</dt><dd>退出展示 / 取消编辑</dd>
+              </dl>
+            </div>
+          </div>
+          <p class="help-note"><b>放映</b>菜单里是两个可以一起开的东西：<b>投影模式</b>把字号放大近两倍、去掉阴影并提高对比度，整张图看得清，专为教室最后一排设计；<b>逐条展示</b>让节点一个一个出现，按空格推进。两个一起开，就是「放大 + 逐个」。<br><b>挖空</b>把节点文字遮住，适合让学生先回忆、再逐个揭示。<br><b>跨分支关系</b>用来表达「导致 / 包含 / 对比 / 举例」这类语义，是概念图区别于普通树状图的关键；点那条线可选中，按 Delete 删除，双击可改关系词。<br><b>导入文件</b>支持 XMind（.xmind）、FreeMind（.mm）、OPML、百度脑图（.km）和 Markdown / 缩进大纲，也可以把文件直接拖到画布上；导入只搬结构和文字，别人的配色不会带过来。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───────────── 结构评估弹窗 ───────────── -->
+  <div class="modal-mask" id="scoreMask" role="dialog" aria-modal="true" aria-labelledby="scoreTitle">
+    <div class="modal score-modal">
+      <div class="modal-head">
+        <h3 id="scoreTitle">这张图怎么样</h3>
+        <button class="modal-x" id="scoreClose" aria-label="关闭">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body" id="scoreBody"></div>
+    </div>
+  </div>
+
+  <!-- ───────────── 关系输入浮层 ───────────── -->
+  <div class="rel-pop" id="relPop" hidden role="dialog" aria-label="建立关系">
+    <div class="rp-title" id="relTitle">建立关系</div>
+    <div class="rp-path"><b id="relFrom"></b><span class="rp-arrow">→</span><b id="relTo"></b></div>
+    <div class="rp-chips" id="relChips">
+      <button type="button" data-w="包含">包含</button>
+      <button type="button" data-w="导致">导致</button>
+      <button type="button" data-w="对比">对比</button>
+      <button type="button" data-w="举例">举例</button>
+      <button type="button" data-w="前提">前提</button>
+      <button type="button" data-w="应用">应用</button>
+    </div>
+    <input id="relInput" type="text" maxlength="8" placeholder="也可自己输入关系词" aria-label="关系词">
+    <div class="rp-actions">
+      <button class="rp-btn" id="relCancel" type="button">取消</button>
+      <button class="rp-btn primary" id="relOk" type="button">确定</button>
+    </div>
+  </div>
+
+  <input type="file" id="fileInput" accept=".json,.xmind,.mm,.opml,.km,.md,.markdown,.txt" hidden>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="sr-only" id="live" role="status" aria-live="polite"></div>
+</div>
+
+<!-- 打印专用容器（屏幕外，仅在打印时显示） -->
+<div id="printArea" aria-hidden="true"></div>
+
+<script src="js/util.js"></script>
+<script src="js/themes.js"></script>
+<script src="js/pedagogy.js"></script>
+<script src="js/importer.js"></script>
+<script src="js/store.js"></script>
+<script src="js/layout.js"></script>
+<script src="js/render.js"></script>
+<script src="js/exporter.js"></script>
+<script src="js/app.js"></script>
+<script src="js/pacer.js"></script>
+<script src="js/flow.js"></script>
+<script src="js/practice.js"></script>
+<script src="js/lesson-bridge.js"></script>
+</body>
+</html>

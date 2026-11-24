@@ -1,0 +1,39 @@
+# .dockerignore — 镜像只含应用资产，运行期数据一律挂卷
+venv/
+data/
+logs/
+instance/
+pack/
+.git/
+.github/
+# **/ 前缀递归匹配嵌套目录（无前缀仅匹配上下文根层）
+**/__pycache__/
+**/*.pyc
+.pytest_cache/
+.ruff_cache/
+tests/
+.claude/
+.agents/
+static/uploads/
+static/submissions/
+static/homework/
+static/question_img/
+static/chunks/
+# 安全审查/复审/专家评审报告不进镜像（漏洞细节与内部风险不落客户机，
+# 与 NSIS 通道排除策略一致）
+docs/*审查*.md
+docs/*复审*.md
+docs/*评审*.md
+docs/*评估*.md
+.hypothesis/
+**/.hypothesis/
+# 开发期回归/审查脚本（依赖 Playwright、连隔离测试库），与 NSIS 通道同口径不下发
+tools/e2e_*.py
+tools/review_*.py
+# Ketcher 构建源码只用于产出 static/chem-lab/ketcher/，镜像不携带 node_modules
+tools/ketcher-app/
+*.log
+# 敏感凭据防御性排除（当前 Dockerfile 逐路径 COPY 故不生效，
+# 防未来改为 COPY . . 时哈希/口令进镜像）
+admin_account.txt
+postgresql.txt

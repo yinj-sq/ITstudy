@@ -1,0 +1,180 @@
+{% extends 'base.html' %}
+{% block title %}AI助手配置{% endblock %}
+{% block content %}
+<div class="container py-4" style="max-width:600px;">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5><i class="fas fa-robot me-2"></i>AI助手配置</h5>
+    <a href="javascript:history.back()" class="btn btn-outline-secondary btn-sm">
+      <i class="fas fa-arrow-left me-1"></i>返回
+    </a>
+  </div>
+
+  {% if config_mode == 'admin' %}
+  <div class="alert alert-success">
+    <i class="fas fa-check-circle me-1"></i>当前由管理员统一提供AI服务，无需自行配置即可使用。
+  </div>
+  {% else %}
+  <div class="alert alert-warning">
+    <i class="fas fa-info-circle me-1"></i>当前为「学生端自行配置」模式，请填写您的API信息后即可使用AI助手。
+  </div>
+
+  <div class="card shadow-sm mb-3">
+    <div class="card-header"><strong><i class="fas fa-key me-1"></i>API配置</strong></div>
+    <div class="card-body">
+      <div class="mb-3">
+        <label for="providerSelect" class="form-label">服务商类型</label>
+        <select id="providerSelect" class="form-select" onchange="onProviderChange()">
+          <option value="openai" {% if not student_config.provider or student_config.provider == 'openai' %}selected{% endif %}>OpenAI 兼容（OpenAI/DeepSeek/通义/智谱/月之暗面等）</option>
+          <option value="anthropic" {% if student_config.provider == 'anthropic' %}selected{% endif %}>Anthropic（Claude 原生）</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label for="apiUrl" class="form-label">API 地址</label>
+        <input type="text" class="form-control" id="apiUrl" placeholder="例如: https://api.deepseek.com/v1" value="{{ student_config.api_url }}">
+        <div class="form-text" id="apiUrlHint">填写OpenAI兼容的API服务地址</div>
+        <div class="form-text">DeepSeek 官方地址（api.deepseek.com）+ deepseek-flash 时，AI 助手自动启用联网搜索、阅读链接、文件输入与内容安全，并提供语音输入与朗读入口。</div>
+      </div>
+      <div class="mb-3">
+        <label for="apiKey" class="form-label">API Key</label>
+        <div class="input-group">
+          <input type="password" class="form-control" id="apiKey" placeholder="sk-..." value="{{ student_config.api_key }}">
+          <button class="btn btn-outline-secondary" type="button" onclick="toggleKeyVisibility()">
+            <i class="fas fa-eye"></i>
+          </button>
+        </div>
+        <div class="form-text">{% if student_config.api_key %}已配置密钥（显示为掩码），如需修改请清空后重新输入{% else %}您的API密钥仅存储在服务端，不会暴露给第三方{% endif %}</div>
+      </div>
+      <div class="mb-3">
+        <label for="modelSelect" class="form-label">模型</label>
+        <div class="input-group">
+          <select class="form-select" id="modelSelect">
+            {% if student_config.model %}
+            <option value="{{ student_config.model }}" selected>{{ student_config.model }}</option>
+            {% else %}
+            <option value="">-- 请先获取模型列表 --</option>
+            {% endif %}
+          </select>
+          <button class="btn btn-outline-primary" type="button" id="fetchModelsBtn" onclick="fetchModels()">
+            <i class="fas fa-sync-alt me-1"></i>获取模型
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-3">
+    <div class="card-header"><strong><i class="fas fa-circle-question me-1"></i>常见API服务地址</strong></div>
+    <div class="card-body small">
+      <table class="table table-sm table-borderless mb-0">
+        <thead><tr><th>服务商</th><th>API地址</th></tr></thead>
+        <tbody>
+          <tr><td>DeepSeek</td><td><code>https://api.deepseek.com/v1</code></td></tr>
+          <tr><td>通义千问</td><td><code>https://dashscope.aliyuncs.com/compatible-mode/v1</code></td></tr>
+          <tr><td>智谱AI</td><td><code>https://open.bigmodel.cn/api/paas/v4</code></td></tr>
+          <tr><td>月之暗面</td><td><code>https://api.moonshot.cn/v1</code></td></tr>
+          <tr><td>OpenAI</td><td><code>https://api.openai.com/v1</code></td></tr>
+          <tr><td>Anthropic</td><td><code>https://api.anthropic.com/v1</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <button class="btn btn-primary rounded-pill px-4" onclick="saveConfig()">
+    <i class="fas fa-save me-1"></i>保存配置
+  </button>
+  <span id="saveMsg" class="ms-2"></span>
+  {% endif %}
+</div>
+
+<script>
+function toggleKeyVisibility(){
+  var inp=document.getElementById('apiKey');
+  inp.type=inp.type==='password'?'text':'password';
+}
+
+function onProviderChange(){
+  var prov=document.getElementById('providerSelect').value;
+  var hint=document.getElementById('apiUrlHint');
+  var urlInput=document.getElementById('apiUrl');
+  if(prov==='anthropic'){
+    hint.textContent='Anthropic Claude 原生地址，如：https://api.anthropic.com/v1';
+    if(!urlInput.value.trim()){ urlInput.placeholder='例如: https://api.anthropic.com/v1'; }
+  }else{
+    hint.textContent='填写OpenAI兼容的API服务地址';
+    if(!urlInput.value.trim()){ urlInput.placeholder='例如: https://api.deepseek.com/v1'; }
+  }
+}
+
+function fetchModels(){
+  var btn=document.getElementById('fetchModelsBtn');
+  var keyVal=document.getElementById('apiKey').value.trim();
+  if(!keyVal || keyVal.startsWith('****')){
+    alert('请先在 API Key 输入框中填写完整的密钥（当前显示为掩码）');
+    return;
+  }
+  btn.disabled=true;
+  btn.innerHTML='<i class="fas fa-spinner fa-spin me-1"></i>获取中...';
+  fetch('/api/ai/student_fetch_models',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      api_url:document.getElementById('apiUrl').value.trim(),
+      api_key:document.getElementById('apiKey').value.trim(),
+      provider:document.getElementById('providerSelect').value
+    })
+  }).then(function(r){return r.json();}).then(function(data){
+    btn.disabled=false;
+    btn.innerHTML='<i class="fas fa-sync-alt me-1"></i>获取模型';
+    if(data.success){
+      var sel=document.getElementById('modelSelect');
+      var cur=sel.value;
+      sel.innerHTML='';
+      data.models.forEach(function(m){
+        var opt=document.createElement('option');
+        opt.value=m.id;
+        opt.textContent=m.name;
+        if(m.id===cur) opt.selected=true;
+        sel.appendChild(opt);
+      });
+      if(data.models.length>0 && !sel.value){
+        sel.selectedIndex=0;
+      }
+    }else{
+      alert(data.msg||'获取模型列表失败');
+    }
+  }).catch(function(e){
+    btn.disabled=false;
+    btn.innerHTML='<i class="fas fa-sync-alt me-1"></i>获取模型';
+    alert('请求失败: '+e.message);
+  });
+}
+
+function saveConfig(){
+  var msg=document.getElementById('saveMsg');
+  msg.textContent='保存中...';
+  msg.className='ms-2 text-muted';
+  fetch('/api/ai/student_config',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      api_url:document.getElementById('apiUrl').value.trim(),
+      api_key:document.getElementById('apiKey').value.trim(),
+      model:document.getElementById('modelSelect').value,
+      provider:document.getElementById('providerSelect').value
+    })
+  }).then(function(r){return r.json();}).then(function(data){
+    if(data.success){
+      msg.textContent='✓ 保存成功';
+      msg.className='ms-2 text-success';
+    }else{
+      msg.textContent='✗ '+data.msg;
+      msg.className='ms-2 text-danger';
+    }
+    setTimeout(function(){msg.textContent='';},3000);
+  }).catch(function(e){
+    msg.textContent='✗ 请求失败';
+    msg.className='ms-2 text-danger';
+  });
+}
+</script>
+{% endblock %}

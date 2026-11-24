@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block title %}数据库备份{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h2 class="mb-4"><i class="fas fa-database me-2"></i>数据库备份与恢复</h2>
+
+  <div class="row g-3">
+    <div class="col-md-6">
+      <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white"><strong><i class="fas fa-download me-1"></i>备份数据</strong></div>
+        <div class="card-body">
+          <table class="table table-sm">
+            <tr><td>数据库</td><td>PostgreSQL</td></tr>
+            <tr><td>数据库大小</td><td>{{ (db_size / 1024 / 1024)|round(1) }} MB</td></tr>
+            <tr><td>上传文件数</td><td>{{ uploads_count }} 个</td></tr>
+            <tr><td>上传文件大小</td><td>{{ (uploads_size / 1024 / 1024)|round(1) }} MB</td></tr>
+            {% if orphan_count %}
+            <tr class="table-warning">
+              <td>Python 孤儿文件</td>
+              <td>{{ orphan_count }} 个（{{ (orphan_bytes / 1024 / 1024)|round(1) }} MB）</td>
+            </tr>
+            {% endif %}
+          </table>
+          {% if orphan_count %}
+          <form method="post" action="/admin/backup/cleanup-python-orphans" style="margin:0;"
+                onsubmit="return confirm('确定清理 {{ orphan_count }} 个孤儿文件（约 {{ (orphan_bytes / 1024 / 1024)|round(1) }} MB）？该操作不可恢复。')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn btn-warning rounded-pill w-100 mt-2">
+              <i class="fas fa-broom me-1"></i>清理 Python 孤儿文件
+            </button>
+          </form>
+          {% endif %}
+          <p class="small text-muted"><i class="fas fa-info-circle me-1"></i>备份包含：PostgreSQL SQL 转储 (backup.sql) + 文件目录清单</p>
+          <form method="post" action="/admin/backup/download" style="margin:0;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn btn-primary rounded-pill w-100"><i class="fas fa-download me-1"></i>下载备份 (ZIP)</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card shadow-sm">
+        <div class="card-header bg-warning"><strong><i class="fas fa-exclamation-triangle me-1"></i>重要提示</strong></div>
+        <div class="card-body small">
+          <ul>
+            <li class="mb-2">备份文件为 ZIP 格式，包含 <code>backup.sql</code> 和 <code>backup_info.txt</code></li>
+            <li class="mb-2">下载后请妥善保存到安全位置</li>
+            <li class="mb-2">恢复命令：<code>psql -U postgres -d itstudy &lt; backup.sql</code></li>
+            <li class="mb-2 text-danger fw-bold">恢复操作会覆盖当前数据，请先备份！</li>
+            <li class="mb-2">建议每次重大操作前执行备份</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+  <a href="/admin/statistics" class="btn btn-outline-secondary rounded-pill mt-3"><i class="fas fa-arrow-left"></i> 返回统计</a>
+</div>
+{% endblock %}

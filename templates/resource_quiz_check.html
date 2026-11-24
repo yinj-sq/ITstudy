@@ -1,0 +1,339 @@
+{% extends 'base.html' %}
+{% block title %}注入检测 - {{ res.title }}{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+      <h2 class="mb-1"><i class="fas fa-vial me-2"></i>注入检测</h2>
+      <div class="text-muted">{{ res.title }}</div>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{{ back_url }}" class="btn btn-outline-secondary rounded-pill">
+        <i class="fas fa-arrow-left me-1"></i>返回资源
+      </a>
+      <a href="{{ url_for('resources.edit_resource', res_id=res.id) }}" class="btn btn-outline-primary rounded-pill">
+        <i class="fas fa-pen me-1"></i>编辑资源
+      </a>
+    </div>
+  </div>
+
+  <div class="alert alert-info">
+    <i class="fas fa-circle-info me-1"></i>
+    采集脚本只有在模拟试运行通过后才会写入原文件。试运行使用临时副本，
+    <strong>不会保存成绩，也不会修改资源文件</strong>。
+    请在打开的演练页完成一次答题并提交，检测页会自动读取抓取结果。
+    <br><span class="small">检测会话保存在服务端临时目录：刷新页面、服务更新/重启或超过 24 小时后会失效，需要重新开始模拟。</span>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+      <strong><i class="fas fa-list-check me-1"></i>待检测文件</strong>
+      <span class="badge bg-light text-dark" id="stateBadge">
+        {% if inject_state == 'verified' %}已注入{% elif inject_state == 'partial' %}部分完成{% elif inject_state == 'pending' %}待检测{% else %}未启用{% endif %}
+      </span>
+    </div>
+    <div class="card-body">
+      {% if pending %}
+      <div class="table-responsive">
+        <table class="table table-hover align-middle" id="checkTable">
+          <thead class="table-light">
+            <tr>
+              <th>文件</th>
+              <th style="width:110px;">当前状态</th>
+              <th style="width:130px;">检测结果</th>
+              <th style="width:190px;">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for f in pending %}
+            <tr data-file="{{ f.name }}">
+              <td><code>{{ f.name }}</code>
+                {% if f.injected %}<span class="badge bg-secondary ms-1">已有采集器</span>{% endif %}
+              </td>
+              <td><span class="badge bg-secondary status-badge">待检测</span></td>
+              <td><span class="small text-muted reason">未开始</span></td>
+              <td>
+                <button type="button" class="btn btn-sm btn-primary start-btn">
+                  <i class="fas fa-play me-1"></i>开始模拟
+                </button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="d-flex justify-content-end gap-2 mt-3">
+        <button type="button" class="btn btn-success rounded-pill px-4" id="applyBtn" disabled>
+          <i class="fas fa-check me-1"></i>应用已通过的文件
+        </button>
+      </div>
+      {% else %}
+      <div class="text-muted">
+        当前没有待检测文件。请到
+        <a href="{{ url_for('resources.edit_resource', res_id=res.id) }}">资源编辑页</a>
+        勾选需要采集的 HTML 文件后保存。
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card mb-4 d-none" id="questionPreview">
+    <div class="card-header"><strong>逐题采集预览</strong> <span class="small text-muted" id="questionPreviewFile"></span></div>
+    <div class="card-body">
+      <p class="small text-muted">应用前请核对题干、选项和作答内容。没有明确标准答案的题目只统计选择分布，不猜测正确率。</p>
+      <div class="table-responsive"><table class="table table-sm">
+        <thead><tr><th>题干</th><th>选项内容</th><th>学生作答</th><th>标准答案</th></tr></thead>
+        <tbody id="questionPreviewBody"></tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <details class="card mb-4">
+    <summary class="card-header">自定义页面：精确采集适配</summary>
+    <div class="card-body small">
+      <p>原生单选、多选、下拉框、文本框和常见按钮选项可自动识别。
+        推荐每题容器设置 <code>data-qid="q1"</code>、<code>data-correct-answer="B"</code>，
+        选项设置 <code>data-option="A"</code> 等稳定值。</p>
+      <p>canvas 或框架内部题库可在完成答题后显式提供数据，再调用提交；不用把学生姓名或学号写进网页：</p>
+      <pre class="border rounded p-2"><code>QuizCollector.recordQuestion({
+  id: 'q1', prompt: 'Python 的循环语句是？', type: 'single',
+  options: [{value: 'A', label: 'A. if'}, {value: 'B', label: 'B. for'}],
+  answer: ['B'], correct_answer: ['B']
+});
+QuizCollector.submit();</code></pre>
+      <p class="mb-0">只采集到分数的旧记录无法反推完整选项。更新后请重新模拟答题核对，新提交的数据才会包含逐题明细。</p>
+    </div>
+  </details>
+
+  <div class="card border-warning">
+    <div class="card-header bg-warning bg-opacity-10">
+      <strong><i class="fas fa-triangle-exclamation text-warning me-1"></i>无法注入时：改用 QuickForm</strong>
+    </div>
+    <div class="card-body">
+      <p class="mb-2">
+        如果页面使用 canvas/WebGL 等无法自动识别的方式答题，可以保留原页面，
+        不注入 ITstudy 采集器，改为在 QuickForm 中接收数据：
+      </p>
+      <ol class="mb-3">
+        <li>复制下方提示词，交给 QuickForm 或 AI 工具完成页面适配；</li>
+        <li>把适配后的 HTML 上传回本资源，采集方式选择“不采集”；</li>
+        <li>打开「课堂编排器」，点击 <strong>添加 QuickForm 成绩</strong>，粘贴 QuickForm 数据结果页地址；</li>
+        <li>上课时从章节中的 QuickForm 成绩入口查看数据。</li>
+      </ol>
+      <button type="button" class="btn btn-sm btn-outline-warning" id="copyQuickFormPrompt">
+        <i class="fas fa-copy me-1"></i>复制 QuickForm 适配提示词
+      </button>
+      <span class="small text-success ms-2 d-none" id="copyPromptOk">已复制</span>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var START_URL = {{ start_url|tojson }};
+  var APPLY_URL = {{ apply_url|tojson }};
+  var STATUS_URL = {{ status_url|tojson }};
+  var REPORT_URL = {{ report_url|tojson }};
+  var CSRF = window.CSRF_TOKEN || '';
+  var state = {}; // file -> {token, status, reason, timer, window}
+  var table = document.getElementById('checkTable');
+  var applyBtn = document.getElementById('applyBtn');
+
+  function rowFor(file) {
+    if (!table) return null;
+    var found = null;
+    table.querySelectorAll('tr[data-file]').forEach(function (row) {
+      if (row.dataset.file === file) found = row;
+    });
+    return found;
+  }
+  function setRow(file, status, reason) {
+    var row = rowFor(file);
+    if (!row) return;
+    var badge = row.querySelector('.status-badge');
+    var reasonEl = row.querySelector('.reason');
+    var text = { testing: '检测中', pass: '通过', partial: '仅答案', fail: '无法注入' }[status] || status;
+    var cls = { testing: 'bg-info text-dark', pass: 'bg-success', partial: 'bg-warning text-dark', fail: 'bg-danger' }[status] || 'bg-secondary';
+    badge.className = 'badge status-badge ' + cls;
+    badge.textContent = text;
+    reasonEl.textContent = reason || '';
+    row.dataset.status = status;
+    refreshApply();
+  }
+  function refreshApply() {
+    if (!applyBtn) return;
+    var has = false;
+    if (table) {
+      table.querySelectorAll('tr[data-status]').forEach(function (row) {
+        if (row.dataset.status === 'pass' || row.dataset.status === 'partial') has = true;
+      });
+    }
+    applyBtn.disabled = !has;
+  }
+  function stopPoll(file) {
+    var st = state[file];
+    if (st && st.timer) { clearInterval(st.timer); st.timer = null; }
+  }
+  function previewQuestions(file, payload) {
+    var questions = payload && payload.questions;
+    if (!Array.isArray(questions) || !questions.length) return;
+    document.getElementById('questionPreview').classList.remove('d-none');
+    document.getElementById('questionPreviewFile').textContent = file;
+    var body = document.getElementById('questionPreviewBody');
+    body.textContent = '';
+    questions.forEach(function (question) {
+      var row = document.createElement('tr');
+      function describe(answer) {
+        if (answer == null) return '未采集到';
+        var values = Array.isArray(answer) ? answer : [answer];
+        return values.map(function (value) {
+          var option = (question.options || []).filter(function (entry) { return entry.value === String(value); })[0];
+          return option ? option.label : String(value);
+        }).join('；') || '未作答';
+      }
+      [question.prompt || question.id,
+        (question.options || []).map(function (option) { return option.label; }).join('\n'),
+        describe(question.answer), describe(question.correct_answer)].forEach(function (value) {
+        var cell = document.createElement('td');
+        cell.style.whiteSpace = 'pre-wrap';
+        cell.textContent = value;
+        row.appendChild(cell);
+      });
+      body.appendChild(row);
+    });
+  }
+  function poll(file, token, attempt) {
+    var st = state[file];
+    if (!st) return;
+    attempt = attempt || 0;
+    if (attempt > 500) { stopPoll(file); return; }
+    fetch(STATUS_URL.replace('__TOKEN__', encodeURIComponent(token)), {
+      credentials: 'same-origin'
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d.success) return;
+      previewQuestions(file, d.payload);
+      if (d.status && d.status !== 'testing') {
+        st.status = d.status;
+        st.reason = d.reason || '';
+        setRow(file, d.status, d.reason || '');
+        stopPoll(file);
+      } else if (attempt === 0) {
+        setRow(file, 'testing', '请在演练页完成一次答题');
+      }
+    }).catch(function () {}).then(function () {
+      if (st.status === 'testing' && attempt < 500) {
+        st.timer = setTimeout(function () { poll(file, token, attempt + 1); }, 1200);
+      }
+    });
+  }
+  function startTest(file) {
+    var row = rowFor(file);
+    if (!row) return;
+    var btn = row.querySelector('.start-btn');
+    btn.disabled = true;
+    fetch(START_URL, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+      body: JSON.stringify({file: file})
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      btn.disabled = false;
+      if (!d.success) { alert(d.msg || '无法生成演练页'); return; }
+      stopPoll(file);
+      state[file] = {token: d.token, status: 'testing', timer: null, window: null};
+      setRow(file, 'testing', '已打开演练页，请完成答题并提交');
+      var w = window.open(d.preview_url, '_blank');
+      state[file].window = w;
+      if (!w) {
+        alert('浏览器拦截了演练页，请允许本站弹出窗口，或复制地址手动打开：\n' + d.preview_url);
+      }
+      poll(file, d.token, 0);
+    }).catch(function () {
+      btn.disabled = false;
+      alert('检测请求失败，请稍后重试');
+    });
+  }
+  if (table) {
+    table.querySelectorAll('.start-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var row = btn.closest('tr');
+        startTest(row.dataset.file);
+      });
+    });
+  }
+  window.addEventListener('message', function (e) {
+    var data = e.data || {};
+    if (data.type !== 'ITSTUDY_QUIZ_DRY_RUN_RESULT' || !data.payload) return;
+    var file = data.payload.source_file || '';
+    var st = state[file];
+    if (!file || !st || (st.window && e.source !== st.window)) return;
+    // 页面自身 CSP 可能阻止其 fetch；由检测页同源代转一次，最终仍以服务端
+    // /status 为准（服务端会固定 resource_id/source_file 并重新判定）。
+    fetch(REPORT_URL.replace('__TOKEN__', encodeURIComponent(st.token)), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+      body: JSON.stringify(data.payload)
+    }).then(function () { poll(file, st.token, 1); }).catch(function () {});
+  });
+  if (applyBtn) {
+    applyBtn.addEventListener('click', function () {
+      var tests = [];
+      var partialFiles = [];
+      table.querySelectorAll('tr[data-status]').forEach(function (row) {
+        var status = row.dataset.status;
+        var st = state[row.dataset.file];
+        if (!st || (status !== 'pass' && status !== 'partial')) return;
+        if (status === 'partial') partialFiles.push(row.dataset.file);
+        tests.push({file: row.dataset.file, token: st.token, allow_partial: status === 'partial'});
+      });
+      if (!tests.length) return;
+      if (partialFiles.length && !confirm('以下文件只捕获到答案、未捕获成绩：\n' +
+          partialFiles.join('\n') + '\n\n仍然应用“仅采集答案”吗？')) return;
+      applyBtn.disabled = true;
+      btnText(applyBtn, '正在应用...');
+      fetch(APPLY_URL, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+        body: JSON.stringify({tests: tests})
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        btnText(applyBtn, '应用已通过的文件');
+        var ok = (d.results || []).filter(function (x) { return x.success; });
+        var bad = (d.results || []).filter(function (x) { return !x.success; });
+        var msg = d.msg || '';
+        if (ok.length) msg += '\n成功：' + ok.map(function (x) { return x.file; }).join('、');
+        if (bad.length) msg += '\n失败：' + bad.map(function (x) { return x.file + '（' + x.msg + '）'; }).join('、');
+        alert(msg || '操作完成');
+        if (ok.length) window.location.reload();
+        else applyBtn.disabled = false;
+      }).catch(function () {
+        btnText(applyBtn, '应用已通过的文件');
+        applyBtn.disabled = false;
+        alert('应用失败，请检查网络或文件权限');
+      });
+    });
+  }
+  function btnText(btn, text) {
+    var loading = text === '正在应用...';
+    btn.innerHTML = '<i class="fas ' + (loading ? 'fa-spinner fa-spin' : 'fa-check') +
+      ' me-1"></i>' + text;
+  }
+  var copyBtn = document.getElementById('copyQuickFormPrompt');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', function () {
+      var prompt = '请把当前交互网页改造成通过 QuickForm 回收数据的页面：\n' +
+        '1. 学生完成答题后，以 POST JSON 方式提交到 QuickForm 数据接口；\n' +
+        '2. 数据中包含 student_name、student_number、answers、total_score、max_score、correct_count、question_count、duration；\n' +
+        '3. 如果页面无法获取学号/姓名，请增加姓名和学号输入框；\n' +
+        '4. 保留原有页面样式和交互，不要修改题目和判分逻辑。';
+      navigator.clipboard.writeText(prompt).then(function () {
+        var ok = document.getElementById('copyPromptOk');
+        if (ok) { ok.classList.remove('d-none'); setTimeout(function () { ok.classList.add('d-none'); }, 2000); }
+      }).catch(function () { window.prompt('复制以下提示词：', prompt); });
+    });
+  }
+})();
+</script>
+{% endblock %}

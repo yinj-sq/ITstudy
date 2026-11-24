@@ -1,0 +1,5 @@
+# Windows 批处理脚本必须始终以 CRLF 检出：cmd.exe 解析 LF 行尾的 goto/if 块会出错
+# （run_zh.bat 曾因 LF 无法启动）。core.autocrlf 因机器而异（本仓库为 true），
+# 只用它会让「转 CRLF」这类修复在提交时被静默归一化回 LF——git clone / tarball
+# 部署即复现缺陷。此处把 .bat 钉死为检出 CRLF，与平台/个人配置无关。
+*.bat text eol=crlf

@@ -1,0 +1,239 @@
+{% extends 'base.html' %}
+{% block title %}组卷 - {{ exam.name }}{% endblock %}
+{% block content %}
+<div class="container-fluid" style="max-width:1400px;margin-top:60px;">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="text-primary mb-0">
+      <i class="fas fa-layer-group me-2"></i>组卷：{{ exam.name }}
+      <span class="badge bg-success ms-2" id="totalScore">总分 0</span>
+      <span class="badge bg-info text-dark ms-1" id="qCount">0 题</span>
+    </h4>
+    <a href="/admin/exams" class="btn btn-outline-secondary btn-sm">
+      <i class="fas fa-arrow-left me-1"></i>返回试卷管理
+    </a>
+  </div>
+
+  {% if locked %}
+  <div class="alert alert-warning"><i class="fas fa-lock me-2"></i>该试卷已有成绩记录或已收卷，组卷已锁定（防止成绩口径漂移）。如需调整请先删除该卷全部成绩。</div>
+  {% endif %}
+
+  <div class="row g-3">
+    <!-- 左：题库选取 -->
+    <div class="col-lg-7">
+      <div class="card h-100">
+        <div class="card-header fw-bold"><i class="fas fa-database me-2"></i>题库（勾选后点「加入试卷」）</div>
+        <div class="card-body pb-2">
+          <div class="row g-2 mb-2">
+            <div class="col-md-4">
+              <select id="fType" class="form-select form-select-sm">
+                <option value="">全部题型</option>
+                <option value="single">单选题</option>
+                <option value="multiple">多选题</option>
+                <option value="judge">判断题</option>
+                <option value="fill">填空题</option>
+                <option value="short_answer">简答题</option>
+                <option value="python_fill">Python填空</option>
+                <option value="comprehensive">综合题</option>
+              </select>
+            </div>
+            <div class="col-md-5">
+              <input id="fKw" class="form-control form-control-sm" placeholder="题干关键字（当前页内筛选）">
+            </div>
+            <div class="col-md-3">
+              <button class="btn btn-sm btn-primary w-100" onclick="bankPage=1;loadBank()"><i class="fas fa-search me-1"></i>查询</button>
+            </div>
+          </div>
+          <div class="table-responsive" style="max-height:56vh;overflow-y:auto;">
+            <table class="table table-sm table-hover align-middle mb-0">
+              <thead class="table-light"><tr>
+                <th style="width:34px;"></th><th style="width:56px;">ID</th>
+                <th style="width:88px;">题型</th><th style="width:64px;">分值</th><th>题干</th>
+              </tr></thead>
+              <tbody id="bankBody"></tbody>
+            </table>
+          </div>
+          <div class="d-flex justify-content-between align-items-center mt-2">
+            <button class="btn btn-sm btn-success" id="btnAdd" onclick="addSelected()" {% if locked %}disabled{% endif %}>
+              <i class="fas fa-plus me-1"></i>加入试卷（已勾选 <span id="selCount">0</span> 题）
+            </button>
+            <nav><ul class="pagination pagination-sm mb-0" id="bankPager"></ul></nav>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右：已选试卷结构 -->
+    <div class="col-lg-5">
+      <div class="card h-100">
+        <div class="card-header fw-bold"><i class="fas fa-list-ol me-2"></i>试卷结构（按题型自动分组，题号连续）</div>
+        <div class="card-body" style="max-height:64vh;overflow-y:auto;" id="paperBody"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+var EXAM_ID = {{ exam.id }};
+var LOCKED = {{ 'true' if locked else 'false' }};
+var TYPE_NAME = {single:'单选', multiple:'多选', judge:'判断', fill:'填空',
+                 short_answer:'简答', python_fill:'Python填空', comprehensive:'综合', link:'外链'};
+var TYPE_ORDER = {single:0, multiple:1, judge:2, judge3:2, fill:3, short_answer:4,
+                  python_fill:5, comprehensive:6, link:9};
+var CSRF = (window.getCsrfToken && window.getCsrfToken()) ||
+           (document.cookie.match(/(?:^|; )csrf_token=([^;]+)/) || ['',''])[1];
+var bankPage = 1, bankTotalPages = 1;
+
+function esc(s){var d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function typeName(t){return TYPE_NAME[t]||t;}
+
+/* ── 题库列表 ── */
+function loadBank(){
+  var type = document.getElementById('fType').value;
+  var kw = document.getElementById('fKw').value.trim();
+  var url = '/api/questions?page='+bankPage+'&page_size=20' +
+            (type ? '&question_type='+type : '');
+  fetch(url, {headers:{'X-CSRFToken':CSRF}})
+    .then(function(r){return r.json();})
+    .then(function(j){
+      if(!j.success){alert(j.message||'加载失败');return;}
+      bankTotalPages = j.total_pages || 1;
+      var rows = (j.data||[]).filter(function(q){
+        return !kw || (q.content||'').indexOf(kw) !== -1;
+      });
+      var tb = document.getElementById('bankBody');
+      tb.innerHTML = rows.map(function(q){
+        var inPaper = paperIds.indexOf(q.id) !== -1;
+        var checked = selSeq.indexOf(q.id) !== -1 && !inPaper && !LOCKED;
+        var multi = (q.exam_ids||[]).length;
+        return '<tr>' +
+          '<td><input class="form-check-input bk-sel" type="checkbox" value="'+q.id+'"'+
+          (checked ? ' checked' : '')+(inPaper||LOCKED ? ' disabled' : '')+'></td>' +
+          '<td>'+q.id+'</td>' +
+          '<td><span class="badge bg-secondary">'+esc(typeName(q.question_type))+'</span></td>' +
+          '<td>'+(q.score != null ? q.score : '-')+'</td>' +
+          '<td><div style="max-height:44px;overflow:hidden;" title="'+esc(q.content||'')+'">'+esc((q.content||'').replace(/<[^>]+>/g,'').slice(0,60))+'</div>' +
+          (multi ? '<small class="text-muted">已属 '+multi+' 卷</small>' : '') +
+          (inPaper ? '<small class="text-success"> ✓本卷</small>' : '') + '</td></tr>';
+      }).join('') || '<tr><td colspan="5" class="text-center text-muted py-3">无匹配题目</td></tr>';
+      tb.querySelectorAll('.bk-sel').forEach(function(cb){
+        cb.addEventListener('change', function(){ trackSel(cb); updateSelCount(); });
+      });
+      renderPager();
+      updateSelCount();
+    })
+    .catch(function(){ alert('题库加载失败，请检查网络后重试'); });
+}
+function renderPager(){
+  var ul = document.getElementById('bankPager'); ul.innerHTML='';
+  function li(label, page, disabled, active){
+    var li=document.createElement('li');
+    li.className='page-item'+(disabled?' disabled':'')+(active?' active':'');
+    var a=document.createElement('a'); a.className='page-link'; a.href='#'; a.textContent=label;
+    a.onclick=function(e){e.preventDefault(); if(!disabled){bankPage=page;loadBank();}};
+    li.appendChild(a); ul.appendChild(li);
+  }
+  li('‹', bankPage-1, bankPage<=1, false);
+  for(var p=1;p<=bankTotalPages;p++) li(p, p, false, p===bankPage);
+  li('›', bankPage+1, bankPage>=bankTotalPages, false);
+}
+function updateSelCount(){
+  document.getElementById('selCount').textContent =
+    document.querySelectorAll('.bk-sel:checked').length;
+}
+/* 勾选顺序收集：按用户勾选次序入卷（DOM 序会随列表排序倒置） */
+var selSeq = [];
+function trackSel(cb){
+  var v = +cb.value;
+  if(cb.checked){ if(selSeq.indexOf(v) === -1) selSeq.push(v); }
+  else { var i = selSeq.indexOf(v); if(i !== -1) selSeq.splice(i, 1); }
+}
+function addSelected(){
+  if(!selSeq.length){alert('请先勾选题目');return;}
+  var ids = selSeq.slice();
+  composePost('add', {question_ids: ids}, '已加入 '+ids.length+' 题');
+}
+
+/* ── 试卷结构 ── */
+var paperIds = [];
+function renderPaper(data){
+  paperIds = (data.questions||[]).map(function(q){return q.id;});
+  document.getElementById('totalScore').textContent = '总分 ' + data.total_score;
+  document.getElementById('qCount').textContent = data.question_count + ' 题';
+  var body = document.getElementById('paperBody');
+  if(!(data.questions||[]).length){
+    body.innerHTML = '<div class="text-center text-muted py-4">尚未选题——从左侧题库勾选并「加入试卷」</div>';
+    return;
+  }
+  var html = '', lastType = null, seq;
+  data.questions.forEach(function(q, i){
+    if(q.question_type !== lastType){
+      if(lastType !== null) html += '</div>';
+      html += '<div class="d-flex justify-content-between align-items-center mt-2 mb-1">' +
+              '<span class="fw-bold text-primary"><i class="fas fa-heading me-1"></i>' +
+              esc(typeName(q.question_type)) + '题</span></div><div>';
+      lastType = q.question_type;
+    }
+    seq = q.seq;
+    html += '<div class="pq-row d-flex justify-content-between align-items-center border-bottom py-1"' +
+      ' data-qid="' + q.id + '" data-qtype="' + q.question_type + '" data-seq="' + seq + '">' +
+      '<span><span class="badge bg-light text-dark me-1">' + seq + '</span>' +
+      esc((q.content||'').replace(/<[^>]+>/g,'').slice(0,42)) + '</span>' +
+      '<span class="d-flex gap-1 align-items-center">' +
+      '<span class="badge bg-info text-dark">' + q.score + ' 分</span>';
+    if(!LOCKED){
+      /* 上移/下移仅限组内（跨组顺序由题型分组规则决定） */
+      var prevT = i > 0 ? data.questions[i-1].question_type : null;
+      var nextT = i < data.questions.length-1 ? data.questions[i+1].question_type : null;
+      var upDis = (i === 0 || prevT !== q.question_type) ? 'disabled' : '';
+      var downDis = (i === data.questions.length-1 || nextT !== q.question_type) ? 'disabled' : '';
+      html +=
+        '<button class="btn btn-sm btn-outline-secondary py-0" data-action="up" ' +
+        'onclick="move(' + q.id + ',' + (i-1) + ')" ' + upDis + '>↑</button>' +
+        '<button class="btn btn-sm btn-outline-secondary py-0" data-action="down" ' +
+        'onclick="move(' + q.id + ',' + (i+1) + ')" ' + downDis + '>↓</button>' +
+        '<button class="btn btn-sm btn-outline-danger py-0" data-action="remove" onclick="removeQ(' + q.id + ')">×</button>';
+    }
+    html += '</span></div>';
+  });
+  html += '</div>';
+  body.innerHTML = html;
+}
+function move(qid, targetIdx){
+  if(targetIdx < 0 || targetIdx >= paperIds.length) return;
+  var order = paperIds.slice();
+  var from = order.indexOf(qid);
+  order.splice(from, 1);
+  order.splice(targetIdx, 0, qid);
+  composePost('reorder', {order: order}, '顺序已更新');
+}
+function removeQ(qid){
+  if(!confirm('从试卷移除该题？（题目保留在题库）')) return;
+  composePost('remove', {question_id: qid}, '已移除');
+}
+function composePost(action, payload, okMsg){
+  if(LOCKED) return;
+  fetch('/admin/exams/'+EXAM_ID+'/compose/'+action, {
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
+    body: JSON.stringify(payload)
+  }).then(function(r){return r.json().then(function(j){j._status=r.status;return j;});})
+  .then(function(j){
+    if(!j.success){alert(j.message||'操作失败');return;}
+    if(action === 'add'){
+      // 已入卷的 id 从勾选序中剔除，保持「已勾选 N」与实际待提交集合一致
+      (payload.question_ids || []).forEach(function(id){
+        var i = selSeq.indexOf(+id); if(i !== -1) selSeq.splice(i, 1);
+      });
+    }
+    if(j.data) renderPaper(j.data);
+  }).catch(function(){alert('网络错误');});
+}
+
+/* 初始加载 */
+loadBank();
+fetch('/admin/exams/'+EXAM_ID+'/compose/data', {headers:{'X-CSRFToken':CSRF}})
+  .then(function(r){return r.json();})
+  .then(function(j){ if(j.success) renderPaper(j.data); });
+</script>
+{% endblock %}

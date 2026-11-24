@@ -1,0 +1,1580 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>钋 (Po) 晶体结构 - 简单立方堆积 (自适应全屏)</title>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; font-family: 'Microsoft YaHei', sans-serif; background-color: #080c14; }
+        #app-container { display: flex; width: 100vw; height: 100vh; background-color: #080c14; overflow: hidden; }
+        /* 左侧边栏 - 极致窄化 (145px) */
+        #sidebar { width: 145px; position: relative; z-index: 100; flex-shrink: 0; background: rgba(17, 24, 36, 0.85); border-right: 1px solid #2a3b5c; box-shadow: 2px 0 15px rgba(0,0,0,0.8); display: flex; flex-direction: column; }
+        /* 右侧 3D 渲染区 */
+        #canvas-area { flex: 1; position: relative; overflow: hidden; background: #080c14; }
+        canvas { display: block; width: 100%; height: 100%; outline: none; }
+        #loading-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #111122; color: #ffaa00; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10000; font-size: 16px; font-weight: bold; letter-spacing: 2px;}
+        #error-log { position: absolute; top: 10px; right: 10px; background: rgba(50, 0, 0, 0.9); color: #ff5555; padding: 15px; border: 2px solid red; border-radius: 8px; z-index: 9999; display: none; font-size: 13px; max-width: 300px; word-wrap: break-word; }
+        #info { padding: 12px 8px; border-bottom: 1px dashed #3a4b6c; display: flex; flex-direction: column; gap: 8px; font-size: 11px; box-sizing: border-box; flex-shrink: 0; color: #ffd7b0; }
+        #info-title { font-weight: bold; font-size: 13px; border-bottom: 1px solid #2a3b5c; padding-bottom: 5px; text-align: center; color: #ffaa66;}
+        .legend-item { display: flex; align-items: center; gap: 6px; line-height: 1.2; }
+        .color-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;}
+        .dot-po { background: #a9c6e8; box-shadow: 0 0 5px #88b8e0; border: 1px solid #cfe0f2;} 
+        .bond-sample { width: 14px; height: 3px; background: linear-gradient(90deg, #4a6b9c, #a9c6e8, #4a6b9c); border-radius: 2px; }
+        .color-ring { width: 8px; height: 8px; border-radius: 50%; border: 2px solid; background: transparent; display: none; }
+        .gap-dot { width: 5px; height: 5px; border-radius: 50%; background: #fff; display: none; }
+        /* ========== 统一布局：200px 双栏 + 右侧信息/教学面板 ========== */
+        #sidebar { width: 200px !important; }
+        #info-sidebar {
+            width: 200px; flex-shrink: 0; z-index: 100;
+            background: rgba(20, 20, 30, 0.6); border-left: 1px solid #334;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.5);
+            display: flex; flex-direction: column;
+            color: #fff; font-size: 11px; overflow-y: auto; box-sizing: border-box;
+        }
+        #info-panel { flex: 3 1 0; padding: 10px 10px; border-bottom: 1px solid #444; overflow: hidden; min-height: 0; }
+        #teach-panel { flex: 2 1 0; padding: 10px 10px; overflow-y: auto; min-height: 0; }
+        .panel-title { font-weight: bold; font-size: 12px; border-bottom: 1px solid #555; padding-bottom: 4px; margin-bottom: 6px; color: #ffaa00; }
+        .info-item { display: flex; justify-content: space-between; gap: 6px; padding: 3px 0; border-bottom: 1px dashed rgba(255,255,255,0.1); line-height: 1.3; font-size: 10.5px; }
+        .info-item span { color: #aaa; flex-shrink: 0; }
+        .info-item b { text-align: right; color: #fff; font-weight: 600; }
+        #teach-content { line-height: 1.65; color: #ddd; }
+        #controls-panel, #info-sidebar { -webkit-overflow-scrolling: touch; }
+        body { overflow: auto !important; }
+        #app-container { min-width: 640px; }
+        #rotate-hint {
+            display: none;
+            position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+            background: rgba(15, 25, 45, 0.94); color: #ffd966;
+            border: 1px solid #ffaa00; border-radius: 20px;
+            padding: 8px 18px; font-size: 13px; font-weight: bold;
+            z-index: 99999; box-shadow: 0 4px 15px rgba(0,0,0,0.45);
+            white-space: nowrap;
+        }
+        .hint-close { margin-left: 10px; cursor: pointer; color: #99a; }
+        .hint-close:hover { color: #ff5555; }
+        @media (hover: none) and (pointer: coarse) {
+            body::-webkit-scrollbar,
+            #app-container *::-webkit-scrollbar { display: none; width: 0; height: 0; }
+            body, #app-container * { scrollbar-width: none; }
+        }
+        #app-container #controls-panel, #app-container #info-sidebar,
+        #app-container #info-panel, #app-container #teach-panel, body {
+            scrollbar-width: thin;
+            scrollbar-color: #aa6600 rgba(0, 0, 0, 0.25);
+        }
+        #app-container #controls-panel::-webkit-scrollbar,
+        #app-container #info-sidebar::-webkit-scrollbar,
+        #app-container #info-panel::-webkit-scrollbar,
+        #app-container #teach-panel::-webkit-scrollbar,
+        body::-webkit-scrollbar { width: 5px; height: 5px; }
+        #app-container #controls-panel::-webkit-scrollbar-track,
+        #app-container #info-sidebar::-webkit-scrollbar-track,
+        #app-container #info-panel::-webkit-scrollbar-track,
+        #app-container #teach-panel::-webkit-scrollbar-track,
+        body::-webkit-scrollbar-track { background: transparent; }
+        #app-container #controls-panel::-webkit-scrollbar-thumb,
+        #app-container #info-sidebar::-webkit-scrollbar-thumb,
+        #app-container #info-panel::-webkit-scrollbar-thumb,
+        #app-container #teach-panel::-webkit-scrollbar-thumb,
+        body::-webkit-scrollbar-thumb { background: rgba(255, 170, 0, 0.45); border-radius: 4px; }
+        #app-container #controls-panel::-webkit-scrollbar-thumb:hover,
+        #app-container #info-sidebar::-webkit-scrollbar-thumb:hover,
+        #app-container #info-panel::-webkit-scrollbar-thumb:hover,
+        #app-container #teach-panel::-webkit-scrollbar-thumb:hover,
+        body::-webkit-scrollbar-thumb:hover { background: rgba(255, 170, 0, 0.8); }
+        #app-container.light-bg #canvas-area { background: #91abc9 !important; }
+        #app-container.light-bg #sidebar,
+        #app-container.light-bg #info-sidebar { background: rgba(233, 238, 245, 0.95); border-color: #b8c2cf; color: #223; }
+        #app-container.light-bg #info-panel { border-color: #c4ccd6; }
+        #app-container.light-bg .panel-title { color: #b06a00; border-color: #c4ccd6; }
+        #app-container.light-bg .info-item span { color: #556; }
+        #app-container.light-bg .info-item b { color: #112; }
+        #app-container.light-bg .info-item { border-color: rgba(0,0,0,0.08); }
+        #app-container.light-bg #teach-content { color: #334; }
+        @media (orientation: portrait) {
+            #rotate-hint { display: block; }
+            #app-container { flex-direction: column !important; width: 100vw !important; min-width: 0 !important; height: auto !important; min-height: 100vh; overflow: visible !important; }
+            #sidebar { width: 100% !important; height: auto !important; max-height: 45vh; border-right: none; border-bottom: 1px solid #334; }
+            #controls-panel { overflow-y: auto !important; min-height: 0; }
+            #canvas-area { width: 100% !important; flex: 1; }
+            #info-sidebar { width: 100% !important; height: auto !important; max-height: none; flex-direction: row; border-left: none; border-top: 1px solid #334; }
+            #info-panel { border-bottom: none; border-right: 1px solid #334; }
+        }
+        #controls-panel { padding: 10px 8px; color: #ffd7b0; display: flex; flex-direction: column; gap: 8px; box-sizing: border-box; font-size: 11px; flex-grow: 1; overflow-y: auto; }
+        #controls-panel::-webkit-scrollbar { width: 3px; }
+        #controls-panel::-webkit-scrollbar-thumb { background: #4a6b9c; border-radius: 3px; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+        .step-btn { background: linear-gradient(135deg, #cc4422, #ff7744); border: none; color: #fff; padding: 6px 0; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 11px; transition: 0.2s; text-align: center;}
+        .step-btn.disabled { background: #223344; color: #667788; pointer-events: none; }
+        .view-btn.disabled { background: rgba(26, 34, 44, 0.9); color: #556677; border-color: #2a3b4c; pointer-events: none; }
+        .step-btn.secondary { background: #1f2d42; border: 1px solid #3a4b6c; }
+        .control-section { display: flex; flex-direction: column; gap: 5px; margin-bottom: 2px; }
+        .control-section h4 { margin: 0; font-size: 11px; color: #88ccff; text-align: center; border-bottom: 1px dashed #3a4b6c; padding-bottom: 3px;}
+        .view-btn { background: #1f2d42; border: 1px solid #3a4b6c; color: #ffd7b0; padding: 6px 0; border-radius: 4px; font-size: 11px; cursor: pointer; transition: 0.2s; text-align: center;}
+        .view-btn.active { background: #4a6b9c; color: #fff; font-weight: bold; border-color: #88ccff; }
+        .intro-btn { background: #1f2d42; border: 1px solid #3a4b6c; color: #ffd7b0; padding: 6px 0; border-radius: 4px; font-size: 11px; cursor: pointer; transition: 0.2s; text-align: center;}
+        .pause-btn { background: #663333; border-color: #aa5555; font-weight: bold; color: #fff; }
+        .pause-btn.paused { background: #cc4444; border-color: #ff6666; }
+        .atom-filter-group { display: flex; flex-direction: column; gap: 4px; }
+        .filter-btn { background: #1f2d42; border: 1px solid #3a4b6c; color: #ffd7b0; padding: 6px 0; border-radius: 4px; font-size: 11px; cursor: pointer; transition: 0.2s; text-align: center;}
+        .filter-btn.active-filter { background: #009966; color: #fff; font-weight: bold; border-color: #00ffaa;}
+        .slider-container { display: flex; flex-direction: column; gap: 2px; }
+        .slider-container label { font-size: 10px; color: #88ccff; display: flex; justify-content: space-between; font-weight: bold; }
+        .slider-container input { width: 100%; cursor: pointer; accent-color: #88ccff; height: 4px; margin-top: 2px; }
+        #axes-container { position: absolute; right: 15px; bottom: 60px; width: 80px; height: 80px; pointer-events: none; z-index: 1000; }
+        #info-tooltip { position: absolute; top: 15px; right: 15px; background: rgba(15, 20, 30, 0.95); color: #ffd7b0; padding: 12px 25px 12px 15px; border-radius: 8px; border: 1px solid #4a6b9c; pointer-events: auto; display: none; z-index: 1000; font-size: 13px; line-height: 1.5; box-shadow: 0 4px 15px rgba(0,0,0,0.8); min-width: 200px; max-width: 260px;}
+        #info-tooltip strong { font-size: 14px; border-bottom: 1px solid #3a4b6c; padding-bottom: 5px; display: block; margin-bottom: 6px; color: #88ccff; }
+        .close-btn { position: absolute; top: 5px; right: 8px; font-size: 18px; color: #999; cursor: pointer; font-weight: bold; line-height: 1; transition: 0.2s;}
+        .close-btn:hover { color: #ff3333; transform: scale(1.2); }
+        #minimap-container { position: absolute; top: 15px; right: 15px; background: rgba(15, 20, 25, 0.85); border: 1px solid #3a4b6c; border-radius: 8px; padding: 9px; box-shadow: 0 4px 15px rgba(0,0,0,0.6); display: flex; flex-direction: column; align-items: center; z-index: 150;}
+        .minimap-title { font-size: 11.5px; font-weight: bold; margin-bottom: 6px; color: #88ccff; border-bottom: 1px dashed #3a4b6c; padding-bottom: 5px; width: 100%; text-align: center; letter-spacing: 1px;}
+        #minimap-canvas { width: 192px; height: 192px; background: #0a0f16; border-radius: 4px; border: 1px solid #1f2d42; box-shadow: inset 0 0 10px rgba(0,0,0,0.8); }
+        @media (max-width: 600px) { #minimap-container { display: none !important; } #info-tooltip { top: 50%; left: 50%; right: auto; transform: translate(-50%, -50%); max-width: 80%; } }
+        /* ===== 磨砂玻璃按钮（全站统一，独立文件内联版） ===== */
+        :root {
+            /* 组装按钮背景：晶胞原子渐变色（Po 银蓝） */
+            --crystal-c1: rgba(169, 198, 232, 0.34);
+            --crystal-c2: rgba(90, 120, 160, 0.22);
+        }
+        .btn-ico { display: inline-block; width: 13px; height: 13px; margin-right: 5px; vertical-align: -2px; flex-shrink: 0; }
+        .view-btn, .filter-btn, .large-cell-btn, .step-btn, .intro-btn, .toggle-btn, .reset-btn {
+            background: linear-gradient(145deg, rgba(255,255,255,0.11) 0%, rgba(255,255,255,0.05) 100%);
+            border: 1px solid rgba(255,255,255,0.16);
+            color: #eaf2ff; border-radius: 12px; font-size: 11px;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.7);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.16), 0 4px 10px rgba(0,0,0,0.18);
+            -webkit-backdrop-filter: blur(10px) saturate(160%);
+            backdrop-filter: blur(10px) saturate(160%);
+        }
+        .view-btn:hover, .filter-btn:hover, .large-cell-btn:hover, .step-btn:hover, .intro-btn:hover, .toggle-btn:hover, .reset-btn:hover {
+            background: linear-gradient(145deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.09) 100%);
+            border-color: rgba(150,190,255,0.55);
+        }
+        .filter-btn.active-filter, .view-btn.active {
+            background: linear-gradient(145deg, rgba(102,170,255,0.30) 0%, rgba(80,140,230,0.17) 100%);
+            border-color: rgba(140,195,255,0.85);
+            color: #fff;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.20), 0 0 12px rgba(102,170,255,0.40);
+        }
+        .anim-btn, .transform-btn, #btn-intro, #btn-start, #btn-next {
+            background: linear-gradient(145deg, var(--crystal-c1), var(--crystal-c2));
+            border: 1px solid rgba(255,255,255,0.35);
+            color: #fff; border-radius: 12px; font-weight: bold; font-size: 11px;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 12px rgba(0,0,0,0.22);
+            -webkit-backdrop-filter: blur(10px) saturate(160%);
+            backdrop-filter: blur(10px) saturate(160%);
+        }
+        .anim-btn:hover, .transform-btn:hover, #btn-intro:hover, #btn-start:hover, #btn-next:hover { border-color: rgba(255,255,255,0.60); }
+        .role-coord { background: linear-gradient(145deg, rgba(88,166,255,0.16) 0%, rgba(50,110,220,0.08) 100%); border-color: rgba(88,166,255,0.45); }
+        .role-coord:hover { border-color: rgba(88,166,255,0.75); }
+        .role-coord.active-filter, .role-coord.active { background: linear-gradient(145deg, rgba(88,166,255,0.32) 0%, rgba(60,130,235,0.18) 100%); border-color: rgba(140,195,255,0.85); box-shadow: inset 0 1px 0 rgba(255,255,255,0.20), 0 0 12px rgba(88,166,255,0.40); }
+        .role-same { background: linear-gradient(145deg, rgba(176,108,255,0.16) 0%, rgba(120,70,220,0.08) 100%); border-color: rgba(176,108,255,0.45); }
+        .role-same:hover { border-color: rgba(176,108,255,0.75); }
+        .role-same.active-filter, .role-same.active { background: linear-gradient(145deg, rgba(176,108,255,0.32) 0%, rgba(140,85,235,0.18) 100%); border-color: rgba(205,165,255,0.85); box-shadow: inset 0 1px 0 rgba(255,255,255,0.20), 0 0 12px rgba(176,108,255,0.40); }
+        .role-void { background: linear-gradient(145deg, rgba(53,208,224,0.16) 0%, rgba(30,150,180,0.08) 100%); border-color: rgba(53,208,224,0.45); }
+        .role-void:hover { border-color: rgba(53,208,224,0.75); }
+        .role-void.active-filter, .role-void.active { background: linear-gradient(145deg, rgba(53,208,224,0.32) 0%, rgba(35,170,200,0.18) 100%); border-color: rgba(130,235,245,0.85); box-shadow: inset 0 1px 0 rgba(255,255,255,0.20), 0 0 12px rgba(53,208,224,0.40); }
+        .role-share { background: linear-gradient(145deg, rgba(255,171,94,0.16) 0%, rgba(220,130,60,0.08) 100%); border-color: rgba(255,171,94,0.45); }
+        .role-share:hover { border-color: rgba(255,171,94,0.75); }
+        .role-share.active-filter, .role-share.active { background: linear-gradient(145deg, rgba(255,171,94,0.32) 0%, rgba(235,145,75,0.18) 100%); border-color: rgba(255,200,140,0.85); box-shadow: inset 0 1px 0 rgba(255,255,255,0.20), 0 0 12px rgba(255,171,94,0.40); }
+        @media (prefers-reduced-transparency: reduce) {
+            .view-btn, .filter-btn, .large-cell-btn, .step-btn, .intro-btn, .toggle-btn, .reset-btn, .anim-btn, .transform-btn, #btn-intro, #btn-start, #btn-next {
+                background: rgba(24, 32, 48, 0.95) !important;
+                -webkit-backdrop-filter: none !important;
+                backdrop-filter: none !important;
+            }
+        }
+        #app-container.light-bg .view-btn, #app-container.light-bg .filter-btn,
+        #app-container.light-bg .large-cell-btn, #app-container.light-bg .step-btn,
+        #app-container.light-bg .intro-btn, #app-container.light-bg .toggle-btn,
+        #app-container.light-bg .reset-btn, #app-container.light-bg .anim-btn,
+        #app-container.light-bg .transform-btn, #app-container.light-bg #btn-intro,
+        #app-container.light-bg #btn-start, #app-container.light-bg #btn-next {
+            background: rgba(255,255,255,0.55);
+            border-color: rgba(70,90,120,0.35);
+            color: #223;
+            text-shadow: none;
+        }
+
+        /* ★ 原子坐标标签：贴在 3D 原子旁的 DOM 文字（Sprite 会近大远小、远处发糊） */
+        #coord-chip {
+            position: absolute; z-index: 30; pointer-events: none;
+            padding: 3px 9px; border-radius: 6px;
+            background: rgba(10, 22, 34, 0.88);
+            border: 1px solid rgba(127, 212, 255, 0.62);
+            color: #d9f2ff; font: 600 12px/1.5 ui-monospace, Menlo, Consolas, monospace;
+            white-space: nowrap; display: none;
+            transform: translate(-50%, -108%);
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+        }
+        #coord-chip b { color: #ffffff; font-weight: 700; }
+        #app-container.light-bg #coord-chip {
+            background: rgba(255, 255, 255, 0.95);
+            border-color: #6aa9c9; color: #16324a;
+            box-shadow: 0 2px 10px rgba(20, 40, 60, 0.18);
+        }
+        #app-container.light-bg #coord-chip b { color: #0d2337; }
+
+        /* 坐标轴的 X/Y/Z 字母：DOM 文字（正交相机的精灵不认 sizeAttenuation，会缩成一个点） */
+        .axis-lbl {
+            position: absolute; z-index: 30; pointer-events: none;
+            transform: translate(-50%, -50%);
+            font: 800 25px/1 "Helvetica Neue", Arial, sans-serif;
+            letter-spacing: 0.5px; display: none;
+            text-shadow: 0 0 5px #000, 0 0 10px rgba(0, 0, 0, 0.85), 0 0 2px #000;
+        }
+        #app-container.light-bg .axis-lbl {
+            text-shadow: 0 0 5px #fff, 0 0 10px rgba(255, 255, 255, 0.9), 0 0 2px #fff;
+        }
+    </style>
+    <link rel="stylesheet" href="ui-glass.css">
+
+<style id="chem-lab-embed-style">
+  /* ITstudy 化学仿真统一壳：隐藏原站顶栏/品牌/版权水印。
+     不强制页面高度与 overflow —— 各页面自有布局（周期表需要滚动，
+     3D 页需要全屏），统一覆盖会把周期表底部裁掉。 */
+  #topbar, #copyright, .wm-copyright, #btn-home,
+  .topbar-actions, .back-home-btn,
+  .brand, .brand-title, #brand-logo { display: none !important; }
+  canvas { max-width: 100%; }
+  /* 课堂 iframe 高度较小时：周期表隐藏趋势图、压缩行高，保证 118 元素可见 */
+  @media (max-height: 720px) {
+    #chart-panel { display: none !important; }
+    .ptable.size-s { grid-auto-rows: 32px !important; }
+    #info-sidebar { width: 220px; }
+  }
+</style>
+</head>
+<body>
+    <div id="app-container">
+        <div id="rotate-hint">📱 建议横屏观看，获得最佳体验 <span class="hint-close" onclick="this.parentNode.style.display='none'">✕</span></div>
+        
+                <!-- 顶部品牌栏 -->
+        <div id="topbar" class="glass">
+            <div class="brand">
+                <img id="brand-logo" src="favicon.png" alt="可视化化学">
+                <div class="brand-text">
+                    <div class="brand-title">可视化化学<span class="brand-divider">·</span>可视化学</div>
+                    <div class="brand-sub">让微观结构，触手可及！</div>
+                </div>
+            </div>
+            <div class="topbar-actions">
+                <a class="top-btn" id="btn-home" href="index.html" target="_top"><svg class="tb-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.8V21h14V9.8"/></svg>主页</a>
+                <button class="top-btn pause-btn" id="btn-pause">暂停模型自转</button>
+                <button class="top-btn" id="btn-reset-view"><svg class="tb-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>视角复原</button>
+            </div>
+        </div>
+
+        <div id="main-row">
+        <div id="sidebar">
+            <div id="controls-panel">
+                <div class="glass-panel">
+                    <div class="panel-title">功能模块</div>
+                    <div class="control-section">
+                        <button class="intro-btn" id="btn-next"><svg class="btn-ico" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><path d="M8 5.14v13.72L19 12z"/></svg>钋组装动画</button>
+                        <button class="view-btn disabled" id="btn-prev">上一步</button>
+                    </div>
+                    <div class="control-section">
+                    <h4>交互分析 (点击原子)</h4>
+                    <div class="atom-filter-group">
+                        <button data-optip="点击原子，显示其配位原子" class="filter-btn mode-btn role-coord active-filter" id="mode-diff">1. 配位数(6近邻)</button>
+                        <button data-optip="点击原子，显示立方体空隙" class="filter-btn mode-btn role-void" id="mode-void">2. 立方体空隙</button>
+                        <button data-optip="" class="filter-btn mode-btn role-share" id="mode-share">3. 均摊法(实心切)</button>
+                        <button data-optip="点击原子，显示分数坐标与坐标轴" class="filter-btn mode-btn role-axis" id="mode-coord">4. 原子坐标</button>
+                    </div>
+                </div>
+                </div>
+
+                <div class="glass-panel">
+                    <div class="panel-title">显示模块</div>
+                    <div class="control-section">
+                        <h4>显示规模</h4>
+                        <div class="grid-2">
+                            <button class="filter-btn active-filter" id="btn-macro-single">1x1 单晶</button>
+                            <button class="filter-btn" id="btn-macro-super">2x2 大晶</button>
+                        </div>
+                    </div>
+                    <div class="control-section">
+                        <h4>视角与标记 (Z为上)</h4>
+                        <div class="grid-5" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:4px;">
+                            <button class="view-btn active" id="view-perspective">透视</button>
+                            <button class="view-btn" id="view-ortho">正交</button>
+                            <button class="view-btn" id="view-diag">对角</button>
+                            <button class="view-btn" id="view-x">X轴</button>
+                            <button class="view-btn" id="view-y">Y轴</button>
+                            <button class="view-btn" id="view-z">Z轴</button>
+                        </div>
+                        <button data-optip="" class="filter-btn" id="btn-highlight-void" style="width:100%; margin-top:5px; border-color:#00aaff; color:#00aaff;">一键点亮体心空隙</button>
+                    </div>
+                    <div class="control-section">
+                    <h4>大小调节</h4>
+                    <div class="slider-container">
+                        <label>缩放 🎚️ <span id="scale-value">0.50</span></label>
+                        <input type="range" id="scale-slider" min="0.3" max="1.0" step="0.01" value="0.50">
+                    </div>
+                    </div>
+                    <div class="control-section">
+                    <button class="view-btn" id="btn-bg-toggle" style="margin-top: 5px;"><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M4.3 4.3l1.6 1.6M18.1 18.1l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.3 19.7l1.6-1.6M18.1 5.9l1.6-1.6"/></svg>切换浅色背景</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="canvas-area">
+            <div id="loading-screen">⏳ 正在加载 3D 引擎...</div>
+            <div id="error-log">⚠ 运行出错：<br><span id="error-msg"></span></div>
+            <script> window.addEventListener('error', function(e) { document.getElementById('loading-screen').style.display = 'none'; document.getElementById('error-log').style.display = 'block'; document.getElementById('error-msg').innerText += e.message + '\n'; }); </script>
+
+            <div id="axes-container"></div>
+            <div id="scene-boundary"></div>
+            <div id="cell-panel" class="glass">
+                <div class="cell-panel-fn" id="cell-fn-label">常规视图</div>
+            </div>
+            <div id="minimap-container">
+                <div class="minimap-title">层级堆叠俯视图</div>
+                <canvas id="minimap-canvas" width="480" height="480"></canvas>
+            </div>
+        </div>
+        <div id="info-sidebar">
+            <div id="info-panel" class="glass-panel info-glass">
+                <div class="panel-title">结构信息</div>
+                <div id="legend-box">
+                    <div class="legend-item"><div class="color-dot dot-po"></div><span id="leg-po">Po 钋原子 (简单立方)</span></div>
+                    <div class="legend-item"><div class="bond-sample"></div><span id="leg-bond">化学键</span></div>
+                </div>
+
+                <div class="info-item"><span>结构类型</span><b>简单立方堆积（金属晶体）</b></div>
+                <div class="info-item"><span>配位数</span><b>6</b></div>
+                <div class="info-item"><span>紧邻相同粒子数</span><b>6</b></div>
+                <div class="info-item"><span>晶胞参数</span><b>a = 1（归一化）</b></div>
+                <div class="info-item"><span>原子半径（公式）</span><b>r=a/2=0.5</b></div>
+                <div class="info-item"><span>晶胞内原子数</span><b>8×1/8=1</b></div>
+                <div class="info-item"><span>空间利用率</span><b>π/6≈52.3%</b></div>
+                <div class="info-item"><span>典型晶体</span><b>α-Po（钋，唯一简单立方）</b></div>
+            </div>
+            <div id="teach-panel" class="glass-panel teach-glass">
+                <div class="panel-title">教学解析</div>
+                <div id="teach-content"><strong style="color:#ffaa00">欢迎使用简单立方结构教学</strong><br>Po 原子仅位于 8 个顶角，沿晶轴方向相切（r = a/2），每个原子只有 6 个最近邻，是常见金属堆积中最疏松的一种（空间利用率仅 52.3%）。<br><span style="color:#aaa;">选择左侧功能后，点击原子查看实时解析。</span></div>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <script src="vendor/three170-bundle.js"></script>
+    <script>if (typeof THREE === "undefined") document.write('<script src="three.min.js"><\/script>');</script>
+    <script>if (typeof THREE !== "undefined" && !THREE.OrbitControls) document.write('<script src="OrbitControls-umd.js"><\/script>');</script>
+    <script src="vendor/hifi-compat.js"></script>
+
+    <script src="ui-glass.js"></script>
+    <script src="crystal-frost-atoms.js?v=20261025-2"></script>
+    <script>
+        /* UMD 下把控件挂成页面可直接用的全局名 */
+        var OrbitControls = window.THREE.OrbitControls;
+
+        // 扁平线性图标（与全站一致）
+        const ICONS = {
+            play: '<svg class="btn-ico" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><path d="M8 5.14v13.72L19 12z"/></svg>',
+            rotate: '<svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>',
+            eye: '<svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>',
+            sun: '<svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M4.3 4.3l1.6 1.6M18.1 18.1l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.3 19.7l1.6-1.6M18.1 5.9l1.6-1.6"/></svg>',
+            moon: '<svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>',
+            box: '<svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>'
+        };
+
+        const canvasArea = document.getElementById('canvas-area');
+        const teachContent = document.getElementById('teach-content');
+
+        let w = canvasArea.clientWidth || (window.innerWidth - 400); 
+        let h = canvasArea.clientHeight || window.innerHeight; 
+        let aspect = w / h;
+
+        const baseCuRadius = 2.0; // 简单立方：球沿晶胞棱相切，r = a/2（a=4） 
+        // 🌟 初始化为 0.50
+        let globalScale = 0.50; 
+        let cachedAtomGeom = new THREE.SphereGeometry(baseCuRadius, 48, 48);
+        
+        let interactionMode = 'diff'; let isAnimating = false;
+        /* ★★ 动画代际（2026-11-12）：任何新动作开始前 __epoch++，在途的旧动画帧发现代际变了就静默退出。
+           这样「一个功能跑到一半，点另一个功能能当场接管」，不会再被 isAnimating 挡住、也不会两套动画抢相机。 */
+        var __epoch = 0;
+        function raf(fn) {
+            const __e = __epoch;
+            requestAnimationFrame(function (t) { if (__e !== __epoch) return; fn(t); });
+        }
+        var __assembleHTML = (function () { const b = document.getElementById('btn-assemble'); return b ? b.innerHTML : null; })();
+        var __introHTML = (function () { const b = document.getElementById('btn-intro'); return b ? b.innerHTML : null; })();
+        /* 打断当前动画，并把组装/入场动画做到一半的晶胞还原成可操作状态 */
+        function __cancelAll() {
+            try { if (window.GlassUI && GlassUI.cancelCam) GlassUI.cancelCam(); } catch (err) {}   /* 停掉在途的视角过渡 */
+
+            __epoch++;
+            isAnimating = false;
+            try {
+                if (isIntroMode) {
+                    isIntroMode = false;
+                    const b = document.getElementById('btn-intro');
+                    if (b && __introHTML !== null) b.innerHTML = __introHTML;
+                    if (typeof setUIEnabled === 'function') setUIEnabled(true);
+                    if (typeof buildCrystal === 'function') buildCrystal();
+                }
+            } catch (err) {}
+            try {
+                if (assemblyStep > 0) {
+                    const __needRebuild = true;
+                    assemblyStep = 0;
+                    if (typeof setAssemblyLock === 'function') setAssemblyLock(false);
+                    const b = document.getElementById('btn-assemble');
+                    if (b && __assembleHTML !== null) b.innerHTML = __assembleHTML;
+                    if (__needRebuild && typeof buildCrystal === 'function') {
+                        buildCrystal();
+                        if (window.CrystalFrostAtoms && window.CrystalFrostAtoms.applyBondsNow) {
+                            try { window.CrystalFrostAtoms.applyBondsNow(); } catch (err2) {}
+                        }
+                    }
+                }
+            } catch (err) {}
+            /* 投影形变（正交↔透视）走到一半被打断：按相机自身参数重算，别停在半吊子矩阵上 */
+            try {
+                const c = engineState.activeCamera;
+                if (c && c.updateProjectionMatrix) c.updateProjectionMatrix();
+                if (controls) { controls.object = engineState.activeCamera; controls.update(); }
+            } catch (err) {}
+        }
+        /* 供共享脚本在按钮点击的捕获阶段调用：任何功能按钮都能打断当前动画 */
+        window.__cancelAll = __cancelAll;
+        window.__animBusy = function () {
+            try { return isAnimating || (typeof assemblyStep !== 'undefined' && assemblyStep > 0); }
+            catch (err) { return false; }
+        };
+
+ 
+        let currentStep = 0; let isIntroMode = false; 
+        let isRighting = false; let rightingProgress = 0.0;
+        
+        let supercellMode = false; 
+        let maxCoord = 4;
+        let bounds = [];
+
+        let selectedAtom = null; const highlightedAtoms = []; let pointerDownPos = {x: 0, y: 0};
+        let activeTetraVoids = []; 
+        let activeOctaVoids = []; 
+        let isFaceHighlighted = false; 
+        
+        const raycaster = new THREE.Raycaster(); const mouse = new THREE.Vector2();
+        let cuAtoms = [], bonds = [], edges = [];
+
+        const scene = new THREE.Scene(); 
+        
+        const perspCamera = new THREE.PerspectiveCamera(45, aspect, 0.1, 1000);
+        perspCamera.up.set(0, 0, 1); 
+        
+        const orthoCamera = new THREE.OrthographicCamera(-6 * aspect, 6 * aspect, 6, -6, 0.1, 1000);
+        orthoCamera.up.set(0, 0, 1); let activeCamera = perspCamera;
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, stencil: true });
+        renderer.setSize(w, h); renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.autoClear = false; renderer.localClippingEnabled = true; 
+        canvasArea.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(perspCamera, renderer.domElement);
+        controls.enableDamping = true; controls.dampingFactor = 0.05;
+        controls.autoRotate = true; controls.autoRotateSpeed = 1.0;
+
+        scene.add(new THREE.AmbientLight(0x445566)); 
+        const dirLight1 = new THREE.DirectionalLight(0xffeedd, 1.0); dirLight1.position.set(10, -10, 20); scene.add(dirLight1);
+        const dirLight2 = new THREE.DirectionalLight(0xffaa77, 0.6); dirLight2.position.set(-10, 10, -10); scene.add(dirLight2);
+
+        let axesRenderer = null;   /* 预览环境可能只给一个上下文，建不出来就跳过小坐标轴 */
+        try { axesRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true }); } catch (axesErr) { axesRenderer = null; }
+        if (axesRenderer) { axesRenderer.setSize(80, 80); }
+        window.addEventListener('pagehide', (event) => {
+            if (event.persisted) return;
+            try { renderer.forceContextLoss(); } catch (e) {}
+            try { axesRenderer.forceContextLoss(); } catch (e) {}
+        });
+        document.getElementById('axes-container').appendChild(axesRenderer.domElement);
+        const axesScene = new THREE.Scene(); const axesCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+        axesCamera.up.set(0, 0, 1); const originPoint = new THREE.Vector3(0, 0, 0);
+        
+        function makeTextSprite(msg, color) {
+            const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 64;
+            const ctx = canvas.getContext('2d'); ctx.fillStyle = color; ctx.font = 'bold 44px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(msg, 32, 32); const tex = new THREE.CanvasTexture(canvas);
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false })); sprite.scale.set(0.6, 0.6, 0.6); return sprite;
+        }
+        axesScene.add(new THREE.ArrowHelper(new THREE.Vector3(1,0,0), originPoint, 1.2, 0xff3333, 0.4, 0.2)); axesScene.add(makeTextSprite('X', '#ff3333').translateOnAxis(new THREE.Vector3(1,0,0), 1.5));
+        axesScene.add(new THREE.ArrowHelper(new THREE.Vector3(0,1,0), originPoint, 1.2, 0x33ff33, 0.4, 0.2)); axesScene.add(makeTextSprite('Y', '#33ff33').translateOnAxis(new THREE.Vector3(0,1,0), 1.5));
+        axesScene.add(new THREE.ArrowHelper(new THREE.Vector3(0,0,1), originPoint, 1.2, 0x3388ff, 0.4, 0.2)); axesScene.add(makeTextSprite('Z', '#3388ff').translateOnAxis(new THREE.Vector3(0,0,1), 1.5));
+
+        const baseCuColor = 0xa9c6e8; const baseCuEmissive = 0x0a1a2a; const baseCuSpecular = 0x223344; const baseCuShininess = 60;
+        const cuMaterial = new THREE.MeshPhongMaterial({ color: baseCuColor, emissive: baseCuEmissive, specular: baseCuSpecular, shininess: baseCuShininess }); 
+        const edgeMaterial = new THREE.MeshBasicMaterial({ color: 0x4a6b9c, transparent: true, opacity: 0.6 }); 
+        
+        const masterGroup = new THREE.Group(); scene.add(masterGroup); 
+        const mainRotGroup = new THREE.Group(); masterGroup.add(mainRotGroup);
+        const crystalGroup = new THREE.Group(); mainRotGroup.add(crystalGroup);
+        
+        const d_abc = 4; const R_abc = 2.0; const H_abc = 4; const floatHeight = 5.0; // 简单立方：层内间距 = 层间距 = 棱长 a 
+        const abcPivot = new THREE.Group(); masterGroup.add(abcPivot);
+        const abcGroup = new THREE.Group(); abcPivot.add(abcGroup); abcGroup.position.set(0, 0, -1.5 * H_abc); 
+        
+        const dynamicGroup = new THREE.Group(); scene.add(dynamicGroup);
+        const voidGroup = new THREE.Group(); scene.add(voidGroup); 
+        const stencilGroup = new THREE.Group(); scene.add(stencilGroup);
+
+        // ----------------------------------------------------
+        // 原子坐标模式的坐标轴（2026-11-12）
+        // 姿态与右下角小坐标轴一致：X 红 / Y 绿 / Z 蓝，箭头 + 同名文字，放大到晶胞尺度；
+        // 原点钉在坐标原点 (0,0,0)，也就是顶角那颗原子的球心。
+        // 单独挂一个 Group，不进 crystalGroup —— buildCrystal() 清场时不会连坐删掉。
+        // ----------------------------------------------------
+        const AXIS_COLOR = { x: 0xff3333, y: 0x33ff33, z: 0x3388ff };
+        const AXIS_LABEL = { x: '#ff3333', y: '#33ff33', z: '#3388ff' };
+        const coordAxisGroup = new THREE.Group();
+        coordAxisGroup.visible = false;
+        scene.add(coordAxisGroup);
+        let coordAxisLen = 0;
+        const axisLabelAnchors = [];      /* 三支轴的标签锚点（世界坐标） */
+        let axisLabelEls = null;
+
+        function ensureAxisLabels() {
+            if (axisLabelEls) return axisLabelEls;
+            axisLabelEls = {};
+            ['x', 'y', 'z'].forEach(function (k) {
+                const el = document.createElement('div');
+                el.className = 'axis-lbl';
+                el.textContent = k.toUpperCase();
+                el.style.color = AXIS_LABEL[k];
+                canvasArea.appendChild(el);
+                axisLabelEls[k] = el;
+            });
+            return axisLabelEls;
+        }
+
+        function hideAxisLabels() {
+            if (!axisLabelEls) return;
+            Object.keys(axisLabelEls).forEach(function (k) { axisLabelEls[k].style.display = 'none'; });
+        }
+
+        /* 把三个锚点投影到屏幕，摆到画布上（跟 #coord-chip 一套投影口径） */
+        function placeAxisLabels() {
+            const els = ensureAxisLabels();
+            const cam = activeCamera;
+            const cr = renderer.domElement.getBoundingClientRect();
+            const ar = canvasArea.getBoundingClientRect();
+            axisLabelAnchors.forEach(function (a) {
+                const el = els[a.k];
+                const v = a.pos.clone().project(cam);
+                if (v.z > 1 || !isFinite(v.x)) { el.style.display = 'none'; return; }
+                el.style.display = 'block';
+                el.style.left = ((v.x * 0.5 + 0.5) * cr.width + (cr.left - ar.left)) + 'px';
+                el.style.top = ((-v.y * 0.5 + 0.5) * cr.height + (cr.top - ar.top)) + 'px';
+            });
+        }
+
+        function clearCoordAxis() {
+            coordAxisGroup.children.slice().forEach(function (c) {
+                coordAxisGroup.remove(c);
+                if (c.geometry) c.geometry.dispose();
+                if (c.material) {
+                    const mats = Array.isArray(c.material) ? c.material : [c.material];
+                    mats.forEach(function (m) { if (m.map) m.map.dispose(); m.dispose(); });
+                }
+            });
+            coordAxisLen = 0;
+        }
+
+        /* 三支轴的方向，以及标签该往哪个方向让开 */
+        const AXIS_DIRS = [
+            { k: 'x', v: new THREE.Vector3(1, 0, 0), out: new THREE.Vector3(0, -1, -1) },
+            { k: 'y', v: new THREE.Vector3(0, 1, 0), out: new THREE.Vector3(-1, 0, -1) },
+            { k: 'z', v: new THREE.Vector3(0, 0, 1), out: new THREE.Vector3(-1, -1, 0) }
+        ];
+
+        function buildAxisLabelAnchors() {
+            const len = maxCoord * 2;
+            axisLabelAnchors.length = 0;
+            AXIS_DIRS.forEach(function (d) {
+                axisLabelAnchors.push({
+                    k: d.k,
+                    pos: d.v.clone().multiplyScalar(len + 0.5)
+                        .addScaledVector(d.out.clone().normalize(), 0.9)
+                });
+            });
+        }
+
+        function buildCoordAxis() {
+            /* 轴长 = 棱长 × 2：从原点角伸到晶胞外面，像课本标那样把三个方向点明。
+               杆和箭头按棱长定粗细（不跟着轴长一起变粗，否则远端像根柱子）。 */
+            const len = maxCoord * 2;
+            if (Math.abs(len - coordAxisLen) < 1e-6) return;
+            clearCoordAxis();
+            coordAxisLen = len;
+
+            const shaftR = maxCoord * 0.019;
+            const headL = maxCoord * 0.16, headR = maxCoord * 0.055;
+            const bodyLen = len - headL;
+            AXIS_DIRS.forEach(function (d) {
+                /* 轴画成"标注层"（depthTest 关掉）：+Y 朝里走会被原子盖住，
+                   关掉深度测试后三支轴永远完整可见。 */
+                const mat = new THREE.MeshBasicMaterial({
+                    color: AXIS_COLOR[d.k], depthTest: false, depthWrite: false
+                });
+                mat.userData.crystalFrostSkip = true;   /* 磨砂脚本别把它当化学键改造 */
+
+                const shaftGeo = new THREE.CylinderGeometry(shaftR, shaftR, bodyLen, 12);
+                const headGeo = new THREE.ConeGeometry(headR, headL, 16);
+                const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.v);
+
+                const shaft = new THREE.Mesh(shaftGeo, mat);
+                shaft.quaternion.copy(q);
+                shaft.position.copy(d.v).multiplyScalar(bodyLen / 2);
+                shaft.renderOrder = 8;
+                shaft.userData.crystalFrostSkip = true;
+                coordAxisGroup.add(shaft);
+
+                const head = new THREE.Mesh(headGeo, mat);
+                head.quaternion.copy(q);
+                head.position.copy(d.v).multiplyScalar(len - headL / 2);
+                head.renderOrder = 8;
+                head.userData.crystalFrostSkip = true;
+                coordAxisGroup.add(head);
+            });
+        }
+
+        /* 每帧调用：只在「单晶胞 + 原子坐标模式 + 不在组装动画」时露头 */
+        function syncCoordAxis() {
+            const want = (interactionMode === 'coord') && maxCoord !== 8 && !isIntroMode;
+            if (want) {
+                if (!coordAxisGroup.visible) {
+                    buildCoordAxis();
+                    buildAxisLabelAnchors();
+                }
+                coordAxisGroup.visible = true;
+            } else if (coordAxisGroup.visible) {
+                coordAxisGroup.visible = false;
+            }
+            if (want) placeAxisLabels(); else hideAxisLabels();
+            syncCoordZoom(want);
+        }
+
+        /* 坐标轴拉到 2 倍棱长后原取景装不下 → 进模式时相机退一档（zoom 变小），退出还原。
+           只在"换相机/进模式"时算一次，不每帧重算，否则滚轮缩放会被自动补偿掉。 */
+        let coordZoomCam = null;
+        function syncCoordZoom(want) {
+            const cam = activeCamera;
+            if (!want) {
+                if (coordZoomCam) {
+                    coordZoomCam.zoom = 1; coordZoomCam.updateProjectionMatrix(); coordZoomCam = null;
+                }
+                return;
+            }
+            if (coordZoomCam === cam) return;
+            if (coordZoomCam) { coordZoomCam.zoom = 1; coordZoomCam.updateProjectionMatrix(); }
+
+            const R = maxCoord * 2.45;      /* 原点到轴尖（含标签）这一坨的半径，留一圈余量 */
+            let z;
+            if (cam.isOrthographicCamera) {
+                z = (Math.abs(cam.top - cam.bottom) / 2) / R;
+            } else {
+                z = (Math.tan(cam.fov * Math.PI / 360) * cam.position.distanceTo(controls.target)) / R;
+            }
+            cam.zoom = Math.max(0.42, Math.min(1, z));
+            cam.updateProjectionMatrix();
+            coordZoomCam = cam;
+        }
+
+        /* ----------------------------------------------------------------
+           坐标轴出现时的固定展示视角
+           原点在左下角那颗原子上，x 轴朝右下、y 轴朝右上（朝纸面里）、z 轴朝上；
+           改成正交投影，三支轴等长，和课本插图一致。进模式锁定角度并停自转，退出还原。
+           ---------------------------------------------------------------- */
+        var COORD_VIEW_AZ = 45 * Math.PI / 180;
+        var COORD_VIEW_EL = 30 * Math.PI / 180;
+        var coordViewSaved = null;
+
+        function setPauseUi(rot) {
+            var b = document.getElementById('btn-pause');
+            if (!b) return;
+            b.classList.toggle('paused', !rot);
+            b.innerText = rot ? "暂停自转" : "恢复自转";
+        }
+
+        function coordViewEnter() {
+            if (coordViewSaved) return;
+            var cam = activeCamera;
+            var act = document.querySelector('.view-btn.active');
+            coordViewSaved = {
+                cam: cam, pos: cam.position.clone(), up: cam.up.clone(), zoom: cam.zoom,
+                isOrtho: !!cam.isOrthographicCamera,
+                L: cam.left, R: cam.right, T: cam.top, B: cam.bottom,
+                target: controls.target.clone(),
+                autoRot: controls.autoRotate,
+                btnId: act ? act.id : ''
+            };
+            controls.autoRotate = false;      /* 出现坐标轴就别转了：静态图才看得出 a/b/c 三个方向 */
+            setPauseUi(false);
+            applyCoordView();
+        }
+
+        function applyCoordView() {
+            var c = maxCoord / 2;
+            var target = new THREE.Vector3(c, c, c);
+            var D = maxCoord === 8 ? 24 : 17;
+            var fov = ((perspCamera && perspCamera.fov) ? perspCamera.fov : 45) * Math.PI / 180;
+            var hh = D * Math.tan(fov / 2);
+            var w = renderer.domElement.clientWidth || 1;
+            var h = renderer.domElement.clientHeight || 1;
+            var asp = w / h;
+            orthoCamera.left = -hh * asp; orthoCamera.right = hh * asp;
+            orthoCamera.top = hh; orthoCamera.bottom = -hh;
+            orthoCamera.position.set(
+                target.x + D * Math.cos(COORD_VIEW_EL) * Math.cos(COORD_VIEW_AZ),
+                target.y - D * Math.cos(COORD_VIEW_EL) * Math.sin(COORD_VIEW_AZ),
+                target.z + D * Math.sin(COORD_VIEW_EL)
+            );
+            orthoCamera.up.set(0, 0, 1);
+            orthoCamera.zoom = 1;
+            orthoCamera.lookAt(target);
+            orthoCamera.updateProjectionMatrix();
+            activeCamera = orthoCamera;
+            controls.object = orthoCamera;
+            controls.target.copy(target);
+            controls.update();
+            document.querySelectorAll('.view-btn').forEach(function (b) { b.classList.remove('active'); });
+            var ob = document.getElementById('view-ortho');
+            if (ob) ob.classList.add('active');
+        }
+
+        function coordViewExit() {
+            var s = coordViewSaved;
+            if (!s) return;
+            coordViewSaved = null;
+            if (s.isOrtho) {
+                s.cam.left = s.L; s.cam.right = s.R; s.cam.top = s.T; s.cam.bottom = s.B;
+            }
+            s.cam.position.copy(s.pos);
+            s.cam.up.copy(s.up);
+            s.cam.zoom = s.zoom;
+            s.cam.lookAt(s.target);
+            s.cam.updateProjectionMatrix();
+            activeCamera = s.cam;
+            controls.object = s.cam;
+            controls.target.copy(s.target);
+            controls.update();
+            controls.autoRotate = s.autoRot;
+            setPauseUi(s.autoRot);
+            document.querySelectorAll('.view-btn').forEach(function (b) { b.classList.remove('active'); });
+            if (s.btnId) { var el = document.getElementById(s.btnId); if (el) el.classList.add('active'); }
+        }
+
+        const dynamicEdgePairs = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+        const clipPlanes = [
+            new THREE.Plane(new THREE.Vector3( 1, 0, 0), 0), new THREE.Plane(new THREE.Vector3(-1, 0, 0), 4),   
+            new THREE.Plane(new THREE.Vector3( 0, 1, 0), 0), new THREE.Plane(new THREE.Vector3( 0,-1, 0), 4),   
+            new THREE.Plane(new THREE.Vector3( 0, 0, 1), 0), new THREE.Plane(new THREE.Vector3( 0, 0,-1), 4)    
+        ];
+        let isClippingEnabled = false; const planeGeom = new THREE.PlaneGeometry(200, 200);
+
+        function showTooltip(htmlContent) { teachContent.innerHTML = htmlContent; }
+        function clearStencilGroup() { stencilGroup.children.slice().forEach(child => { if (child.isGroup) { child.children.slice().forEach(mesh => { if (mesh.material) mesh.material.dispose(); child.remove(mesh); }); } stencilGroup.remove(child); }); }
+        
+        function updateClipping() {
+            clearStencilGroup();
+            if (!isClippingEnabled) { cuMaterial.clippingPlanes = []; edgeMaterial.clippingPlanes = []; return; }
+            cuMaterial.clippingPlanes = clipPlanes; edgeMaterial.clippingPlanes = clipPlanes;
+            let currentRenderOrder = 1; const baseMat = new THREE.MeshBasicMaterial({ depthWrite: false, depthTest: false, colorWrite: false, stencilWrite: true, stencilFunc: THREE.AlwaysStencilFunc });
+            clipPlanes.forEach((plane) => {
+                const otherPlanes = clipPlanes.filter(p => p !== plane); const visibleAtoms = cuAtoms.filter(a => a.visible); if (visibleAtoms.length === 0) return;
+                const planeGroup = new THREE.Group();
+                const matBack = baseMat.clone(); matBack.side = THREE.BackSide; matBack.clippingPlanes = [plane]; 
+                matBack.stencilFail = THREE.IncrementWrapStencilOp; matBack.stencilZFail = THREE.IncrementWrapStencilOp; matBack.stencilZPass = THREE.IncrementWrapStencilOp;
+                const matFront = baseMat.clone(); matFront.side = THREE.FrontSide; matFront.clippingPlanes = [plane]; 
+                matFront.stencilFail = THREE.DecrementWrapStencilOp; matFront.stencilZFail = THREE.DecrementWrapStencilOp; matFront.stencilZPass = THREE.DecrementWrapStencilOp;
+                visibleAtoms.forEach(atom => {
+                    const mBack = new THREE.Mesh(atom.geometry, matBack); mBack.position.copy(atom.position); mBack.scale.copy(atom.scale);
+                    mBack.renderOrder = currentRenderOrder; mBack.frustumCulled = false; planeGroup.add(mBack);
+                    const mFront = new THREE.Mesh(atom.geometry, matFront); mFront.position.copy(atom.position); mFront.scale.copy(atom.scale);
+                    mFront.renderOrder = currentRenderOrder; mFront.frustumCulled = false; planeGroup.add(mFront);
+                });
+                const capMat = new THREE.MeshPhongMaterial({
+                    color: 0x88aacc, emissive: 0x335577, side: THREE.DoubleSide, clippingPlanes: otherPlanes, shininess: 20,
+                    stencilWrite: true, stencilRef: 0, stencilFunc: THREE.NotEqualStencilFunc, stencilFail: THREE.KeepStencilOp, stencilZFail: THREE.KeepStencilOp, stencilZPass: THREE.KeepStencilOp, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1
+                });
+                const capMesh = new THREE.Mesh(planeGeom, capMat); capMesh.position.copy(plane.normal).multiplyScalar(-plane.constant); capMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), plane.normal);
+                capMesh.renderOrder = currentRenderOrder + 1; capMesh.frustumCulled = false; capMesh.onAfterRender = function (renderer) { renderer.clearStencil(); };
+                planeGroup.add(capMesh); stencilGroup.add(planeGroup); currentRenderOrder += 2;
+            });
+        }
+
+        function setUIEnabled(enabled) { document.querySelectorAll('.control-section').forEach((el, index) => { if (index > 0) { el.style.opacity = enabled ? '1' : '0.3'; el.style.pointerEvents = enabled ? 'auto' : 'none'; } }); }
+        
+        function createAtom(x, y, z, material, radius) { const atom = new THREE.Mesh(cachedAtomGeom, material); atom.position.set(x, y, z); atom.scale.setScalar(globalScale); return atom; }
+        
+        function createBond(startVec, endVec, mat, radius) {
+            const dir = new THREE.Vector3().subVectors(endVec, startVec); const cylinder = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, dir.length(), 12), mat);
+            cylinder.position.copy(new THREE.Vector3().addVectors(startVec, endVec).multiplyScalar(0.5)); cylinder.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize()); return cylinder;
+        }
+        
+        function clearGroup(group) {
+            if(!group) return; group.children.slice().forEach(child => {
+                if (child.isGroup) clearGroup(child); 
+                if (child.geometry && child.geometry !== cachedAtomGeom && child.geometry !== planeGeom) child.geometry.dispose();
+                if (child.material) { let mats = Array.isArray(child.material) ? child.material : [child.material]; mats.forEach(m => { if (m !== cuMaterial && m !== edgeMaterial) m.dispose(); }); }
+                group.remove(child);
+            });
+        }
+
+        function clearSelectionState() {
+            if(isIntroMode) return; crystalGroup.visible = true; 
+            if (selectedAtom) { selectedAtom.scale.setScalar(globalScale); if (selectedAtom.userData.origMat) { selectedAtom.material = selectedAtom.userData.origMat; delete selectedAtom.userData.origMat; } }
+            highlightedAtoms.forEach(a => { if (a.userData.origMat) { a.material = a.userData.origMat; delete a.userData.origMat; } });
+            
+            isFaceHighlighted = false;
+            let faceBtn = document.getElementById('btn-highlight-void');
+            if(faceBtn) { faceBtn.classList.remove('active-filter'); faceBtn.style.background = 'transparent'; faceBtn.style.color = '#00aaff'; }
+
+            highlightedAtoms.length = 0; clearGroup(dynamicGroup); clearGroup(voidGroup); selectedAtom = null;
+            hideCoordChip();
+            activeTetraVoids = []; activeOctaVoids = []; // 清空空隙记录
+        }
+
+                function isAtom(x, y, z) {
+            let modX = ((x % 4) + 4) % 4; let modY = ((y % 4) + 4) % 4; let modZ = ((z % 4) + 4) % 4;
+            return (modX === 0 && modY === 0 && modZ === 0) ? 'Po' : null; // 简单立方：原子只在顶点
+        }
+
+        function buildCrystal() {
+            clearGroup(crystalGroup); cuAtoms.length = 0; bonds.length = 0; edges.length = 0;
+            let centerPos = maxCoord / 2;
+            masterGroup.position.set(centerPos, centerPos, centerPos);
+            crystalGroup.position.set(-centerPos, -centerPos, -centerPos);
+            controls.target.set(centerPos, centerPos, centerPos);
+
+            let initPositions = [];
+            for(let x=0; x<=maxCoord; x++) { for(let y=0; y<=maxCoord; y++) { for(let z=0; z<=maxCoord; z++) { if(isAtom(x, y, z) === 'Po') initPositions.push([x,y,z]); } } }
+            initPositions.forEach(p => { let a = createAtom(p[0], p[1], p[2], cuMaterial, baseCuRadius); crystalGroup.add(a); cuAtoms.push(a); });
+            
+            bounds = [
+                new THREE.Vector3(0,0,0), new THREE.Vector3(maxCoord,0,0), new THREE.Vector3(maxCoord,maxCoord,0), new THREE.Vector3(0,maxCoord,0),
+                new THREE.Vector3(0,0,maxCoord), new THREE.Vector3(maxCoord,0,maxCoord), new THREE.Vector3(maxCoord,maxCoord,maxCoord), new THREE.Vector3(0,maxCoord,maxCoord)
+            ];
+            dynamicEdgePairs.forEach(p => { let edge = createBond(bounds[p[0]], bounds[p[1]], edgeMaterial, 0.04); crystalGroup.add(edge); edges.push(edge); });
+        }
+
+        buildCrystal(); 
+
+        const abcAtoms = []; const bSitePoints = []; const cSitePoints = []; 
+        const targetCuColor = new THREE.Color(baseCuColor); const targetCuEmissive = new THREE.Color(baseCuEmissive); const targetCuSpecular = new THREE.Color(baseCuSpecular);
+        const offsetA = new THREE.Vector3(0, 0, 0); const offsetB = new THREE.Vector3(0, 0, 0); const offsetC = new THREE.Vector3(0, 0, 0); // AA 堆积：三层完全对齐（不断错开）
+
+        /* 简单立方的堆积方向就是 z 轴本身，无需像 Cu 那样把 [111] 转到竖直 */
+        const finalAlignQuat = new THREE.Quaternion();
+
+        function createABCLayer(colorHex, offsetVec, layerName, canvasColor, idealZ, isStoreB, isStoreC) {
+            const group = new THREE.Group(); const geom = new THREE.SphereGeometry(R_abc, 48, 48); 
+            for(let i=-3; i<=3; i++) {
+                for(let j=-3; j<=3; j++) {
+                    let x = i * d_abc + offsetVec.x; let y = j * d_abc + offsetVec.y; // 正方形网格，无错排
+                    let dx = x - offsetVec.x; let dy = y - offsetVec.y;
+                    if(Math.sqrt(dx*dx + dy*dy) < d_abc * 2.1) { 
+                        const mat = new THREE.MeshPhongMaterial({ color: colorHex, emissive: 0x000000, specular: 0x444444, shininess: 40, transparent: true, opacity: 0 });
+                        let mesh = new THREE.Mesh(geom, mat); mesh.position.set(x, y, 0); group.add(mesh);
+                        let isUnitCell = (x >= -0.01 && x <= d_abc + 0.01 && y >= -0.01 && y <= d_abc + 0.01 && idealZ <= H_abc + 0.01); // 底/顶两层各 4 个顶角 = 8 个晶胞原子
+                        abcAtoms.push({ mesh: mesh, layer: layerName, origColor: new THREE.Color(colorHex), canvasColor: canvasColor, mat: mat, isUnitCell: isUnitCell, currentMix: 0, idealZ: idealZ });
+                        if (isStoreB) bSitePoints.push(new THREE.Vector3(x, y, 0)); if (isStoreC) cSitePoints.push(new THREE.Vector3(x, y, 0));
+                    }
+                }
+            }
+            abcGroup.add(group); return group;
+        }
+
+        const group1 = createABCLayer(0xff5555, offsetA, '1', '#ff5555', 0, false, false); 
+        const group2 = createABCLayer(0x55cc55, offsetB, '2', '#55cc55', H_abc, false, false);  
+        const group3 = createABCLayer(0x5588ff, offsetC, '3', '#5588ff', 2*H_abc, false, false);  
+
+        const canvas = document.getElementById('minimap-canvas'); const ctx = canvas.getContext('2d');
+        const canvasSize = 480; const viewRange = 20; const scale2D = canvasSize / viewRange; const circleSizeRatio = 0.95; 
+
+        function drawDots(pointsArray, opacityTarget, baseOpacity) {
+            let finalOp = opacityTarget * baseOpacity; if (finalOp < 0.01) return;
+            pointsArray.forEach(pos => {
+                let cx = (pos.x / viewRange) * canvasSize + canvasSize / 2; let cy = (pos.y / viewRange) * canvasSize + canvasSize / 2;
+                ctx.beginPath(); ctx.arc(cx, cy, 0.4 * scale2D, 0, 2 * Math.PI, false);
+                ctx.fillStyle = `rgba(255, 255, 255, ${finalOp})`; ctx.fill(); 
+                ctx.lineWidth = 3.0; ctx.strokeStyle = `rgba(0, 0, 0, ${finalOp * 0.8})`; ctx.stroke();
+            });
+        }
+
+        function render2DSync(op1, op2, op3) {
+            ctx.clearRect(0, 0, canvasSize, canvasSize); 
+            drawDots(bSitePoints, Math.max(0, 1.0 - op2), op1); 
+            drawDots(cSitePoints, Math.max(0, 1.0 - op3), op1);
+            const sortedAtoms = [...abcAtoms].sort((a, b) => { return (a.mesh.parent.position.z + a.mesh.position.z) - (b.mesh.parent.position.z + b.mesh.position.z); });
+            sortedAtoms.forEach(atom => {
+                if (atom.mat.opacity < 0.01) return;
+                let localX = atom.mesh.position.x; let localY = atom.mesh.position.y;
+                let cx = (localX / viewRange) * canvasSize + canvasSize / 2; let cy = (localY / viewRange) * canvasSize + canvasSize / 2;
+                ctx.beginPath(); ctx.arc(cx, cy, R_abc * scale2D * circleSizeRatio, 0, 2 * Math.PI, false);
+                ctx.globalAlpha = atom.mat.opacity; ctx.lineWidth = 3.0; ctx.strokeStyle = atom.canvasColor; ctx.stroke();
+            }); ctx.globalAlpha = 1.0;
+        }
+
+        const states = [
+            { msg: "✨ <b>晶胞探索模式</b><br>自由查看，或点击【开始组装】堆叠" },
+            { op1: 1, op2: 0, op3: 0, z1: 0, z2: floatHeight, z3: floatHeight*2, opNonUC: 1.0, copperMix: 0.0, msg: "步1：<span style='color:#fff'>底层(A)出现——正方形排列</span>" },
+            { op1: 1, op2: 1, op3: 0, z1: 0, z2: H_abc+floatHeight, z3: floatHeight*2, opNonUC: 1.0, copperMix: 0.0, msg: "步2：<span style='color:#fff'>悬浮第二层(正上方)</span>" },
+            { op1: 1, op2: 0.6, op3: 0, z1: 0, z2: H_abc, z3: floatHeight*2, opNonUC: 1.0, copperMix: 0.0, msg: "步3：<span style='color:#fff'>二层落下——与底层<b>完全对齐</b>(半透)</span>" },
+            { op1: 1, op2: 1, op3: 0, z1: 0, z2: H_abc, z3: floatHeight*2, opNonUC: 1.0, copperMix: 0.0, msg: "步4：<span style='color:#fff'>二层实体化——空隙又大又多</span>" },
+            { op1: 1, op2: 1, op3: 1, z1: 0, z2: H_abc, z3: 2*H_abc+floatHeight, opNonUC: 1.0, copperMix: 0.0, msg: "步5：<span style='color:#fff'>悬浮第三层</span>" },
+            { op1: 1, op2: 1, op3: 0.6, z1: 0, z2: H_abc, z3: 2*H_abc, opNonUC: 1.0, copperMix: 0.0, msg: "步6：<span style='color:#fff'>三层落下——依然完全对齐</span>" },
+            { op1: 1, op2: 1, op3: 1, z1: 0, z2: H_abc, z3: 2*H_abc, opNonUC: 1.0, copperMix: 0.0, msg: "步7：<span style='color:#fff'>三层实体化，AA 堆积完成</span>" },
+            { op1: 1, op2: 1, op3: 1, z1: 0, z2: H_abc, z3: 2*H_abc, opNonUC: 0.15, copperMix: 0.0, msg: "步8：<span style='color:#fff'>剥离多余原子，提取晶胞</span>" },
+            { op1: 1, op2: 1, op3: 1, z1: 0, z2: H_abc, z3: 2*H_abc, opNonUC: 0.0, copperMix: 0.0, msg: "步9：<span style='color:#fff'>完全消失，仅留晶胞原子</span>" },
+            { op1: 1, op2: 1, op3: 1, z1: 0, z2: H_abc, z3: 2*H_abc, opNonUC: 0.0, copperMix: 1.0, msg: "步10：<span style='color:#ffaa66'>还原真实金属材质</span>" },
+            { op1: 1, op2: 1, op3: 1, z1: 0, z2: H_abc, z3: 2*H_abc, opNonUC: 0.0, copperMix: 1.0, msg: "步11：<span style='color:#fff'>显示线框，回归球棍</span>" },
+            { msg: "步12：<span style='color:#55ff55'>推演完成！交互解锁。</span>" }
+        ];
+
+        let g_op1 = 1, g_op2 = 1, g_op3 = 1; let g_opNonUC = 0.0, g_copperMix = 1.0;
+        const btnPrev = document.getElementById('btn-prev'); const btnNext = document.getElementById('btn-next');
+
+        // 🌟 核心升级：智能打断系统（点击下方任意按钮瞬间退出动画，避免数据互锁卡死）
+        function exitIntroMode() {
+            if (!isIntroMode && currentStep === 0) return;
+            currentStep = 0; isIntroMode = false;
+            abcGroup.visible = false; crystalGroup.visible = true;
+            masterGroup.scale.setScalar(1.0); mainRotGroup.quaternion.identity(); isRighting = false;
+            cuAtoms.forEach(a => { a.visible = true; a.scale.setScalar(globalScale); });
+            edges.forEach(e => e.visible = true); edgeMaterial.opacity = 0.4;
+            document.getElementById('minimap-container').style.display = 'none'; 
+            document.querySelectorAll('.abc-leg').forEach(el => el.style.display = 'none');
+            document.getElementById('leg-po').style.display = 'flex'; document.getElementById('leg-bond').style.display = 'flex';
+                btnPrev.classList.add('disabled'); btnNext.innerHTML = ICONS.play + "钋组装动画"; btnNext.classList.remove('secondary');
+            setUIEnabled(true);
+            
+            // 🌟 回归初始化值
+            setGlobalScale(0.50);
+            setView('perspective');
+        }
+
+        function setGlobalScale(val) {
+            globalScale = val; let labelText = globalScale.toFixed(2);
+            if (Math.abs(globalScale - 1.0) < 0.01) labelText = "1.00 (相切)"; else if (Math.abs(globalScale - 0.5) < 0.01) labelText = "0.50 (球棍)";
+            document.getElementById('scale-value').textContent = labelText; document.getElementById('scale-slider').value = val;
+            cuAtoms.forEach(a => { a.scale.setScalar(globalScale); }); 
+            dynamicGroup.children.forEach(c => { if(c.geometry === cachedAtomGeom) c.scale.setScalar(globalScale); });
+        }
+
+        function setMacroMode(mode) {
+            if (isIntroMode || isAnimating || isRighting || interactionMode === 'share') return;
+            if (interactionMode === 'coord' || coordViewSaved) { coordViewExit(); interactionMode = 'diff'; setInteractionMode('diff'); }
+            supercellMode = (mode === 'super'); maxCoord = supercellMode ? 8 : 4;
+            document.getElementById('btn-macro-single').classList.toggle('active-filter', !supercellMode);
+            document.getElementById('btn-macro-super').classList.toggle('active-filter', supercellMode);
+            clipPlanes[1].constant = maxCoord; clipPlanes[3].constant = maxCoord; clipPlanes[5].constant = maxCoord;
+            clearSelectionState(); buildCrystal();
+        }
+        document.getElementById('btn-macro-single').addEventListener('click', () => setMacroMode('single'));
+        document.getElementById('btn-macro-super').addEventListener('click', () => setMacroMode('super'));
+
+        // 🌟 统一矩阵形变动画
+        function morphToPerspective(duration) {
+            if (isAnimating) __cancelAll(); 
+            isAnimating = true; 
+            
+            let centerPos = maxCoord / 2;
+            let targetPos = new THREE.Vector3(centerPos, centerPos, centerPos);
+            let camD = supercellMode ? 24 : 12;
+            
+            const targetPerspPosition = new THREE.Vector3(
+                targetPos.x + camD * 0.85, 
+                targetPos.y - camD * 0.85,  // 调整为统一视角的俯视
+                targetPos.z + camD * 0.6
+            );
+            
+            perspCamera.position.copy(targetPerspPosition);
+            perspCamera.lookAt(targetPos);
+            perspCamera.aspect = canvasArea.clientWidth / canvasArea.clientHeight;
+            perspCamera.updateProjectionMatrix();
+            
+            const startMat = orthoCamera.projectionMatrix.clone(); 
+            const endMat = perspCamera.projectionMatrix.clone();   
+            const startPos = orthoCamera.position.clone();         
+            const endPos = targetPerspPosition.clone();             
+            
+            activeCamera = orthoCamera; 
+
+            let startTime = performance.now();
+            function lerpLoop(time) {
+                let t = (time - startTime) / duration;
+                if (t > 1) t = 1;
+                let ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+
+                for (let i = 0; i < 16; i++) {
+                    activeCamera.projectionMatrix.elements[i] = startMat.elements[i] + (endMat.elements[i] - startMat.elements[i]) * ease;
+                }
+                activeCamera.projectionMatrixInverse.copy(activeCamera.projectionMatrix).invert();
+
+                activeCamera.position.lerpVectors(startPos, endPos, ease);
+                activeCamera.lookAt(targetPos);
+
+                if (t < 1) {
+                    raf(lerpLoop);
+                } else {
+                    perspCamera.position.copy(endPos);
+                    perspCamera.lookAt(targetPos);
+                    perspCamera.updateProjectionMatrix();
+
+                    activeCamera = perspCamera;
+                    controls.object = activeCamera;
+                    controls.target.copy(targetPos); 
+                    controls.update();
+                    
+                    document.querySelectorAll('.view-btn:not(.pause-btn)').forEach(b => b.classList.remove('active'));
+                    document.getElementById('view-perspective').classList.add('active');
+                    
+                    isAnimating = false;
+                }
+            }
+            raf(lerpLoop);
+        }
+
+        function updateUI() {
+            if (currentStep === 0) btnPrev.classList.add('disabled'); else btnPrev.classList.remove('disabled');
+            if (currentStep === 0) {
+                isIntroMode = false; abcGroup.visible = false; mainRotGroup.visible = true; mainRotGroup.quaternion.identity(); 
+                isRighting = false; edges.forEach(e => e.visible = true); edgeMaterial.opacity = 0.4; 
+                document.getElementById('minimap-container').style.display = 'none'; document.querySelectorAll('.abc-leg').forEach(el => el.style.display = 'none');
+                document.getElementById('leg-po').style.display = 'flex'; document.getElementById('leg-bond').style.display = 'flex';
+            setUIEnabled(true); btnNext.innerHTML = ICONS.play + "钋组装动画"; btnNext.classList.remove('secondary');
+            } else if (currentStep >= 1 && currentStep < 11) {
+                isIntroMode = true; abcGroup.visible = true; mainRotGroup.visible = false; mainRotGroup.quaternion.copy(finalAlignQuat); isRighting = false; 
+                document.getElementById('minimap-container').style.display = 'flex'; document.querySelectorAll('.abc-leg').forEach(el => el.style.display = 'flex');
+                document.getElementById('leg-po').style.display = 'none'; document.getElementById('leg-bond').style.display = 'none';
+            setUIEnabled(false); btnNext.innerHTML = ICONS.play + "下一步"; btnNext.classList.remove('secondary');
+            } else if (currentStep === 11) {
+                isIntroMode = true; abcGroup.visible = false; mainRotGroup.visible = true; mainRotGroup.quaternion.copy(finalAlignQuat); 
+                isRighting = false; edges.forEach(e => e.visible = true); 
+                document.getElementById('minimap-container').style.display = 'none'; setUIEnabled(false);
+            btnNext.innerHTML = ICONS.play + "下一步"; btnNext.classList.remove('secondary');
+            } else if (currentStep === 12) {
+                isIntroMode = false; abcGroup.visible = false; mainRotGroup.visible = true; isRighting = true; rightingProgress = 0.0; 
+                document.getElementById('minimap-container').style.display = 'none'; document.querySelectorAll('.abc-leg').forEach(el => el.style.display = 'none');
+                document.getElementById('leg-po').style.display = 'flex'; document.getElementById('leg-bond').style.display = 'flex';
+            setUIEnabled(true); btnNext.innerHTML = ICONS.rotate + "重新播放"; btnNext.classList.add('secondary');
+                
+                // 🌟 使用一致的矩阵过渡
+                morphToPerspective(1200);
+            }
+        }
+
+        btnPrev.addEventListener('click', () => { if (currentStep > 0) { currentStep--; if (currentStep === 0) { clearSelectionState(); setView('perspective'); } updateUI(); } });
+        btnNext.addEventListener('click', () => { 
+            if (currentStep === 0 || currentStep === 12) {
+                if (supercellMode) setMacroMode('single'); // 简单立方没有 ABC 层，2x2 时先回单晶
+                g_op1 = 0; g_op2 = 0; g_op3 = 0; g_opNonUC = 1.0; g_copperMix = 0.0;
+                group1.position.z = 0; group2.position.z = floatHeight; group3.position.z = floatHeight*2;
+                clearSelectionState(); setView('diag'); setGlobalScale(1.0); edgeMaterial.opacity = 0.0; currentStep = 1;
+            } else { currentStep++; } updateUI(); 
+        });
+
+        // 绑定底部功能的打断机制
+        document.getElementById('btn-pause').addEventListener('click', () => {
+            if (coordViewSaved) { controls.autoRotate = false; }
+            else { controls.autoRotate = !controls.autoRotate; }
+            const b = document.getElementById('btn-pause');
+            b.classList.toggle('paused', !controls.autoRotate);
+            b.innerText = controls.autoRotate ? "暂停自转" : "恢复自转";
+        });
+
+        document.getElementById('mode-diff').addEventListener('click', () => { if(isIntroMode) exitIntroMode(); interactionMode='diff'; setInteractionMode('diff'); });
+        document.getElementById('mode-void').addEventListener('click', () => { if(isIntroMode) exitIntroMode(); interactionMode='void'; setInteractionMode('void'); });
+        document.getElementById('mode-share').addEventListener('click', () => { if(isIntroMode) exitIntroMode(); interactionMode='share'; setInteractionMode('share'); });
+        document.getElementById('mode-coord').addEventListener('click', () => {
+            if(isIntroMode) exitIntroMode();
+            if (supercellMode) {
+                showTooltip(`<strong style="color:#ffaa66">大晶胞下不显示坐标</strong>分数坐标以单个晶胞的棱长为 1，2×2 大晶胞里同一组坐标会出现几十处。请切回「1x1 单晶」再点这个按钮。`);
+                return;
+            }
+            interactionMode='coord'; setInteractionMode('coord');
+        });
+        document.getElementById('btn-bg-toggle').addEventListener('click', function() {
+            document.getElementById('app-container').classList.toggle('light-bg');
+            if (document.getElementById('app-container').classList.contains('light-bg')) {
+                this.innerHTML = ICONS.moon + "切换深色背景"; this.style.background = "#e0e4eb"; this.style.color = "#223"; this.style.borderColor = "#99a"; this.style.fontWeight = "bold";
+            } else {
+                this.innerHTML = ICONS.sun + "切换浅色背景"; this.style.background = ""; this.style.color = ""; this.style.borderColor = ""; this.style.fontWeight = "";
+            }
+        });
+        
+        function setInteractionMode(m) { 
+            document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active-filter')); document.getElementById('mode-'+m).classList.add('active-filter'); clearSelectionState(); 
+            const modeHints = {
+                'diff': `<strong style="color:#55ff55">配位数分析（6 近邻）</strong>点击任一 Po，显示其 6 个最近邻（沿 x/y/z 轴正负方向，距离恰好为 a）。<br>简单立方是配位数最低的金属堆积（对比：体心立方 8、面心立方 12）。`,
+                'void': `<strong style="color:#00ffff">立方体空隙</strong>点击原子显示由 8 个顶角围成的立方体空隙：1x1 晶胞体心 1 个完整空隙（可容纳半径 0.732r 的球——CsCl 就是填在这种空隙里）。`,
+                'share': `<strong style="color:#ff5555">均摊切片法</strong>点击任一 Po 计算晶胞占有份额：顶点 1/8。简单立方每晶胞含 8×1/8 = 1 个 Po。`,
+                'coord': `<strong style="color:#7fd4ff">原子坐标</strong>点击任一 PO 原子，标出它在晶胞里的<b>分数坐标</b>（棱长记作 1）。<br>
+                    <span style="font-size:11px;color:#bbb;">晶胞里同时摆出坐标轴：X 红、Y 绿、Z 蓝，原点与顶角原子的球心重合。<br>
+                    视角已固定成题目里常用的画法（正交投影，x 右下、y 右上、z 向上），不自动旋转；想换角度可以拖鼠标。</span>`
+            };
+            showTooltip(modeHints[m] || '');
+            if (m === 'share') {
+                setGlobalScale(1.0); isClippingEnabled = true; updateClipping(); document.getElementById('btn-macro-single').style.display = 'none'; document.getElementById('btn-macro-super').style.display = 'none'; 
+                showTooltip(`<strong style="color:#ff5555">均摊实心切片已启动</strong>晶格边界外的内容已被裁剪。<br><span style="font-size:12px;color:#aaa;">请点击顶点或面心的原子，提取其被切去的共用部分。</span>`);
+            } else {
+                document.getElementById('btn-macro-single').style.display = ''; document.getElementById('btn-macro-super').style.display = ''; 
+                if (isClippingEnabled) { isClippingEnabled = false; updateClipping(); setGlobalScale(0.50); }
+            }
+
+            /* 坐标轴出现 = 切进题目里那张坐标系图的固定角度，退出时还原原来的相机与自转 */
+            if (m === 'coord') coordViewEnter(); else coordViewExit();
+        }
+
+        document.getElementById('scale-slider').addEventListener('input', (e) => { 
+            if(isIntroMode) exitIntroMode(); setGlobalScale(parseFloat(e.target.value));
+            if (interactionMode === 'share' && selectedAtom) handleShareClick(selectedAtom);
+            else if (interactionMode === 'diff' && selectedAtom) setSelectionState(selectedAtom, 'diff');
+            else if (interactionMode === 'void' && selectedAtom) handleVoidClick(selectedAtom);
+            else if (interactionMode === 'coord' && selectedAtom) handleCoordClick(selectedAtom);
+            else clearSelectionState(); if (isClippingEnabled) updateClipping(); 
+        });
+
+        // 🌟 完美嵌入黄金俯视角与打断机制的视距控制系统
+        function setView(type) {
+            if(isIntroMode) exitIntroMode(); document.querySelectorAll('.view-btn:not(.pause-btn)').forEach(b => b.classList.remove('active')); 
+            let centerPos = maxCoord / 2; const target = new THREE.Vector3(centerPos, centerPos, centerPos); controls.target.copy(target);
+            if(type === 'perspective') { 
+                activeCamera = perspCamera; 
+                let camD = supercellMode ? 24 : 12;
+                // 黄金 20° 俯视角优化
+                perspCamera.position.set(target.x + camD * 0.8, target.y - camD * 0.8, target.z + camD * 0.6); 
+                perspCamera.up.set(0,0,1); document.getElementById('view-perspective').classList.add('active');
+                /* 坐标轴模式下锁死了展示角度，别因为切个视角又把自转打开 */
+                controls.autoRotate = !coordViewSaved;
+                document.getElementById('btn-pause').classList.toggle('paused', !controls.autoRotate);
+                document.getElementById('btn-pause').innerText = controls.autoRotate ? "暂停自转" : "恢复自转";
+            } else {
+                controls.autoRotate = false; document.getElementById('btn-pause').classList.add('paused'); document.getElementById('btn-pause').innerText = "恢复自转";
+                activeCamera = orthoCamera; const d = supercellMode ? 24 : 16.5; orthoCamera.up.set(0,0,1); 
+                if(type==='x') orthoCamera.position.set(target.x+d, target.y, target.z); if(type==='y') orthoCamera.position.set(target.x, target.y-d, target.z); 
+                if(type==='z') orthoCamera.position.set(target.x, target.y - 0.001, target.z+d); if(type==='diag') orthoCamera.position.set(target.x+d, target.y-d, target.z+d); 
+                if (type === 'ortho') {
+                if (orthoKeepDir.lengthSq() < 1e-6) orthoKeepDir.set(0.8, -0.8, 0.6);
+                if (!orthoKeepDist) orthoKeepDist = 20;
+                orthoCamera.position.copy(controls.target).addScaledVector(orthoKeepDir.clone().normalize(), orthoKeepDist);
+                orthoCamera.up.set(0, 0, 1);
+                /* 视锥半高 = 距离 × tan(fov/2)：与刚才的透视画面同大小，切投影不跳 */
+                const _fov = ((perspCamera && perspCamera.fov) ? perspCamera.fov : 45) * Math.PI / 180;
+                const _hh = orthoKeepDist * Math.tan(_fov / 2);
+                const _cw = renderer.domElement.clientWidth || window.innerWidth;
+                const _ch = renderer.domElement.clientHeight || window.innerHeight;
+                const _asp = (_cw && _ch) ? (_cw / _ch) : 1;
+                orthoCamera.left = -_hh * _asp; orthoCamera.right = _hh * _asp;
+                orthoCamera.top = _hh; orthoCamera.bottom = -_hh;
+                orthoCamera.updateProjectionMatrix();
+            }
+                orthoCamera.lookAt(target); orthoCamera.updateProjectionMatrix(); document.getElementById('view-'+type).classList.add('active');
+            }
+            controls.object = activeCamera; controls.update();
+        }
+
+        function animateView(type) {
+            if (isAnimating) __cancelAll();
+            isAnimating = true;
+            GlassUI.animateOrtho({
+                orthoCamera, controls, canvasArea: document.getElementById('canvas-area'),
+                type,
+                isLargeCell: () => supercellMode,
+                maxCoord: () => maxCoord,
+                onStart: () => { activeCamera = orthoCamera; }
+            }).then(() => { isAnimating = false; });
+        }
+        ['x', 'y', 'z', 'diag'].forEach(id => document.getElementById('view-' + id).addEventListener('click', () => animateView(id)));
+        document.getElementById('view-perspective').addEventListener('click', () => { if (!isAnimating) setView('perspective'); });
+        /* ★ 正交视角：保持当前方向只换投影 */
+        const orthoKeepDir = new THREE.Vector3();
+        let orthoKeepDist = 0;
+        document.getElementById('view-ortho').addEventListener('click', () => { const cur = controls.object || activeCamera; if (cur && cur.position) { orthoKeepDir.copy(cur.position).sub(controls.target); orthoKeepDist = cur.position.distanceTo(controls.target) || 20; } setView('ortho'); });
+        document.getElementById('controls-panel').addEventListener('click', (e) => {
+            const labelMap = { 'mode-diff': '配位数分析', 'mode-void': '立方体空隙分析', 'mode-share': '均摊法分析', 'btn-next': '组装动画', 'btn-highlight-void': '体心空隙' };
+            if (e.target && labelMap[e.target.id]) GlassUI.setCellFunction(labelMap[e.target.id]);
+        });
+
+        // 🌟 核心升级 2：一键视角复原功能
+        if(document.getElementById('btn-reset-view')) {
+            document.getElementById('btn-reset-view').addEventListener('click', () => {
+                if(isIntroMode) exitIntroMode();
+                setView('perspective');
+            });
+        }
+
+        window.addEventListener('pointerdown', (e) => { pointerDownPos = {x: e.clientX, y: e.clientY}; });
+        window.addEventListener('pointerup', (e) => {
+            if (e.target && e.target.closest && (e.target.closest('#sidebar') || e.target.closest('#info-sidebar'))) return;
+            if (Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y) > 5) return; 
+            if (isIntroMode || isAnimating || isRighting) return;
+            const rect = renderer.domElement.getBoundingClientRect(); mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1; mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+            raycaster.setFromCamera(mouse, activeCamera);
+            const interactable = [...cuAtoms].filter(a => a.visible); const intersects = raycaster.intersectObjects(interactable);
+            if (intersects.length > 0) {
+                let atom = intersects[0].object;
+                if (interactionMode === 'coord') handleCoordClick(atom);
+                else if (interactionMode === 'void') handleVoidClick(atom); 
+                else if (interactionMode === 'share') handleShareClick(atom); else setSelectionState(atom, interactionMode);
+            } else { if (interactionMode !== 'share') clearSelectionState(); }
+        });
+
+        document.getElementById('btn-highlight-void').addEventListener('click', (e) => {
+            if (isIntroMode) exitIntroMode(); isFaceHighlighted = !isFaceHighlighted;
+            if (isFaceHighlighted) {
+                clearSelectionState(); isFaceHighlighted = true; e.target.classList.add('active-filter'); e.target.style.background = '#005588'; e.target.style.color = '#ffffff';
+                for (let ix = 2; ix <= maxCoord; ix += 4) { for (let iy = 2; iy <= maxCoord; iy += 4) { for (let iz = 2; iz <= maxCoord; iz += 4) { spawnCubeVoid(ix, iy, iz, false); } } }
+                showTooltip(`<strong style="color:#00aaff">体心空隙一览</strong>已点亮全部 ${activeOctaVoids.length} 个立方体空隙（青色半透明）。<br><span style="font-size:12px;color:#aaa;">空隙又大又多——这正是简单立方堆积最疏松（空间利用率仅 52.3%）的原因。建议切【对角】视角观察。</span>`);
+            } else { e.target.classList.remove('active-filter'); e.target.style.background = 'transparent'; e.target.style.color = '#00aaff'; clearSelectionState(); }
+        });
+
+        function handleShareClick(atom) {
+            clearSelectionState(); selectedAtom = atom; controls.autoRotate = false; document.getElementById('btn-pause').classList.add('paused'); document.getElementById('btn-pause').innerText = "恢复自转"; crystalGroup.visible = false; 
+            let p = atom.getWorldPosition(new THREE.Vector3()); 
+            let xOffs = (Math.abs(p.x) < 0.1) ? [0, -4] : ((Math.abs(p.x - maxCoord) < 0.1) ? [0, 4] : [0]); 
+            let yOffs = (Math.abs(p.y) < 0.1) ? [0, -4] : ((Math.abs(p.y - maxCoord) < 0.1) ? [0, 4] : [0]); 
+            let zOffs = (Math.abs(p.z) < 0.1) ? [0, -4] : ((Math.abs(p.z - maxCoord) < 0.1) ? [0, 4] : [0]);
+            let cellCount = xOffs.length * yOffs.length * zOffs.length; let posType = (cellCount === 8) ? "顶点" : ((cellCount === 4) ? "棱心" : ((cellCount === 2) ? "面心" : "体内"));
+            let drawnAtoms = new Set(); 
+            xOffs.forEach(ox => { yOffs.forEach(oy => { zOffs.forEach(oz => {
+                dynamicEdgePairs.forEach(pair => { let start = bounds[pair[0]].clone().add(new THREE.Vector3(ox, oy, oz)); let end = bounds[pair[1]].clone().add(new THREE.Vector3(ox, oy, oz)); dynamicGroup.add(createBond(start, end, edgeMaterial, 0.08)); });
+                for(let x=0; x<=maxCoord; x++) { for(let y=0; y<=maxCoord; y++) { for(let z=0; z<=maxCoord; z++) {
+                    if(isAtom(x, y, z) === 'Po') { let ax = x+ox, ay = y+oy, az = z+oz; let key = `${Math.round(ax)},${Math.round(ay)},${Math.round(az)}`; if(!drawnAtoms.has(key)) { drawnAtoms.add(key); let posVec = new THREE.Vector3(ax, ay, az); if(posVec.distanceTo(p) > 0.1) dynamicGroup.add(createAtom(ax, ay, az, cuMaterial.clone(), baseCuRadius)); } }
+                }}}
+            });});});
+            let centerMesh = createAtom(p.x, p.y, p.z, new THREE.MeshPhongMaterial({ color: 0xffffff, emissive: 0xaa1111, shininess: 50 }), baseCuRadius);
+            centerMesh.scale.setScalar(globalScale * 1.25); dynamicGroup.add(centerMesh);
+                showTooltip(`<strong style="color:#ff5555">均摊法分析：${posType}原子</strong>该钋原子参与 <b style="font-size:16px;color:#ff5555;">${cellCount}</b> 个单位晶胞。<br><span style="font-size:12px;color:#aaa;">(它实际占有份额为 1/${cellCount}；简单立方的原子全在顶点上)</span>`);
+        }
+
+        function spawnCubeVoid(cx, cy, cz, withHighlight) {
+            const geo = new THREE.BoxGeometry(4, 4, 4);
+            let mesh = new THREE.Mesh(geo, new THREE.MeshPhongMaterial({color: 0x00ffff, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false}));
+            mesh.position.set(cx, cy, cz);
+            let lines = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({color: 0x00ffff, linewidth: 2}));
+            lines.position.set(cx, cy, cz);
+            voidGroup.add(mesh); voidGroup.add(lines);
+            activeOctaVoids.push({cx, cy, cz, mesh, lines});
+            if (withHighlight) {
+                for (let dx of [-2, 2]) { for (let dy of [-2, 2]) { for (let dz of [-2, 2]) {
+                    let v = new THREE.Vector3(cx + dx, cy + dy, cz + dz);
+                    let a = cuAtoms.find(atom => atom.getWorldPosition(new THREE.Vector3()).distanceTo(v) < 0.1);
+                    if (a && !highlightedAtoms.includes(a)) { a.userData.origMat = a.material; a.material = new THREE.MeshPhongMaterial({ color: 0xffffff, emissive: 0x005555, shininess: 80 }); highlightedAtoms.push(a); }
+                    else if (!a) {
+                        let existingGhost = dynamicGroup.children.find(c => c.position && c.position.distanceTo(v) < 0.1);
+                        if (!existingGhost) { let ghostAtom = createAtom(v.x, v.y, v.z, new THREE.MeshPhongMaterial({ color: 0xffffff, emissive: 0x005555, shininess: 80 }), baseCuRadius); dynamicGroup.add(ghostAtom); }
+                    }
+                }}}
+            }
+        }
+
+        // ----------------------------------------------------
+        // 原子坐标模式（2026-11-12）
+        // ① 只标被点中的那一颗；② 标签是 DOM 文字（Sprite 会近大远小、发糊）；
+        // ③ 分数坐标只出现 0 与 1 —— 简单立方的原子全在顶角。
+        // ----------------------------------------------------
+        var COORD_A_PM = 335;          /* α-Po 晶胞棱长 a ≈ 335 pm（页面内按棱长归一化显示） */
+        var coordChip = null;
+
+        function fmtFrac(v) {
+            const n = Math.round(v);
+            if (n <= 0) return '0';
+            return '1';
+        }
+
+        function siteName(fx, fy, fz) {
+            const half = [fx, fy, fz].filter(v => Math.abs(v - 0.5) < 0.02).length;
+            const corner = [fx, fy, fz].filter(v => Math.abs(v) < 0.02 || Math.abs(v - 1) < 0.02).length;
+            if (half === 3) return '体心';
+            if (half === 2) return '面心';
+            if (half === 1 && corner === 2) return '棱心';
+            if (corner === 3) return '顶点';
+            return '体内';
+        }
+
+        function ensureCoordChip() {
+            if (coordChip) return coordChip;
+            coordChip = document.createElement('div');
+            coordChip.id = 'coord-chip';
+            canvasArea.appendChild(coordChip);
+            return coordChip;
+        }
+
+        function hideCoordChip() { if (coordChip) coordChip.style.display = 'none'; }
+
+        function handleCoordClick(atom) {
+            clearSelectionState(); selectedAtom = atom;
+            controls.autoRotate = false;
+            document.getElementById('btn-pause').classList.add('paused');
+            document.getElementById('btn-pause').innerText = "恢复自转";
+
+            if (supercellMode) {
+                showTooltip(`<strong style="color:#ffaa66">大晶胞下不显示坐标</strong>分数坐标以单个晶胞的棱长为 1，2×2 大晶胞里同一组坐标会出现几十处，标了反而误导。请切回「1x1 单晶」。`);
+                return;
+            }
+
+            const p = atom.position.clone();
+            const A = maxCoord;
+            const fx = p.x / A, fy = p.y / A, fz = p.z / A;
+
+            const chip = ensureCoordChip();
+            chip.innerHTML = `(<b>${fmtFrac(fx)}</b>, <b>${fmtFrac(fy)}</b>, <b>${fmtFrac(fz)}</b>)`;
+            chip.style.display = 'block';
+
+            const name = siteName(fx, fy, fz);
+            showTooltip(`<strong style="color:#7fd4ff">原子坐标</strong>Po 原子位于 <b>(${fmtFrac(fx)}, ${fmtFrac(fy)}, ${fmtFrac(fz)})</b>，即晶胞${name}。<br>
+                分数坐标以棱长 a 为 1（页面按归一化显示）。α-Po 的实际棱长 a ≈ ${COORD_A_PM} pm。<br>
+                <span style="font-size:11px;color:#bbb;">简单立方的原子只在 8 个顶角，各占 1/8，故每个晶胞含 8×1/8 = 1 个 Po。</span>`);
+        }
+
+        /* 坐标标签跟随：每帧把 3D 原子位置投影成屏幕坐标再摆到页面上 */
+        function updateCoordChip() {
+            if (!coordChip || coordChip.style.display === 'none') return;
+            if (!selectedAtom || interactionMode !== 'coord') { hideCoordChip(); return; }
+            const cam = activeCamera;
+            const wp = selectedAtom.getWorldPosition(new THREE.Vector3());
+            const rW = (selectedAtom.geometry && selectedAtom.geometry.parameters && selectedAtom.geometry.parameters.radius) || 0.6;
+            const upNow = new THREE.Vector3(0, 1, 0).applyQuaternion(cam.quaternion).normalize();
+            const v = wp.clone().addScaledVector(upNow, rW * 1.04).project(cam);
+            if (v.z > 1) { coordChip.style.display = 'none'; return; }
+            coordChip.style.display = 'block';
+            const cr = renderer.domElement.getBoundingClientRect();
+            const ar = canvasArea.getBoundingClientRect();
+            coordChip.style.left = ((v.x * 0.5 + 0.5) * cr.width + (cr.left - ar.left)) + 'px';
+            coordChip.style.top = ((-v.y * 0.5 + 0.5) * cr.height + (cr.top - ar.top)) + 'px';
+        }
+
+        function handleVoidClick(atom) {
+            controls.autoRotate = false; document.getElementById('btn-pause').classList.add('paused'); document.getElementById('btn-pause').innerText = "恢复自转";
+            let pos = atom.getWorldPosition(new THREE.Vector3());
+            let vx = Math.round(pos.x), vy = Math.round(pos.y), vz = Math.round(pos.z);
+            let candidates = [];
+            for (let dx of [-2, 2]) { for (let dy of [-2, 2]) { for (let dz of [-2, 2]) {
+                let cx = vx + dx, cy = vy + dy, cz = vz + dz;
+                if (cx >= 0 && cx <= maxCoord && cy >= 0 && cy <= maxCoord && cz >= 0 && cz <= maxCoord) candidates.push({cx, cy, cz});
+            }}}
+            let spawned = false;
+            for (let c of candidates) {
+                let exists = activeOctaVoids.findIndex(v => v.cx === c.cx && v.cy === c.cy && v.cz === c.cz) !== -1;
+                if (!exists) { spawnCubeVoid(c.cx, c.cy, c.cz, true); spawned = true; break; }
+            }
+            if (!spawned) {
+                candidates.forEach(c => {
+                    let idx = activeOctaVoids.findIndex(v => v.cx === c.cx && v.cy === c.cy && v.cz === c.cz);
+                    if (idx !== -1) { let v = activeOctaVoids.splice(idx, 1)[0]; voidGroup.remove(v.mesh); voidGroup.remove(v.lines); }
+                });
+            }
+            if (!supercellMode) {
+                showTooltip(`<strong style="color:#00ffff">立方体空隙</strong>由 8 个顶角原子围成，体心 1 个完整空隙（1x1 晶胞内只有这 1 个）。空隙很大，可容纳半径 0.732r 的小球——CsCl 就是把 Cl⁻ 填在这种骨架的体心空隙里。<br>当前激活: <span style="color:#00ffff;font-weight:bold;">${activeOctaVoids.length}</span> 个（再点同一原子可收起）。`);
+            } else {
+                showTooltip(`<strong style="color:#00ffff">立方体空隙 (当前共 ${activeOctaVoids.length} 个)</strong>2x2 大晶共 8 个体心空隙，每个由 8 个顶角原子围成。<br>点击其他原子持续叠加，集齐后再点同一原子可收起。`);
+            }
+        }
+
+        // 同色光晕：径向渐变 Sprite，颜色跟随目标原子自身颜色
+        // 浅色模式判定：浅底上加色荧光会糊成一片白，改用加深的哑光方环（深色模式保持原荧光）
+        function isLightMode() {
+            return !!document.querySelector('.light-bg');
+        }
+
+        function createGlowHalo(color, radius) {
+            // 浅色模式不描边、不出光晕：只靠化学键和分组方环指认近邻
+            if (isLightMode()) return new THREE.Group();
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            const c = new THREE.Color(color);
+            const r = Math.round(c.r * 255), g = Math.round(c.g * 255), b = Math.round(c.b * 255);
+            const grd = ctx.createRadialGradient(64, 64, 2, 64, 64, 64);
+            grd.addColorStop(0, `rgba(${r},${g},${b},0.82)`);
+            grd.addColorStop(0.35, `rgba(${r},${g},${b},0.34)`);
+            grd.addColorStop(1, `rgba(${r},${g},${b},0)`);
+            ctx.fillStyle = grd;
+            ctx.fillRect(0, 0, 128, 128);
+            const halo = new THREE.Sprite(new THREE.SpriteMaterial({
+                map: new THREE.CanvasTexture(canvas),
+                transparent: true, opacity: 0.78,
+                depthWrite: false, blending: THREE.AdditiveBlending
+            }));
+            halo.scale.setScalar(radius * 4.6);
+            return halo;
+        }
+
+        // 分组方环：用直线段依次连接同一平面上的 4 个原子，闭合后呈正方形（无填充面）
+        function createGroupRing(points, axis, color, centerPos) {
+            const sorted = points.slice().sort((a, b) => {
+                let aa, ab;
+                if (axis === 'z') { aa = Math.atan2(a.x - centerPos.x, a.y - centerPos.y); ab = Math.atan2(b.x - centerPos.x, b.y - centerPos.y); }
+                else if (axis === 'x') { aa = Math.atan2(a.y - centerPos.y, a.z - centerPos.z); ab = Math.atan2(b.y - centerPos.y, b.z - centerPos.z); }
+                else { aa = Math.atan2(a.x - centerPos.x, a.z - centerPos.z); ab = Math.atan2(b.x - centerPos.x, b.z - centerPos.z); }
+                return aa - ab;
+            });
+            const light = isLightMode();
+            // 浅色模式下加色混合只会越叠越白，改用普通混合 + 加深的环色（深色模式保持原样）
+            const ringColor = light ? new THREE.Color(color).multiplyScalar(0.44) : color;
+            const mat = new THREE.MeshBasicMaterial({ color: ringColor, transparent: true, opacity: 0,
+                blending: light ? THREE.NormalBlending : THREE.AdditiveBlending,
+                /* ★★ 三色环不是化学键：双面 + 下面的 crystalFrostSkip 双重保险，
+                   否则 crystal-frost-atoms.js 会把这些细圆柱换成金属材质（看着像金属框）。 */
+                side: THREE.DoubleSide,
+                depthWrite: false });
+            /* ★★ 三色环不是化学键：打上磨砂脚本的跳过标记，否则会被 crystal-frost-atoms.js 换成金属材质 */
+            mat.userData.crystalFrostSkip = true;
+            const group = new THREE.Group();
+            for (let i = 0; i < sorted.length; i++) {
+                const a = sorted[i], b = sorted[(i + 1) % sorted.length];
+                group.add(createBond(a, b, mat, 0.05));
+            }
+            return group;
+        }
+
+        // 方环错峰淡入：红环 → 琥珀环 → 蓝环
+        function fadeInRing(ring, delay) {
+            const mats = [];
+            ring.traverse(obj => { if (obj.material) mats.push(obj.material); });
+            const maxOp = isLightMode() ? 0.88 : 0.70;
+            mats.forEach(m => m.opacity = 0);
+            setTimeout(() => {
+                const start = performance.now();
+                const duration = 320;
+                function step(now) {
+                    if (!ring.parent) return;
+                    const t = Math.min((now - start) / duration, 1);
+                    const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+                    mats.forEach(m => m.opacity = maxOp * ease);
+                    if (t < 1) raf(step);
+                }
+                raf(step);
+            }, delay);
+        }
+
+        function setSelectionState(atom, mode) {
+            clearSelectionState(); selectedAtom = atom; controls.autoRotate = false; document.getElementById('btn-pause').classList.add('paused'); document.getElementById('btn-pause').innerText = "恢复自转";
+            /* ★ 中心原子保持自身颜色（2026-11-12）：不再替换材质 —— 曾经配位数分析变绿、
+                 紧邻相同原子数变白，中心原子被染绿、同种原子变白，与用户要求不符。
+                 中心靠 tooltip + 汇聚到它的连线指认，颜色一律不动。 */
+            // 光晕颜色与钋原子自身颜色一致（银蓝）
+            const targetGlowColor = baseCuColor;
+            const visualRadius = baseCuRadius * globalScale;
+            const center = atom.getWorldPosition(new THREE.Vector3()); let expectedDist = 4; /* 简单立方最近邻距离 = 棱长 a */ const foundPoints = []; 
+            for(let nx = Math.round(center.x) - 4; nx <= Math.round(center.x) + 4; nx += 1) { for(let ny = Math.round(center.y) - 4; ny <= Math.round(center.y) + 4; ny += 1) { for(let nz = Math.round(center.z) - 4; nz <= Math.round(center.z) + 4; nz += 1) {
+                        if (isAtom(nx, ny, nz) === 'Po') { let absPos = new THREE.Vector3(nx, ny, nz); if (Math.abs(center.distanceTo(absPos) - expectedDist) < 0.2) foundPoints.push(absPos); }
+            } } }
+            const glowMat = isLightMode() ? new THREE.MeshPhongMaterial({ color: targetGlowColor, emissive: 0x000000, emissiveIntensity: 0, shininess: 60 }) : new THREE.MeshPhongMaterial({ color: targetGlowColor, emissive: targetGlowColor, emissiveIntensity: 0.72, shininess: 60 });
+            foundPoints.forEach(targetPos => {
+                const existingNeighbor = cuAtoms.find(a => a.getWorldPosition(new THREE.Vector3()).distanceTo(targetPos) < 0.1);
+                if (existingNeighbor) { existingNeighbor.userData.origMat = existingNeighbor.material; existingNeighbor.material = glowMat; highlightedAtoms.push(existingNeighbor); } 
+                else { let ghostAtom = createAtom(targetPos.x, targetPos.y, targetPos.z, glowMat, baseCuRadius); dynamicGroup.add(ghostAtom); }
+                const halo = createGlowHalo(targetGlowColor, visualRadius);
+                halo.position.copy(targetPos);
+                dynamicGroup.add(halo);
+                const glowBond = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, center.distanceTo(targetPos), 12), new THREE.MeshBasicMaterial({ color: targetGlowColor, transparent: true, opacity: 0.77, blending: THREE.AdditiveBlending, depthWrite: false })); 
+                glowBond.position.copy(new THREE.Vector3().addVectors(center, targetPos).multiplyScalar(0.5)); glowBond.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), new THREE.Vector3().subVectors(targetPos, center).normalize()); dynamicGroup.add(glowBond);
+            });
+            showTooltip(`<strong style="color:#ffaa66">中心钋原子 (Po)</strong>配位数分析（6 配位 · 简单立方堆积）<br>每个 Po 原子周围只有 6 个最近邻 Po（距离恰好为 a，沿 x/y/z 轴正负方向各 1 个），是常见金属晶胞中配位数最低、堆积最疏松的一种。`); 
+        }
+
+        // 🌟 纯算法与缓动循环驱动
+        const wm = GlassUI.createWatermark();
+        GlassUI.placeWatermark(document.getElementById('canvas-area'), wm);
+        window.addEventListener('resize', () => GlassUI.placeWatermark(document.getElementById('canvas-area'), wm));
+        let wmLight = null;
+        function animate() {
+            requestAnimationFrame(animate); 
+            syncCoordAxis();
+            updateCoordChip();
+            
+            if (isIntroMode && currentStep < 11) {
+                let target = states[currentStep];
+                g_op1 += (target.op1 - g_op1) * 0.12; g_op2 += (target.op2 - g_op2) * 0.12; g_op3 += (target.op3 - g_op3) * 0.12;
+                g_opNonUC += (target.opNonUC - g_opNonUC) * 0.1; g_copperMix += (target.copperMix - g_copperMix) * 0.08;
+                group1.position.z += (target.z1 - group1.position.z) * 0.1; group2.position.z += (target.z2 - group2.position.z) * 0.1; group3.position.z += (target.z3 - group3.position.z) * 0.1;
+                abcAtoms.forEach(atom => {
+                    let baseOp = 0; if (atom.layer === '1') baseOp = g_op1; if (atom.layer === '2') baseOp = g_op2; if (atom.layer === '3') baseOp = g_op3;
+                    let finalOp = baseOp * (atom.isUnitCell ? 1.0 : g_opNonUC);
+                    atom.mat.opacity = finalOp; atom.mesh.visible = finalOp > 0.01;
+                    atom.currentMix += (g_copperMix - atom.currentMix) * 0.1;
+                    atom.mat.color.copy(atom.origColor).lerp(targetCuColor, atom.currentMix); atom.mat.emissive.copy(new THREE.Color(0x000000)).lerp(targetCuEmissive, atom.currentMix);
+                    atom.mat.specular.copy(new THREE.Color(0x444444)).lerp(targetCuSpecular, atom.currentMix); atom.mat.shininess = 40 + (baseCuShininess - 40) * atom.currentMix;
+                    atom.canvasColor = '#' + atom.mat.color.getHexString();
+                });
+                render2DSync(g_op1, g_op2, g_op3);
+            }
+
+            let targetScale = (currentStep >= 11) ? 0.50 : 1.0; let targetEdgeOp = (currentStep >= 11) ? 0.4 : 0.0;
+            if (isIntroMode && (currentStep >= 10 || Math.abs(globalScale - targetScale) > 0.001)) {
+                let newScale = globalScale + (targetScale - globalScale) * 0.05;
+                cuAtoms.forEach(a => { if(a.geometry === cachedAtomGeom) a.scale.setScalar(newScale); });
+                document.getElementById('scale-slider').value = newScale;
+                let labelText = newScale.toFixed(2); if (newScale > 0.99) labelText = "1.00 (相切)"; else if (Math.abs(newScale - 0.5) < 0.01) labelText = "0.50 (球棍)";
+                document.getElementById('scale-value').textContent = labelText; globalScale = newScale;
+            }
+
+            if (isIntroMode) { edgeMaterial.opacity += (targetEdgeOp - edgeMaterial.opacity) * 0.05; edges.forEach(e => { e.visible = edgeMaterial.opacity > 0.01; }); }
+
+            if (isRighting) {
+                rightingProgress += 0.008; 
+                if (rightingProgress >= 1) { 
+                    rightingProgress = 1; isRighting = false; mainRotGroup.quaternion.identity(); masterGroup.scale.setScalar(1.0);
+                    controls.autoRotate = true; document.getElementById('btn-pause').classList.remove('paused'); document.getElementById('btn-pause').innerText = "暂停自转";
+                } else { let ease = 1 - Math.pow(1 - rightingProgress, 3); mainRotGroup.quaternion.slerpQuaternions(finalAlignQuat, new THREE.Quaternion(0,0,0,1), ease); masterGroup.scale.setScalar(0.5 + 0.5 * ease); }
+            } else { if (currentStep >= 1 && currentStep < 12) { masterGroup.scale.setScalar(0.5); } else { masterGroup.scale.setScalar(1.0); } }
+
+            controls.update();
+            renderer.clear(); renderer.setViewport(0, 0, w, h); renderer.render(scene, activeCamera);
+            wm.render(renderer);
+            const wmL = document.getElementById('app-container').classList.contains('light-bg');
+            if (wmL !== wmLight) { wmLight = wmL; wm.setTheme(wmL); }
+            axesCamera.position.copy(activeCamera.position).sub(controls.target).normalize().multiplyScalar(4);
+            axesCamera.lookAt(0,0,0); axesCamera.up.copy(activeCamera.up);
+            if (axesRenderer) { axesRenderer.clear(); axesRenderer.render(axesScene, axesCamera); }
+        }
+
+        // 🌟 纯净加载与初始化
+        setGlobalScale(0.50);
+        updateUI();
+        setView('perspective');
+        animate();
+
+        setTimeout(() => {
+            const loadingScreen = document.getElementById('loading-screen');
+            if (loadingScreen) {
+                loadingScreen.style.display = 'none';
+            }
+        }, 150);
+
+        let resizeRAF = null;
+        window.addEventListener('resize', () => { 
+            if (resizeRAF) cancelAnimationFrame(resizeRAF);
+            resizeRAF = raf(() => {
+                w = canvasArea.clientWidth || (window.innerWidth - 400); h = canvasArea.clientHeight || window.innerHeight; const asp = w / h; 
+                perspCamera.aspect = asp; perspCamera.updateProjectionMatrix(); 
+                orthoCamera.left = -6 * asp; orthoCamera.right = 6 * asp; orthoCamera.top = 6; orthoCamera.bottom = -6; orthoCamera.updateProjectionMatrix(); 
+                renderer.setSize(w, h); 
+            });
+        }, false);
+        /* 磨砂/金属材质在第一帧之前就挂好：脚本标签已挪到主脚本之前加载完，
+           这里同步 attach，不会再出现「先渲染旧材质、等脚本到位才一闪变新材质」。 */
+        try {
+            var _xwScene = (typeof scene !== 'undefined' && scene) ? scene
+                : (typeof stage !== 'undefined' && stage ? stage.scene : null);
+            var _xwRenderer = (typeof renderer !== 'undefined' && renderer) ? renderer
+                : (typeof stage !== 'undefined' && stage ? stage.renderer : null);
+            if (_xwScene && _xwRenderer && window.CrystalFrostAtoms) {
+                window.CrystalFrostAtoms.attach({ scene: _xwScene, renderer: _xwRenderer, THREE: window.THREE });
+            }
+        } catch (_xwErr) { }
+    </script>
+
+    <script>window.BACK_SUBNAV='subnav-crystal';</script>
+    <script src="op-tip.js"></script>
+</body>
+</html>

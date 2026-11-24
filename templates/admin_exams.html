@@ -1,0 +1,137 @@
+{% extends 'base.html' %}
+{% block title %}试卷管理{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h2 class="mb-4"><i class="fas fa-file-alt me-2"></i>试卷管理</h2>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <form method="post" class="row g-3 align-items-end">
+        <div class="col-md-5">
+          <label class="form-label">试卷名称</label>
+          <input type="text" name="name" class="form-control rounded-pill" required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">所属学科</label>
+          <select class="form-select rounded-pill" name="subject_id">
+            <option value="">未分类</option>
+            {% for s in subjects %}
+            <option value="{{ s.id }}">{{ s.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-1">
+          <label class="form-label">时长(分)</label>
+          <input type="number" name="duration" class="form-control rounded-pill" placeholder="必填" min="1" required>
+        </div>
+        <div class="col-md-3">
+          <button type="submit" class="btn btn-success w-100 rounded-pill"><i class="fas fa-plus"></i> 添加试卷</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    {% for exam in exams %}
+    <div class="col-12">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <h5 class="card-title mb-1">{{ exam.name }}
+                {% if exam.subject %}<small class="text-muted">({{ exam.subject.name }})</small>{% endif %}
+              </h5>
+              <small class="text-muted">创建: {{ exam.create_time.strftime('%Y-%m-%d') if exam.create_time else '-' }}</small>
+              {% if exam.duration %}
+              <span class="badge bg-info ms-2"><i class="fas fa-clock me-1"></i>{{ exam.duration }}分钟</span>
+              {% endif %}
+            </div>
+            <div>
+              <a href="/admin/exams/{{ exam.id }}/compose" class="btn btn-outline-success btn-sm rounded-pill me-1" title="从题库选题组卷"><i class="fas fa-layer-group"></i> 组卷</a>
+              <a href="/admin/questions?exam_id={{ exam.id }}" class="btn btn-outline-primary btn-sm rounded-pill me-1"><i class="fas fa-database"></i> 题库</a>
+              <a href="/admin/exams/edit/{{ exam.id }}" class="btn btn-outline-secondary btn-sm rounded-pill me-1"><i class="fas fa-edit"></i> 编辑</a>
+              <form method="post" action="/admin/exams/{{ exam.id }}/clear-stale-attempts" style="display:inline;" class="d-inline me-1"
+                    onsubmit="return confirm('清除该试卷所有&quot;超时未交卷&quot;的开考记录？\n（学生开考后弃考/断网留下的记录；清除后这些学生可重新参加考试，进行中/已交卷学生不受影响；若试卷已收卷，需先取消收卷才能重考）');">
+                <button class="btn btn-outline-secondary btn-sm rounded-pill" title="清除超时未交卷的开考记录（弃考学生重考入口）"><i class="fas fa-eraser"></i> 清超时开考</button>
+              </form>
+              {% if not exam.duration %}
+              <form method="post" action="/admin/exams/{{ exam.id }}/clear-stale-attempts" style="display:inline;" class="d-inline me-1"
+                    onsubmit="return confirm('强制清除该试卷全部开考记录？
+（无时长试卷的开考记录没有超时判定，无法按超时清除；清除后所有在考学生需重新进入考试）');">
+                <input type="hidden" name="force" value="1">
+                <button class="btn btn-outline-warning btn-sm rounded-pill" title="无时长试卷的残留开考记录补救入口（强制清除全部）"><i class="fas fa-broom"></i> 强制清除全部开考</button>
+              </form>
+              {% endif %}
+              <form method="post" action="/admin/exams/delete/{{ exam.id }}" style="display:inline;" onsubmit="return confirm('确定删除？');">
+                <button class="btn btn-outline-danger btn-sm rounded-pill"><i class="fas fa-trash"></i> 删除</button>
+              </form>
+            </div>
+          </div>
+          <!-- 4个状态按钮 -->
+          <div class="d-flex flex-wrap gap-2 mt-3 pt-2 border-top">
+            <label class="btn btn-sm btn-outline-primary rounded-pill exam-toggle {{ 'active' if exam.is_visible }}" data-exam="{{ exam.id }}" data-flag="is_visible">
+              <i class="fas fa-eye me-1"></i>显示
+            </label>
+            <label class="btn btn-sm btn-outline-success rounded-pill exam-toggle {{ 'active' if exam.is_enabled }}" data-exam="{{ exam.id }}" data-flag="is_enabled">
+              <i class="fas fa-play me-1"></i>启用
+            </label>
+            <label class="btn btn-sm btn-outline-warning rounded-pill exam-toggle {{ 'active' if exam.is_collected }}" data-exam="{{ exam.id }}" data-flag="is_collected">
+              <i class="fas fa-stop me-1"></i>收卷
+            </label>
+            <label class="btn btn-sm btn-outline-info rounded-pill exam-toggle {{ 'active' if exam.allow_view_results }}" data-exam="{{ exam.id }}" data-flag="allow_view_results">
+              <i class="fas fa-poll me-1"></i>查看结果
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+    {% if not exams %}
+    <div class="col-12"><div class="alert alert-info">暂无试卷</div></div>
+    {% endif %}
+  </div>
+  {% if pagination and pagination.pages > 1 %}
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
+      <span class="text-muted small">共 {{ pagination.total }} 张试卷，第 {{ pagination.page }} / {{ pagination.pages }} 页</span>
+      <nav aria-label="试卷分页">
+          <ul class="pagination justify-content-center mb-0 flex-wrap">
+              <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                  <a class="page-link" href="{{ url_for('exam_management.admin_exams', page=pagination.prev_num) if pagination.has_prev else '#' }}">上一页</a>
+              </li>
+              {% for p in range(1, pagination.pages + 1) %}
+                  {% if p == 1 or p == pagination.pages or (p >= pagination.page - 2 and p <= pagination.page + 2) %}
+                  <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                      <a class="page-link" href="{{ url_for('exam_management.admin_exams', page=p) }}">{{ p }}</a>
+                  </li>
+                  {% elif p == 2 or p == pagination.pages - 1 %}
+                  <li class="page-item disabled"><span class="page-link">…</span></li>
+                  {% endif %}
+              {% endfor %}
+              <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                  <a class="page-link" href="{{ url_for('exam_management.admin_exams', page=pagination.next_num) if pagination.has_next else '#' }}">下一页</a>
+              </li>
+          </ul>
+      </nav>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+document.querySelectorAll('.exam-toggle').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    var examId=this.dataset.exam, flag=this.dataset.flag;
+    var isActive=this.classList.contains('active');
+    var newVal=!isActive;
+    var form=new FormData();
+    form.append('flag',flag);form.append('value',newVal);
+    fetch('/admin/exams/toggle/'+examId,{method:'POST',body:form})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if(d.success){
+          if(newVal){btn.classList.add('active');}else{btn.classList.remove('active');}
+        }
+      });
+  });
+});
+</script>
+{% endblock %}

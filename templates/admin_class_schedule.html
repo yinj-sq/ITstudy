@@ -1,0 +1,153 @@
+{% extends 'base.html' %}
+{% block title %}课程表管理 - 管理员{% endblock %}
+{% block content %}
+<div class="container py-4">
+    <h2 class="mb-4"><i class="fas fa-calendar-alt me-2"></i>课程表管理</h2>
+
+    <!-- 当前课程表 -->
+    <div class="card mb-4">
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">当前课程表映射</h5>
+            <div>
+                <a href="{{ url_for('classroom.admin_classroom') }}" class="btn btn-sm btn-success me-1">
+                    <i class="fas fa-desktop me-1"></i>进入大屏
+                </a>
+                <a href="{{ url_for('classroom.export_class_schedule') }}" class="btn btn-sm btn-outline-light">
+                    <i class="fas fa-file-export me-1"></i>导出
+                </a>
+                <a href="{{ url_for('classroom.admin_schedule') }}" class="btn btn-sm btn-info">
+                    <i class="fas fa-clock me-1"></i>作息时间管理
+                </a>
+            </div>
+        </div>
+        <div class="table-responsive">
+            {% if schedules %}
+            <table class="table table-hover table-bordered mb-0">
+                <thead>
+                    <tr class="table-dark">
+                        <th style="width:80px">节次</th>
+                        <th style="width:130px">时间</th>
+                        {% for wd in range(1, 8) %}
+                        <th class="text-center{% if wd == today_weekday %} table-primary{% endif %}">
+                            {{ weekday_names.get(wd, '?') }}{% if wd == today_weekday %} ★{% endif %}
+                        </th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in schedules %}
+                    <tr>
+                        {% set period_num = loop.index %}
+                        <td><strong>第{{ period_num }}节</strong><br><small class="text-muted">{{ s.period_name }}</small></td>
+                        <td><small>{{ s.start_time }}<br>{{ s.end_time }}</small></td>
+                        {% for wd in range(1, 8) %}
+                        {% set entries = entry_map.get((wd, period_num), []) %}
+                        <td class="text-center align-middle{% if wd == today_weekday %} table-primary{% endif %}">
+                            {% for entry in entries %}
+                            <span class="badge bg-success me-1 mb-1">{{ entry.class_name }}</span>
+                            {% else %}
+                            <span class="text-muted small">—</span>
+                            {% endfor %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="text-center text-muted py-4">
+                暂无作息时段，请先 <a href="{{ url_for('classroom.admin_schedule') }}">设置作息时间表</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 追加班级 -->
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="fas fa-plus me-1"></i>追加课程表映射</h5>
+        </div>
+        <div class="card-body">
+            <form method="post" action="{{ url_for('classroom.add_class_schedule_entry') }}" class="row g-2 align-items-end">
+                <div class="col-md-2">
+                    <label class="form-label">星期</label>
+                    <select name="weekday" class="form-select" required>
+                        {% for wd in range(1, 8) %}<option value="{{ wd }}">{{ weekday_names.get(wd) }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">节次</label>
+                    <input type="number" name="period_number" class="form-control" min="1" value="1" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">班级</label>
+                    <select name="class_name" class="form-select" required>
+                        {% for c in classes %}<option value="{{ c.name }}">{{ c.name }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-success w-100"><i class="fas fa-plus me-1"></i>追加</button>
+                </div>
+            </form>
+            <small class="text-muted">同一星期、同一节次可追加多个班级；自动切班时会同时激活这些班级。</small>
+        </div>
+    </div>
+
+    <!-- 导入课程表 -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-upload me-1"></i>导入课程表</h5>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-warning d-flex align-items-center">
+                <i class="fas fa-exclamation-triangle me-2 fs-4"></i>
+                <div>
+                    <strong>注意：</strong>上课班级名称必须与
+                    <a href="{{ url_for('class_management.admin_classes') }}" class="alert-link" target="_blank">班级管理</a>
+                    中的班级名称<strong>完全一致</strong>，否则无法自动匹配！
+                </div>
+            </div>
+            <div class="alert alert-info">
+                <strong>当前可用的班级：</strong>
+                {% for c in classes %}
+                <span class="badge bg-secondary me-1">{{ c.name }}</span>
+                {% else %}
+                <span class="text-muted">暂无班级</span>
+                {% endfor %}
+            </div>
+            <form method="post" action="{{ url_for('classroom.import_class_schedule') }}" enctype="multipart/form-data" class="row g-3 align-items-end">
+                <div class="col-md-5">
+                    <label class="form-label">选择Excel文件 (.xlsx)</label>
+                    <input type="file" class="form-control" name="excel_file" accept=".xlsx,.xls" required>
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-upload me-1"></i>导入
+                    </button>
+                </div>
+                <div class="col-md-4">
+                    <a href="{{ url_for('classroom.download_class_schedule_template') }}" class="btn btn-outline-primary w-100">
+                        <i class="fas fa-download me-1"></i>下载导入模板
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 清空课程表 -->
+    <div class="card">
+        <div class="card-header bg-danger text-white">
+            <h5 class="mb-0"><i class="fas fa-trash me-1"></i>清空课程表</h5>
+        </div>
+        <div class="card-body">
+            <p class="text-muted">清空后将删除所有课程表映射，自动切换将无法匹配任何班级。</p>
+            <form method="post" action="{{ url_for('classroom.clear_class_schedule') }}"
+                  onsubmit="return confirm('确定要清空整个课程表吗？此操作不可恢复。');">
+                <button type="submit" class="btn btn-danger">
+                    <i class="fas fa-trash me-1"></i>清空课程表
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,1014 @@
+{% extends 'base.html' %}
+
+{% block title %}在线考试 - {{ exam.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <h2 class="mb-4">{{ exam.name }}</h2>
+
+    {% if student %}
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <span class="text-muted me-3">考生：<strong>{{ student.name }}</strong></span>
+            <span class="text-muted">学号：<strong>{{ student.student_number or '-' }}</strong></span>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if existing_result %}
+    <div class="alert alert-warning d-flex justify-content-between align-items-center">
+        <div>
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            您已提交过此试卷{% if exam.allow_view_results %}，上次得分：<strong>{{ existing_result.total_score }}分</strong>{% else %}（成绩未公布）{% endif %}
+            （{{ existing_result.submit_time.strftime('%Y-%m-%d %H:%M') if existing_result.submit_time else '-' }}）
+        </div>
+        <div>
+            {% if exam.allow_view_results %}
+            <a href="{{ url_for('online_exam.show_result', result_id=existing_result.id) }}" class="btn btn-outline-info btn-sm me-2">查看上次结果</a>
+            {% endif %}
+            {% if not exam.is_enabled %}
+            <span class="badge bg-secondary">考试已关闭，无法重做</span>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if not exam.is_enabled and existing_result %}
+    {# 考试已关闭且有提交记录：不再显示试卷内容 #}
+    {% else %}
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <span>考试信息</span>
+            <div>
+                <span id="exam-timer" class="badge bg-danger"></span>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>考试名称：</strong>{{ exam.name }}</p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>总分：</strong>{{ exam_total_score }}分</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 表单无 action（提交走 JS 拦截）：填空输入框按 Enter 会隐式提交到
+         当前 GET-only URL → 405。拦截 Enter 防止误触（此前缺陷） -->
+    <form id="exam-form" method="post" onkeydown="if(event.key==='Enter'&&event.target.tagName!=='TEXTAREA')event.preventDefault();">
+        {# 题型分组标题条：标签取自后端 QUESTION_TYPE_LABELS（单一事实源），
+           questions 已由 exam_questions_ordered 按题型分组序排列 #}
+        {% set type_names = type_labels or {'single':'一、单选题','multiple':'二、多选题','judge':'三、判断题','fill':'四、填空题','short_answer':'五、简答题','python_fill':'六、Python填空题','comprehensive':'七、综合题'} %}
+        {% set seen_types = [] %}
+        {% for question in questions %}
+        {% if question.question_type not in seen_types %}
+        {% set _ = seen_types.append(question.question_type) %}
+        <div class="alert alert-primary py-2 fw-bold mt-3 question-type-header" data-type="{{ question.question_type }}">
+            <i class="fas fa-heading me-2"></i>{{ type_names.get(question.question_type, question.question_type) }}
+        </div>
+        {% endif %}
+        <div class="card mb-4 question" data-question-id="{{ question.id }}" data-question-type="{{ question.question_type }}">
+            <div class="card-header d-flex justify-content-between align-items-start">
+                <span class="fw-bold">{{ loop.index }}. </span>
+                <div class="question-text flex-grow-1" style="white-space: pre-wrap; word-break: break-word;">{{ question.content|convert_md_images|sanitize_rich_text }}</div>
+                <span class="badge bg-primary">{{ question.score }}分</span>
+            </div>
+            <div class="card-body">
+                <div class="question-content mb-3">
+                    {% if question.image_url %}
+                    <div class="question-image mb-2">
+                        <img src="{{ question.image_url }}" alt="题目图片" class="img-fluid" style="max-height: 300px;">
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- 问题答案区域 -->
+                {% if question.question_type == 'single' %}
+                <!-- 单选题 -->
+                <div class="options-list">
+                    {% if question.image_options %}
+                    <!-- 图片选项 -->
+                    <div class="row">
+                        {% set options_list = question.sorted_options.split('|') if question.sorted_options else [] %}
+                        {% set image_options = question.image_options_dict if question.image_options_dict is defined else {} %}
+                        {% for option in options_list %}
+                            {% set option_letter = (65 + loop.index0)|chr %}
+                            <div class="col-md-6 mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="{{ question.id }}" value="{{ option_letter }}" id="q{{ question.id }}_opt{{ option_letter }}">
+                                    <label class="form-check-label" for="q{{ question.id }}_opt{{ option_letter }}">
+                                        <!-- 改进的选项前缀检测逻辑 -->
+                                        {% set has_prefix = false %}
+                                        {% set trimmed_option = option|trim %}
+                                        {% if trimmed_option|length >= 2 %}
+                                            {% set first_char = trimmed_option[0:1]|upper %}
+                                            {% set second_char = trimmed_option[1:2] %}
+                                            {% if first_char in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' and second_char in '.:、)）]】- ' %}
+                                                {% set has_prefix = true %}
+                                            {% endif %}
+                                        {% endif %}
+                                        
+                                        {% if has_prefix %}
+                                            {{ option }}
+                                        {% else %}
+                                            {{ option_letter }}. {{ option }}
+                                        {% endif %}
+                                        
+                                        <!-- 改进的图片显示逻辑 -->
+                                        {% if image_options and (option_letter in image_options or option in image_options or trimmed_option in image_options) %}
+                                        <div class="mt-1">
+                                            {% set img_key = '' %}
+                                            {% if option in image_options %}
+                                                {% set img_key = option %}
+                                            {% elif trimmed_option in image_options %}
+                                                {% set img_key = trimmed_option %}
+                                            {% elif option_letter in image_options %}
+                                                {% set img_key = option_letter %}
+                                            {% endif %}
+                                            <img src="{{ image_options[img_key] }}" alt="选项图片" class="img-fluid" style="max-height: 150px;">
+                                        </div>
+                                        {% endif %}
+                                    </label>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <!-- 文本选项 -->
+                    {% if question.sorted_options %}
+                        {% for option in question.sorted_options.split('|') %}
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="{{ question.id }}" value="{{ (65 + loop.index0)|chr }}" id="q{{ question.id }}_opt{{ loop.index }}">
+                            <label class="form-check-label" for="q{{ question.id }}_opt{{ loop.index }}">
+                                <!-- 改进的选项前缀检测逻辑 -->
+                                {% set has_prefix = false %}
+                                {% set trimmed_option = option|trim %}
+                                {% if trimmed_option|length >= 2 %}
+                                    {% set first_char = trimmed_option[0:1]|upper %}
+                                    {% set second_char = trimmed_option[1:2] %}
+                                    {% if first_char in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' and second_char in '.:、)）]】- ' %}
+                                        {% set has_prefix = true %}
+                                    {% endif %}
+                                {% endif %}
+                                
+                                {% if has_prefix %}
+                                    {{ option }}
+                                {% else %}
+                                    {{ (65 + loop.index0)|chr }}. {{ option }}
+                                {% endif %}
+                            </label>
+                        </div>
+                        {% endfor %}
+                    {% endif %}
+                    {% endif %}
+                </div>
+
+                {% elif question.question_type == 'multiple' %}
+                <!-- 多选题 -->
+                <div class="options-list">
+                    {% if question.image_options %}
+                    <!-- 图片选项 -->
+                    <div class="row">
+                        {% set options_list = question.sorted_options.split('|') if question.sorted_options else [] %}
+                        {% set image_options = question.image_options_dict if question.image_options_dict is defined else {} %}
+                        {% for option in options_list %}
+                            {% set option_letter = (65 + loop.index0)|chr %}
+                            <div class="col-md-6 mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="{{ question.id }}" value="{{ option_letter }}" id="q{{ question.id }}_opt{{ option_letter }}">
+                                    <label class="form-check-label" for="q{{ question.id }}_opt{{ option_letter }}">
+                                        <!-- 改进的选项前缀检测逻辑 -->
+                                        {% set has_prefix = false %}
+                                        {% set trimmed_option = option|trim %}
+                                        {% if trimmed_option|length >= 2 %}
+                                            {% set first_char = trimmed_option[0:1]|upper %}
+                                            {% set second_char = trimmed_option[1:2] %}
+                                            {% if first_char in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' and second_char in '.:、)）]】- ' %}
+                                                {% set has_prefix = true %}
+                                            {% endif %}
+                                        {% endif %}
+                                        
+                                        {% if has_prefix %}
+                                            {{ option }}
+                                        {% else %}
+                                            {{ option_letter }}. {{ option }}
+                                        {% endif %}
+                                        
+                                        <!-- 改进的图片显示逻辑 -->
+                                        {% if image_options and (option_letter in image_options or option in image_options or trimmed_option in image_options) %}
+                                        <div class="mt-1">
+                                            {% set img_key = '' %}
+                                            {% if option in image_options %}
+                                                {% set img_key = option %}
+                                            {% elif trimmed_option in image_options %}
+                                                {% set img_key = trimmed_option %}
+                                            {% elif option_letter in image_options %}
+                                                {% set img_key = option_letter %}
+                                            {% endif %}
+                                            <img src="{{ image_options[img_key] }}" alt="选项图片" class="img-fluid" style="max-height: 150px;">
+                                        </div>
+                                        {% endif %}
+                                    </label>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <!-- 文本选项 -->
+                    {% if question.sorted_options %}
+                        {% for option in question.sorted_options.split('|') %}
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" name="{{ question.id }}" value="{{ (65 + loop.index0)|chr }}" id="q{{ question.id }}_opt{{ loop.index }}">
+                            <label class="form-check-label" for="q{{ question.id }}_opt{{ loop.index }}">
+                                <!-- 改进的选项前缀检测逻辑 -->
+                                {% set has_prefix = false %}
+                                {% set trimmed_option = option|trim %}
+                                {% if trimmed_option|length >= 2 %}
+                                    {% set first_char = trimmed_option[0:1]|upper %}
+                                    {% set second_char = trimmed_option[1:2] %}
+                                    {% if first_char in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' and second_char in '.:、)）]】- ' %}
+                                        {% set has_prefix = true %}
+                                    {% endif %}
+                                {% endif %}
+                                
+                                {% if has_prefix %}
+                                    {{ option }}
+                                {% else %}
+                                    {{ (65 + loop.index0)|chr }}. {{ option }}
+                                {% endif %}
+                            </label>
+                        </div>
+                        {% endfor %}
+                    {% endif %}
+                    {% endif %}
+                </div>
+
+                {% elif question.question_type == 'judge' %}
+                <!-- 判断题 -->
+                <div class="options-list">
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="radio" name="{{ question.id }}" value="true" id="q{{ question.id }}_true">
+                        <label class="form-check-label" for="q{{ question.id }}_true">正确</label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="radio" name="{{ question.id }}" value="false" id="q{{ question.id }}_false">
+                        <label class="form-check-label" for="q{{ question.id }}_false">错误</label>
+                    </div>
+                </div>
+
+                {% elif question.question_type == 'fill' %}
+                <!-- 填空题 -->
+                <div class="form-group">
+                    <input type="text" class="form-control" name="{{ question.id }}" placeholder="请输入答案">
+                    <div class="form-text mt-1">
+                        <strong>填空题答案格式说明：</strong><br>
+                        1. 多个空位：按题目中空位顺序填写，使用|分隔，如：答案1|答案2|答案3<br>
+                        2. 多个可接受答案：每个空位可设置多个可接受的答案，使用//分隔，如：答案1//替代答案1|答案2<br>
+                        3. <span class="text-danger">若有不会的空，可留空或直接跳过（例如：答案1||答案3 表示不知道第二空的答案）</span><br>
+                        4. 系统将对每个空单独评分，即使部分空不会做，也请尽量回答会做的部分
+                    </div>
+                </div>
+
+                {% elif question.question_type == 'short_answer' %}
+                <!-- 简答题 -->
+                <div class="form-group">
+                    <textarea class="form-control" name="{{ question.id }}" rows="5" placeholder="请在此作答..."></textarea>
+                </div>
+
+                {% elif question.question_type == 'python_fill' %}
+                <!-- Python填空题 -->
+                <div class="card mb-3">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">Python填空题</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-3">这是一道Python填空题，请点击下方"打开试题"按钮获取题目内容，然后编写代码并上传答案文件。</p>
+                        <div id="python-instruction-{{ question.id }}" class="alert alert-secondary">
+                            <i class="fas fa-info-circle me-2"></i>提示：请在指定位置填写代码，然后将完整文件上传。
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 显示上传的Python文件内容 -->
+                <div id="python-file-content-{{ question.id }}" class="bg-light p-3 mb-3 d-none">
+                    <h6 class="mb-2">上传的答案:</h6>
+                    <pre><code id="python-code-{{ question.id }}"></code></pre>
+                </div>
+                
+                <!-- Python填空题特殊功能按钮 -->
+                <div class="py-3">
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            <button type="button" class="btn btn-info w-100" 
+                                    onclick="downloadPythonFile({{ question.id }})">
+                                <i class="fas fa-download"></i> 打开试题
+                            </button>
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <button type="button" class="btn btn-success w-100" 
+                                    onclick="document.getElementById('python-upload-{{ question.id }}').click()">
+                                <i class="fas fa-upload"></i> 上传答案
+                            </button>
+                            <input type="file" id="python-upload-{{ question.id }}" 
+                                   class="d-none" accept=".py" 
+                                   onchange="uploadPythonAnswer({{ question.id }}, this.files[0])">
+                        </div>
+                    </div>
+                </div>
+
+                {% elif question.question_type == 'comprehensive' %}
+                <!-- 综合题 -->
+                {% if question.background %}
+                <div class="bg-light p-3 mb-3 rounded">
+                    <h6 class="mb-2">背景概述:</h6>
+                    <div>{{ question.background|sanitize_rich_text }}</div>
+                </div>
+                {% endif %}
+                <div class="sub-questions mt-3">
+                    {% for sub_q in question.sub_questions %}
+                    <div class="sub-question mb-3">
+                        <h6 style="white-space: pre-wrap; word-break: break-word;">{{ loop.index }}. {{ sub_q.content|convert_md_images|sanitize_rich_text }}</h6>
+                        {% if sub_q.image_url %}
+                        <div class="mb-2">
+                            <img src="{{ sub_q.image_url }}" alt="题目图片" class="img-fluid rounded" style="max-height:250px">
+                        </div>
+                        {% endif %}
+
+                        {% if sub_q.question_type == 'single' %}
+                        <!-- 单选小题 -->
+                        <div class="options-list">
+                            {% if sub_q.image_options %}
+                                <!-- 图片选项 -->
+                                <div class="row">
+                                    {% set options_list = sub_q.sorted_options.split('|') if sub_q.sorted_options else [] %}
+                                    {% set image_options = sub_q.image_options_dict if sub_q.image_options_dict is defined else {} %}
+                                    {% for option in options_list %}
+                                        {% set option_letter = (65 + loop.index0)|chr %}
+                                        <div class="col-md-6 mb-3">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="sub_{{ sub_q.id }}" value="{{ option_letter }}" id="sub_{{ sub_q.id }}_opt{{ option_letter }}">
+                                                <label class="form-check-label" for="sub_{{ sub_q.id }}_opt{{ option_letter }}">
+                                                    {{ option }}
+                                                    
+                                                    <!-- 改进的图片显示逻辑 -->
+                                                    {% if image_options and (option_letter in image_options or option in image_options) %}
+                                                    <div class="mt-1">
+                                                        {% set img_key = '' %}
+                                                        {% if option in image_options %}
+                                                            {% set img_key = option %}
+                                                        {% elif option_letter in image_options %}
+                                                            {% set img_key = option_letter %}
+                                                        {% endif %}
+                                                        <img src="{{ image_options[img_key] }}" alt="选项图片" class="img-fluid" style="max-height: 150px;">
+                                                    </div>
+                                                    {% endif %}
+                                                </label>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                            <!-- 文本选项 -->
+                            {% if sub_q.sorted_options %}
+                                {% for option in sub_q.sorted_options.split('|') %}
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="radio" name="sub_{{ sub_q.id }}" value="{{ (65 + loop.index0)|chr }}" id="sub_{{ sub_q.id }}_opt{{ loop.index }}">
+                                    <label class="form-check-label" for="sub_{{ sub_q.id }}_opt{{ loop.index }}">
+                                        {{ option|trim }}
+                                    </label>
+                                </div>
+                                {% endfor %}
+                            {% endif %}
+                            {% endif %}
+                        </div>
+                        
+                        {% elif sub_q.question_type == 'multiple' %}
+                        <!-- 多选小题 -->
+                        <div class="options-list">
+                            {% if sub_q.image_options %}
+                            <!-- 图片选项 -->
+                            <div class="row">
+                                {% set options_list = sub_q.sorted_options.split('|') if sub_q.sorted_options else [] %}
+                                {% set image_options = sub_q.image_options_dict if sub_q.image_options_dict is defined else {} %}
+                                {% for option in options_list %}
+                                    {% set option_letter = (65 + loop.index0)|chr %}
+                                    <div class="col-md-6 mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="sub_{{ sub_q.id }}" value="{{ option_letter }}" id="sub_{{ sub_q.id }}_opt{{ option_letter }}">
+                                            <label class="form-check-label" for="sub_{{ sub_q.id }}_opt{{ option_letter }}">
+                                                {{ option }}
+                                                
+                                                <!-- 改进的图片显示逻辑 -->
+                                                {% if image_options and (option_letter in image_options or option in image_options) %}
+                                                <div class="mt-1">
+                                                    {% set img_key = '' %}
+                                                    {% if option in image_options %}
+                                                        {% set img_key = option %}
+                                                    {% elif option_letter in image_options %}
+                                                        {% set img_key = option_letter %}
+                                                    {% endif %}
+                                                    <img src="{{ image_options[img_key] }}" alt="选项图片" class="img-fluid" style="max-height: 150px;">
+                                                </div>
+                                                {% endif %}
+                                            </label>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <!-- 文本选项 -->
+                            {% if sub_q.sorted_options %}
+                                {% for option in sub_q.sorted_options.split('|') %}
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" name="sub_{{ sub_q.id }}" value="{{ (65 + loop.index0)|chr }}" id="sub_{{ sub_q.id }}_opt{{ loop.index }}">
+                                    <label class="form-check-label" for="sub_{{ sub_q.id }}_opt{{ loop.index }}">
+                                        {{ option|trim }}
+                                    </label>
+                                </div>
+                                {% endfor %}
+                            {% endif %}
+                            {% endif %}
+                        </div>
+                        
+                        {% elif sub_q.question_type == 'judge' %}
+                        <!-- 判断小题 -->
+                        <div class="options-list">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="radio" name="sub_{{ sub_q.id }}" value="true" id="sub_{{ sub_q.id }}_true">
+                                <label class="form-check-label" for="sub_{{ sub_q.id }}_true">正确</label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="radio" name="sub_{{ sub_q.id }}" value="false" id="sub_{{ sub_q.id }}_false">
+                                <label class="form-check-label" for="sub_{{ sub_q.id }}_false">错误</label>
+                            </div>
+                        </div>
+                        
+                        {% elif sub_q.question_type == 'fill' %}
+                        <!-- 填空小题 -->
+                        <div class="form-group">
+                            <input type="text" class="form-control" name="sub_{{ sub_q.id }}" placeholder="请输入答案">
+                            <div class="form-text mt-1">
+                                <strong>填空题答案格式说明：</strong><br>
+                                1. 多个空位：按题目中空位顺序填写，使用|分隔，如：答案1|答案2|答案3<br>
+                                2. 多个可接受答案：每个空位可设置多个可接受的答案，使用//分隔，如：答案1//替代答案1|答案2<br>
+                                3. <span class="text-danger">若有不会的空，可留空或直接跳过（例如：答案1||答案3 表示不知道第二空的答案）</span><br>
+                                4. 系统将对每个空单独评分，即使部分空不会做，也请尽量回答会做的部分
+                            </div>
+                        </div>
+
+                        {% elif sub_q.question_type == 'short_answer' %}
+                        <!-- 简答小题 -->
+                        <div class="form-group">
+                            <textarea class="form-control" name="sub_{{ sub_q.id }}" rows="5" placeholder="请在此作答..."></textarea>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% if question.footer_content %}
+                <div class="mt-3 p-3 bg-light rounded">
+                    <h6 class="text-secondary mb-2"><i class="bi bi-code-slash me-2"></i>参考代码 / 说明</h6>
+                    <div style="white-space: pre-wrap;">{{ question.footer_content }}</div>
+                </div>
+                {% endif %}
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+
+        <div class="d-grid gap-2 mt-4 mb-5">
+            <button type="button" id="submit-exam" class="btn btn-lg btn-primary">提交试卷</button>
+        </div>
+    </form>
+
+    <!-- 确认提交的模态框 -->
+    <div class="modal fade" id="submitConfirmModal" tabindex="-1" aria-labelledby="submitConfirmModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="submitConfirmModalLabel">确认提交</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    确定要提交试卷吗？提交后将无法修改答案。
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="confirmSubmit">确认提交</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 考试结束全屏提示覆层 -->
+    <div id="examEndOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+        background:rgba(0,0,0,0.85); z-index:99999; justify-content:center; align-items:center; flex-direction:column;">
+        <div style="text-align:center; color:#fff; max-width:500px; padding:40px;">
+            <div style="font-size:80px; margin-bottom:20px;">
+                <i class="fas fa-check-circle" style="color:#28a745;"></i>
+            </div>
+            <h2 style="font-weight:bold; margin-bottom:16px;">考试已结束</h2>
+            <p style="font-size:18px; color:#ccc; line-height:1.8; margin-bottom:30px;">
+                试卷已回收，系统正在为您批改。<br>
+                点击下方按钮查看测试结果与批改情况。
+            </p>
+            <button id="examEndViewResult" class="btn btn-lg btn-success rounded-pill px-5" style="font-size:18px;">
+                <i class="fas fa-poll me-2"></i>查看测试结果
+            </button>
+            <p id="examEndStatus" style="font-size:14px; color:#aaa; margin-top:16px;"></p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    // 修复图片显示问题，将markdown格式图片路径转换为正常图片
+    document.addEventListener('DOMContentLoaded', function() {
+        // 处理所有题目内容的图片
+        document.querySelectorAll('.question-text, .bg-light div, .sub-question h6, .form-check-label, .option-text').forEach(function(element) {
+            const content = element.innerHTML;
+            if (content) {
+                element.innerHTML = convertMarkdownImages(content);
+            }
+        });
+        
+        // 额外处理选项中的图片
+        document.querySelectorAll('.options-list img').forEach(function(img) {
+            // 确保图片的src属性有效
+            if (img.src && img.src.startsWith('/')) {
+                // 如果是相对路径，确保路径正确
+                img.onerror = function() {
+                    // 尝试替代路径
+                    if (!img.src.startsWith('/static/')) {
+                        img.src = '/static' + img.src;
+                    }
+                };
+            }
+        });
+    });
+
+    // 转换Markdown格式的图片链接为HTML图片标签
+    function convertMarkdownImages(text) {
+        if (!text) return text;
+        return text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function(match, alt, url) {
+            url = (url || '').trim();
+            if (!url || url.startsWith('//') || url.indexOf('..') !== -1 ||
+                    url.indexOf(':') !== -1 || /[\x00-\x1f\x7f<>"'\\\s]/.test(url)) {
+                return match;
+            }
+            if (!url.startsWith('/')) {
+                url = '/' + url.replace(/^\/+/, '');
+            }
+            var wrap = document.createElement('span');
+            var img = document.createElement('img');
+            img.src = url;
+            img.alt = alt || '图片';
+            img.className = 'img-fluid';
+            img.style.maxHeight = '200px';
+            wrap.appendChild(img);
+            return wrap.innerHTML;
+        });
+    }
+
+    // 下载Python文件
+    function downloadPythonFile(questionId) {
+        fetch(`/download_python_file/${questionId}`)
+            .then(response => {
+                if (response.ok) {
+                    return response.blob();
+                }
+                console.error("下载Python文件失败，状态码: " + response.status);
+                throw new Error('下载文件失败');
+            })
+            .then(blob => {
+                // 创建下载链接
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `python_question_${questionId}.py`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            })
+            .catch(error => {
+                console.error("下载过程中发生错误: " + error.message);
+                alert('下载文件失败：' + error.message);
+            });
+    }
+
+    // 上传Python答案
+    function uploadPythonAnswer(questionId, file) {
+        if (!file) {
+            return;
+        }
+
+        // 读取文件内容并预览
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const content = e.target.result;
+
+            // 显示文件内容
+            const codeElement = document.getElementById('python-code-' + questionId);
+            if (codeElement) {
+                codeElement.textContent = content;
+                document.getElementById('python-file-content-' + questionId).classList.remove('d-none');
+            }
+        };
+        reader.readAsText(file);
+
+        // 上传到服务器
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('question_id', questionId);
+
+        fetch('/upload_python_answer', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('文件上传成功');
+            } else {
+                console.error("上传失败:", data.message);
+                alert('上传失败: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error("上传错误:", error);
+            alert('上传过程中发生错误，请重试');
+        });
+    }
+
+    // 计算剩余时间
+    // 倒计时以服务端开考时间为基准（刷新/重新打开页面不重置计时），
+    // 避免刷新后计时器重置导致"到点自动交卷被服务端判定超时拒绝"。
+    var examEndLocked = false;  // 到点/收卷后锁定表单，禁止继续作答
+    function lockExamForm() {
+        if (examEndLocked) return;
+        examEndLocked = true;
+        var form = document.getElementById('exam-form');
+        if (form) {
+            // 时间到/收卷后全部控件禁用（含上传按钮），防止锁定不彻底仍可操作
+            form.querySelectorAll('input, textarea, button').forEach(function (el) {
+                el.disabled = true;
+            });
+        }
+    }
+    function startExamTimer() {
+        const serverStartSec = parseFloat('{{ exam_start_time|default(0) }}');
+        const startTime = serverStartSec ? serverStartSec * 1000 : new Date().getTime();
+        const durationMinutes = parseInt('{{ exam.duration|default(0) }}');
+        const durationMs = durationMinutes * 60 * 1000;
+        const endTime = startTime + durationMs;
+
+        // 先声明再赋值：首次 updateTimer() 若已超时会走 clearInterval 分支，
+        // const 声明在后会触发暂时性死区 ReferenceError，自动交卷整体失效
+        let timerInterval = null;
+
+        function updateTimer() {
+            const now = new Date().getTime();
+            const timeLeft = endTime - now;
+
+            if (timeLeft <= 0) {
+                clearInterval(timerInterval);
+                document.getElementById('exam-timer').innerHTML = "时间到！";
+                // 标记已自动提交并停止收卷轮询，避免超时后轮询再触发一次提交
+                hasAutoSubmitted = true;
+                if (collectionPollInterval) {
+                    clearInterval(collectionPollInterval);
+                    collectionPollInterval = null;
+                }
+                lockExamForm();
+                // 自动提交答案后显示全屏提示
+                submitExam(function(resultId) {
+                    showExamEndOverlay(resultId);
+                });
+                return;
+            }
+
+            const hours = Math.floor(timeLeft / (1000 * 60 * 60));
+            const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+
+            document.getElementById('exam-timer').innerHTML = '剩余时间: ' + hours + ':' + (minutes < 10 ? '0' : '') + minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
+        }
+
+        updateTimer();
+        timerInterval = setInterval(updateTimer, 1000);
+    }
+
+    // 提交试卷
+    function submitExam(callback) {
+        const form = document.getElementById('exam-form');
+        if (!form) {
+            alert('无法找到考试表单');
+            return;
+        }
+
+        // 初始化答案对象
+        const answers = {};
+        
+        // 获取单选题答案
+        const radios = form.querySelectorAll('input[type="radio"]:checked');
+        radios.forEach(radio => {
+            if (radio.name && radio.value) {
+                answers[radio.name] = radio.value;
+            }
+        });
+        
+        // 获取多选题答案
+        const checkboxes = form.querySelectorAll('input[type="checkbox"]:checked');
+        const checkboxValues = {};
+        
+        checkboxes.forEach(checkbox => {
+            if (checkbox.name && checkbox.value) {
+                if (!checkboxValues[checkbox.name]) {
+                    checkboxValues[checkbox.name] = [];
+                }
+                checkboxValues[checkbox.name].push(checkbox.value);
+            }
+        });
+        
+        // 处理多选题答案，转换为逗号分隔的字符串
+        for (const [key, values] of Object.entries(checkboxValues)) {
+            answers[key] = values.join(',');
+        }
+        
+        // 获取所有填空题答案
+        const textInputs = form.querySelectorAll('input[type="text"]');
+        textInputs.forEach(input => {
+            if (input.name && input.value.trim()) {
+                answers[input.name] = input.value.trim();
+            }
+        });
+
+        // 获取所有简答题答案（textarea）
+        const textareas = form.querySelectorAll('textarea');
+        textareas.forEach(textarea => {
+            if (textarea.name && textarea.value.trim()) {
+                answers[textarea.name] = textarea.value.trim();
+            }
+        });
+
+        // 辅助函数：处理单选题答案 - 只保留首字符
+        function processSingleChoiceAnswer(value) {
+            if (!value || typeof value !== 'string' || value.length <= 1 ||
+                ['对', '错', 'true', 'false', '正确', '错误'].includes(value)) {
+                return value; // 不处理特殊情况
+            }
+            
+            // 不处理包含逗号的值（可能是多选题）
+            if (value.includes(',')) {
+                return value;
+            }
+            
+            // 已经是单个大写字母，直接返回
+            if (value.length === 1 && /^[A-Z]$/.test(value)) {
+                return value;
+            }
+            
+            // 支持A.或A:格式 - 只提取首字母
+            if (value.length >= 2 && 
+                /^[A-Z]/.test(value) && 
+                (value[1] === '.' || value[1] === ':')) {
+                return value[0];
+            }
+            
+            // 保留首字符
+            return value.charAt(0);
+        }
+        
+        // 辅助函数：处理多选题答案 - 将逗号分隔值替换为首字符组合
+        function processMultiChoiceAnswer(value) {
+            if (!value || typeof value !== 'string') {
+                return value; // 无效值直接返回
+            }
+            
+            // 处理已经包含逗号的情况
+            if (value.includes(',')) {
+                // 提取每个选项的首字符，排序并连接
+                const options = value.split(',');
+                const letters = options.map(opt => {
+                    // 检查格式 A. 或 A: 的情况
+                    if (opt.trim().length >= 2 && 
+                        /^[A-Z]/.test(opt) && 
+                        (opt[1] === '.' || opt[1] === ':')) {
+                        return opt[0];
+                    }
+                    return opt.trim().charAt(0);
+                });
+                
+                // 排序并连接
+                return letters.filter(letter => letter).sort().join('');
+            }
+            
+            // 已经是字母组合的情况，确保是单个大写字母
+            if (/^[A-Z]+$/.test(value)) {
+                // 对单个字母进行排序
+                return value.split('').sort().join('');
+            }
+            
+            return value; // 其他情况原样返回
+        }
+        
+        // 获取每个题目对应类型，以便正确处理
+        const questionTypes = {};
+        document.querySelectorAll('.question').forEach(question => {
+            const questionId = question.getAttribute('data-question-id');
+            const questionType = question.getAttribute('data-question-type');
+            if (questionId && questionType) {
+                questionTypes[questionId] = questionType;
+            }
+        });
+        
+        // 收集所有子题的题型信息
+        document.querySelectorAll('.sub-question').forEach(subQuestion => {
+            // 获取子题ID和类型
+            const inputs = subQuestion.querySelectorAll('input[name^="sub_"]');
+            if (inputs.length > 0) {
+                const subId = inputs[0].name;
+                
+                // 判断子题类型
+                if (inputs[0].type === 'radio' && inputs.length === 2 &&
+                    (inputs[0].value === 'true' || inputs[0].value === 'false')) {
+                    // 判断题
+                    questionTypes[subId] = 'judge';
+                } else if (inputs[0].type === 'radio' && inputs.length > 1) {
+                    // 单选题
+                    questionTypes[subId] = 'single';
+                } else if (inputs[0].type === 'checkbox') {
+                    // 多选题
+                    questionTypes[subId] = 'multiple';
+                } else if (inputs[0].type === 'text') {
+                    // 填空题
+                    questionTypes[subId] = 'fill';
+                }
+            }
+        });
+        
+        // 处理单选题答案 - 只保留首字符
+        for (const key in answers) {
+            // 检查是否是普通题目的单选题，或者是子题的单选题
+            const isSingle = questionTypes[key] === 'single';
+
+            // 跳过填空题，不处理fill类型的题目
+            if (questionTypes[key] === 'fill') {
+                continue;
+            }
+
+            // 跳过判断题，不修改判断题答案格式
+            if (questionTypes[key] === 'judge') {
+                continue;
+            }
+
+            // 处理单选题答案
+            if (isSingle) {
+                answers[key] = processSingleChoiceAnswer(answers[key]);
+            }
+        }
+
+        // 处理多选题答案 - 将逗号分隔值替换为首字符组合
+        for (const key in answers) {
+            // 检查是否是普通题目的多选题，或者是子题的多选题
+            const isMultiple = questionTypes[key] === 'multiple';
+            
+            // 跳过填空题，不处理fill类型的题目
+            if (questionTypes[key] === 'fill') {
+                continue;
+            }
+            
+            // 跳过判断题，不修改判断题答案格式
+            if (questionTypes[key] === 'judge') {
+                continue;
+            }
+            
+            // 处理多选题答案
+            if (isMultiple) {
+                answers[key] = processMultiChoiceAnswer(answers[key]);
+            }
+        }
+
+        // 显示加载状态
+        document.getElementById('confirmSubmit').disabled = true;
+        document.getElementById('confirmSubmit').textContent = '提交中...';
+        
+        // 发送答案到服务器
+        fetch('/submit_exam/' + {{ exam.id }}, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(answers)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                if (callback) {
+                    callback(data.result_id);
+                } else {
+                    window.location.href = '/result/' + data.result_id;
+                }
+            } else {
+                alert('提交失败: ' + data.message);
+                const confirmBtn = document.getElementById('confirmSubmit');
+                if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = '确认提交'; }
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('提交过程中发生错误，请重试');
+            const confirmBtn = document.getElementById('confirmSubmit');
+            if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = '确认提交'; }
+        });
+    }
+
+    // 页面加载完成后执行
+    document.addEventListener('DOMContentLoaded', function() {
+        // 模板渲染的"已交卷"提示条 class 为 alert-warning（此前查询 .alert-info
+        // 恒为 null → 已交卷页面仍启动倒计时/收卷轮询，多一份无效请求）
+        const existingResult = document.querySelector('.alert-warning');
+
+        // 提交按钮/确认弹窗绑定必须始终执行：重考场景（已交卷但考试未收卷）
+        // 后端会同时渲染警告条与完整试卷表单，绑定若放进下方守卫会导致
+        // 提交按钮点击无响应、倒计时不走、收卷自动锁定失效
+        const submitButton = document.getElementById('submit-exam');
+        if (submitButton) {
+            submitButton.addEventListener('click', function() {
+                const submitModal = new bootstrap.Modal(document.getElementById('submitConfirmModal'));
+                submitModal.show();
+            });
+        }
+
+        // 绑定确认提交事件
+        const confirmButton = document.getElementById('confirmSubmit');
+        if (confirmButton) {
+            confirmButton.addEventListener('click', function() {
+                submitExam();
+            });
+        }
+
+        if (!existingResult) {
+            // 仅未交卷时启动计时器与收卷轮询
+            const durationMinutes = parseInt('{{ exam.duration|default(0) }}');
+            if (durationMinutes > 0) {
+                startExamTimer();
+            }
+            startCollectionPolling();
+        }
+
+        // 考试结束全屏覆层—"查看测试结果"按钮点击
+        const viewResultBtn = document.getElementById('examEndViewResult');
+        if (viewResultBtn) {
+            viewResultBtn.addEventListener('click', function() {
+                const resultId = this.getAttribute('data-result-id');
+                if (resultId) {
+                    window.location.href = '/result/' + resultId;
+                }
+            });
+        }
+    });
+
+    // 显示考试结束全屏提示覆层
+    function showExamEndOverlay(resultId) {
+        var overlay = document.getElementById('examEndOverlay');
+        var btn = document.getElementById('examEndViewResult');
+        if (overlay && btn) {
+            btn.setAttribute('data-result-id', resultId);
+            overlay.style.display = 'flex';
+        }
+    }
+
+    // 轮询检测试卷是否已被管理员收卷
+    // 5s 轮询（状态端点 2s TTL 缓存、零 DB 命中）：不再使用 SSE——
+    // Waitress 一线程一连接模型下，N 名学生 × 300s 常驻 SSE 连接会
+    // 耗尽 48 线程池导致交卷/心跳排队（250 人考试场景实测风险）。
+    let collectionPollInterval = null;
+    let hasAutoSubmitted = false;
+
+    function startCollectionPolling() {
+        if (collectionPollInterval || hasAutoSubmitted) return;
+        collectionPollInterval = setInterval(function() {
+            if (hasAutoSubmitted) return;
+            fetch('/exam/{{ exam.id }}/status')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.is_collected) {
+                        hasAutoSubmitted = true;
+                        clearInterval(collectionPollInterval);
+                        collectionPollInterval = null;
+                        lockExamForm();
+                        // 自动提交答案后显示全屏提示
+                        submitExam(function(resultId) {
+                            showExamEndOverlay(resultId);
+                        });
+                    }
+                })
+                .catch(function() { /* 网络错误忽略，下次重试 */ });
+        }, 5000);
+    }
+</script>
+{% endblock %} 

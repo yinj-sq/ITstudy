@@ -1,0 +1,166 @@
+{% extends 'base.html' %}
+{% block title %}问卷结果 - {{ survey.title }}{% endblock %}
+{% block head %}
+<style>
+  .sr-chart { position:relative; height:280px; }
+  .sr-chart-sm { position:relative; height:200px; }
+  .sr-table td, .sr-table th { text-align:center; vertical-align:middle; }
+  .sr-text-list { max-height:300px; overflow:auto; }
+  .sr-row-block { margin-bottom:14px; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container py-4" style="max-width:1000px;">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2 class="mb-1"><i class="fas fa-chart-bar me-2"></i>{{ survey.title }} · 结果</h2>
+      <div class="text-muted">{{ survey.resource.title }}</div>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('surveys.survey_results_csv', sid=survey.id) }}" class="btn btn-outline-success rounded-pill"><i class="fas fa-file-csv me-1"></i>导出 CSV</a>
+      <a href="{{ back_url }}" class="btn btn-outline-secondary rounded-pill"><i class="fas fa-arrow-left me-1"></i>返回问卷列表</a>
+    </div>
+  </div>
+
+  <div class="d-flex flex-wrap gap-2 mb-4">
+    <span class="badge bg-primary"><i class="fas fa-file-signature me-1"></i>{{ total }} 份答卷</span>
+    <span class="badge bg-secondary">{{ survey.questions|length }} 道题</span>
+    {% if survey.is_anonymous %}<span class="badge bg-info">匿名问卷</span>{% endif %}
+    <span class="badge bg-light text-dark border">{{ status_names[survey.status] }}</span>
+    {% if survey.start_time or survey.end_time %}
+    <span class="badge bg-light text-dark border">
+      {{ survey.start_time.strftime('%m-%d %H:%M') if survey.start_time else '不限' }} ~
+      {{ survey.end_time.strftime('%m-%d %H:%M') if survey.end_time else '不限' }}
+    </span>
+    {% endif %}
+  </div>
+
+  {% if not total %}
+  <div class="alert alert-info"><i class="fas fa-inbox me-1"></i>暂无答卷。发布后学生可在学习资源页或课堂章节树中填写。</div>
+  {% endif %}
+
+  {% for st in stats %}
+  <div class="card shadow-sm mb-4">
+    <div class="card-header d-flex align-items-center gap-2">
+      <strong>{{ loop.index }}. {{ st.title }}</strong>
+      <span class="badge bg-light text-dark border">{{ q_type_names[st.q_type] }}</span>
+      {% if st.required %}<span class="small text-danger">必答</span>{% endif %}
+    </div>
+    <div class="card-body">
+      {% if st.q_type in ('radio', 'select') %}
+      <div class="row g-3 align-items-center">
+        <div class="col-md-7"><div class="sr-chart"><canvas id="chart_{{ st.id }}"></canvas></div></div>
+        <div class="col-md-5">
+          <table class="table table-sm sr-table">
+            <thead><tr><th>选项</th><th>计数</th><th>占比</th></tr></thead>
+            <tbody>
+              {% for o, c in st.counts.items() %}
+              <tr><td>{{ o }}</td><td>{{ c }}</td>
+                <td>{{ (c / total * 100)|round(1) if total else 0 }}%</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <script type="application/json" id="data_{{ st.id }}" data-kind="bar">{{ {'labels': st.counts.keys()|list, 'values': st.counts.values()|list}|tojson }}</script>
+      {% elif st.q_type == 'checkbox' %}
+      <div class="sr-chart"><canvas id="chart_{{ st.id }}"></canvas></div>
+      <div class="small text-muted mt-2">占比分母为答卷总数（{{ total }}），多选题各选项独立计数。</div>
+      <script type="application/json" id="data_{{ st.id }}" data-kind="bar">{{ {'labels': st.counts.keys()|list, 'values': st.counts.values()|list}|tojson }}</script>
+      {% elif st.q_type == 'score' %}
+      <div class="mb-2">平均分：<strong class="text-primary">{{ st.avg if st.avg is not none else '—' }}</strong>
+        <span class="small text-muted ms-2">（1-5 分）</span></div>
+      <div class="sr-chart"><canvas id="chart_{{ st.id }}"></canvas></div>
+      <script type="application/json" id="data_{{ st.id }}" data-kind="bar">{{ {'labels': ['1分','2分','3分','4分','5分'], 'values': st.dist.values()|list}|tojson }}</script>
+      {% elif st.q_type in ('text', 'textarea') %}
+      <div class="sr-text-list">
+        {% for t in st.texts %}
+        <div class="border-bottom py-2">
+          <span class="badge bg-light text-dark border me-2">{{ t.name }}</span>
+          <span style="white-space:pre-wrap;">{{ t.value or '（空白）' }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% elif st.q_type == 'matrix_radio' %}
+      {% for r, counts in st.per_row.items() %}
+      <div class="sr-row-block">
+        <div class="fw-bold mb-1">{{ r }}</div>
+        <div class="row g-2 align-items-center">
+          <div class="col-md-8"><div class="sr-chart-sm"><canvas id="chart_{{ st.id }}_{{ loop.index }}"></canvas></div></div>
+          <div class="col-md-4">
+            <table class="table table-sm sr-table mb-0">
+              <thead><tr><th>选项</th><th>计数</th></tr></thead>
+              <tbody>{% for o, c in counts.items() %}<tr><td>{{ o }}</td><td>{{ c }}</td></tr>{% endfor %}</tbody>
+            </table>
+          </div>
+        </div>
+        <script type="application/json" id="data_{{ st.id }}_{{ loop.index }}" data-kind="hbar"
+                data-label="{{ r }}">{{ {'labels': counts.keys()|list, 'values': counts.values()|list}|tojson }}</script>
+      </div>
+      {% endfor %}
+      {% elif st.q_type == 'matrix_score' %}
+      {% for r, d in st.per_row.items() %}
+      <div class="sr-row-block">
+        <div class="fw-bold mb-1">{{ r }}
+          <span class="badge bg-light text-dark border ms-1">平均 {{ d.avg if d.avg is not none else '—' }} 分</span>
+        </div>
+        <div class="sr-chart-sm"><canvas id="chart_{{ st.id }}_{{ loop.index }}"></canvas></div>
+        <script type="application/json" id="data_{{ st.id }}_{{ loop.index }}" data-kind="bar"
+                data-label="{{ r }}">{{ {'labels': ['1分','2分','3分','4分','5分'], 'values': d.dist.values()|list}|tojson }}</script>
+      </div>
+      {% endfor %}
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var blocks = document.querySelectorAll('script[type="application/json"][id^="data_"]');
+  if (!blocks.length) return;
+  var blocksArr = Array.prototype.slice.call(blocks);
+  function initCharts() {
+    if (typeof Chart === 'undefined') return;
+    blocksArr.forEach(function (el) {
+      var canvas = document.getElementById('chart_' + el.id.replace('data_', ''));
+      if (!canvas || canvas.dataset.drawn) return;
+      var payload = JSON.parse(el.textContent);
+      var kind = el.dataset.kind;
+      var config = {
+        type: kind === 'hbar' ? 'bar' : 'bar',
+        data: {
+          labels: payload.labels,
+          datasets: [{
+            label: el.dataset.label || '人数',
+            data: payload.values,
+            backgroundColor: kind === 'hbar'
+              ? ['#0d6efd', '#198754', '#fd7e14', '#6f42c1', '#dc3545', '#0dcaf0'].slice(0, payload.labels.length)
+              : '#0d6efd',
+            borderRadius: 4
+          }]
+        },
+        options: {
+          indexAxis: kind === 'hbar' ? 'y' : 'x',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: kind === 'hbar' } },
+          scales: {
+            x: { beginAtZero: true, ticks: { precision: 0 } },
+            y: { beginAtZero: true, ticks: { precision: 0 } }
+          }
+        }
+      };
+      new Chart(canvas.getContext('2d'), config);
+      canvas.dataset.drawn = '1';
+    });
+  }
+  var s = document.createElement('script');
+  s.src = '{{ versioned_static('chart.js/chart.umd.min.js') }}';
+  s.onload = initCharts;
+  document.body.appendChild(s);
+})();
+</script>
+{% endblock %}

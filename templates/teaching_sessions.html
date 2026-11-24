@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% block title %}教学记录{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <h2 class="mb-4"><i class="fas fa-clipboard-list me-2"></i>教学记录</h2>
+  <div class="card shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr><th>资源</th><th>教师</th><th>上课时间</th><th>下课时间</th><th>时长</th><th>考勤快照</th><th style="width:86px;">操作</th></tr>
+        </thead>
+        <tbody>
+          {% for r in records %}
+          {% set snap = r.attendance_snapshot|fromjson if r.attendance_snapshot else {} %}
+          {% set start = snap.get('start', {}) %}
+          {% set end = snap.get('end', {}) %}
+          <tr>
+            <td>{{ r.resource.title if r.resource else '资源已删除' }}</td>
+            <td>{{ r.teacher_name }}</td>
+            <td>{{ r.start_time.strftime('%Y-%m-%d %H:%M') if r.start_time else '' }}</td>
+            <td>{{ r.end_time.strftime('%Y-%m-%d %H:%M') if r.end_time else '进行中' }}</td>
+            <td>{{ r.duration_minutes if r.duration_minutes is not none else '-' }} 分钟</td>
+            <td class="small">
+              {% if start %}
+              <div>开始：{{ start.get('class_name') or '未设班级' }}，在线 {{ start.get('online_count', 0) }}/{{ start.get('total', 0) }}</div>
+              {% endif %}
+              {% if end %}
+              <div>结束：在线 {{ end.get('online_count', 0) }}/{{ end.get('total', 0) }}</div>
+              {% endif %}
+            </td>
+            <td class="text-nowrap">
+              {% if session.get('is_admin') or (r.teacher_id and r.teacher_id == session.get('teacher_id')) %}
+              <form method="post" action="{{ url_for('teaching.delete_teaching_session', session_id=r.id) }}"
+                    class="d-inline" onsubmit="return confirm('确定删除这条教学记录吗？删除后不可恢复。');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="next" value="{{ request.full_path }}">
+                <button type="submit" class="btn btn-sm btn-outline-danger" title="删除教学记录">
+                  <i class="fas fa-trash-alt me-1"></i>删除
+                </button>
+              </form>
+              {% else %}
+              <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7" class="text-center text-muted py-4">暂无教学记录</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if pagination and pagination.pages > 1 %}
+    <div class="card-footer bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span class="text-muted small">共 {{ pagination.total }} 条记录，第 {{ pagination.page }} / {{ pagination.pages }} 页</span>
+        <nav aria-label="教学记录分页">
+            <ul class="pagination justify-content-center mb-0 flex-wrap">
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('teaching.teaching_sessions', page=pagination.prev_num) if pagination.has_prev else '#' }}">上一页</a>
+                </li>
+                {% for p in range(1, pagination.pages + 1) %}
+                    {% if p == 1 or p == pagination.pages or (p >= pagination.page - 2 and p <= pagination.page + 2) %}
+                    <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                        <a class="page-link" href="{{ url_for('teaching.teaching_sessions', page=p) }}">{{ p }}</a>
+                    </li>
+                    {% elif p == 2 or p == pagination.pages - 1 %}
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('teaching.teaching_sessions', page=pagination.next_num) if pagination.has_next else '#' }}">下一页</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

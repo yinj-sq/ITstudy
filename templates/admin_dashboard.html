@@ -1,0 +1,167 @@
+{% extends 'base.html' %}
+{% block title %}管理总览{% endblock %}
+{% block head %}
+<style>
+  .admin-hero { background:linear-gradient(135deg,#0f172a,#1e3a5f 60%,#2563eb);
+    color:#fff; border-radius:18px; padding:24px 26px; }
+  .admin-hero h1 { font-size:1.5rem; font-weight:700; margin:0; }
+  .admin-hero .meta { opacity:.82; font-size:.9rem; }
+  .stat-card { border:1px solid #e5eaf1; border-radius:14px; background:#fff;
+    padding:16px 18px; height:100%; }
+  .stat-card .num { font-size:1.7rem; font-weight:700; line-height:1.2; }
+  .check-row { display:flex; align-items:flex-start; gap:10px; padding:10px 0;
+    border-bottom:1px dashed #eef1f5; }
+  .check-row:last-child { border-bottom:0; }
+  .check-icon { width:28px; height:28px; border-radius:50%; flex:0 0 auto;
+    display:flex; align-items:center; justify-content:center; font-size:.8rem; }
+  .check-ok { background:#dcfce7; color:#15803d; }
+  .check-warn { background:#fef3c7; color:#b45309; }
+  .check-manual { background:#e0e7ff; color:#4338ca; }
+  .step { display:flex; gap:12px; padding:10px 0; }
+  .step-dot { width:30px; height:30px; border-radius:50%; flex:0 0 auto;
+    display:flex; align-items:center; justify-content:center; font-weight:700;
+    background:#e2e8f0; color:#475569; }
+  .step.done .step-dot { background:#0d6efd; color:#fff; }
+  .quick-action { display:flex; align-items:center; gap:10px; padding:12px 14px;
+    border:1px solid #e5eaf1; border-radius:12px; color:inherit;
+    text-decoration:none; height:100%; background:#fff; }
+  .quick-action:hover { border-color:#0d6efd; box-shadow:0 4px 12px rgba(13,110,253,.08); }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="admin-hero mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+      <div>
+        <div class="meta mb-1">部署与首次使用检查 · {{ now.strftime('%Y-%m-%d %H:%M') }}</div>
+        <h1><i class="fas fa-gauge-high me-2"></i>管理总览</h1>
+        <div class="meta mt-1">先完成检查清单，再按首次使用步骤开课；账号轨迹在“数据与审计”中查看。</div>
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        <a class="btn btn-light rounded-pill" href="/admin/resources/upload_page">
+          <i class="fas fa-upload me-1"></i>上传资源
+        </a>
+        <a class="btn btn-outline-light rounded-pill" href="/admin/classroom">
+          <i class="fas fa-desktop me-1"></i>课堂大屏
+        </a>
+        <a class="btn btn-outline-light rounded-pill" href="/admin/account-trail">
+          <i class="fas fa-route me-1"></i>账号轨迹
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-2 g-md-3 mb-3">
+    <div class="col-6 col-md-3">
+      <div class="stat-card">
+        <div class="text-muted small mb-1"><i class="fas fa-school me-1"></i>班级</div>
+        <div class="num text-primary">{{ classes }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="stat-card">
+        <div class="text-muted small mb-1"><i class="fas fa-user-graduate me-1"></i>学生</div>
+        <div class="num text-success">{{ students }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="stat-card">
+        <div class="text-muted small mb-1"><i class="fas fa-folder-open me-1"></i>教学资源</div>
+        <div class="num text-warning">{{ resources }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="stat-card">
+        <div class="text-muted small mb-1"><i class="fas fa-wifi me-1"></i>在线终端 / 今日登录</div>
+        <div class="num text-danger">{{ active_terminals }}<small class="fs-6 text-muted"> / {{ today_logins }}</small></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-7">
+      <div class="card shadow-sm mb-3">
+        <div class="card-header bg-transparent py-3">
+          <strong><i class="fas fa-clipboard-check text-primary me-2"></i>部署检查清单</strong>
+          <span class="text-muted small ms-2">绿色为就绪，黄色需处理，蓝色需人工确认</span>
+        </div>
+        <div class="card-body py-2">
+          {% for item in checks %}
+          <div class="check-row">
+            <div class="check-icon check-{{ 'ok' if item.status == 'ok' else 'warn' if item.status == 'warn' else 'manual' }}">
+              <i class="fas fa-{{ 'check' if item.status == 'ok' else 'exclamation' if item.status == 'warn' else 'info' }}"></i>
+            </div>
+            <div class="flex-grow-1">
+              <div class="fw-semibold">{{ item.label }}</div>
+              <div class="small text-muted">{{ item.detail }}</div>
+            </div>
+            {% if item.url %}
+            <a class="btn btn-sm btn-outline-primary rounded-pill" href="{{ item.url }}">{{ item.action or '查看' }}</a>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="card shadow-sm">
+        <div class="card-header bg-transparent py-3">
+          <strong><i class="fas fa-rocket text-primary me-2"></i>首次使用步骤</strong>
+        </div>
+        <div class="card-body py-2">
+          {% for step in steps %}
+          <div class="step {{ 'done' if step.done else '' }}">
+            <div class="step-dot"><i class="fas fa-{{ 'check' if step.done else 'circle' }}"></i></div>
+            <div class="flex-grow-1">
+              <div class="fw-semibold">{{ step.label }}
+                <span class="badge bg-{{ 'success' if step.done else 'secondary' }} ms-1">{{ '已完成' if step.done else '待完成' }}</span>
+              </div>
+              <div class="small text-muted">{{ step.detail }}</div>
+            </div>
+            {% if not step.done %}
+            <a class="btn btn-sm btn-primary rounded-pill" href="{{ step.url }}">开始</a>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-5">
+      <div class="card shadow-sm mb-3">
+        <div class="card-header bg-transparent py-3"><strong><i class="fas fa-bolt text-primary me-2"></i>常用入口</strong></div>
+        <div class="card-body">
+          <div class="row g-2">
+            {% for href, icon, label in [
+              ('/admin/classes', 'fa-door-open', '班级信息'),
+              ('/admin/students', 'fa-user-graduate', '学生信息'),
+              ('/admin/class_schedule', 'fa-calendar-alt', '课程表'),
+              ('/admin/resources', 'fa-folder-open', '资源管理'),
+              ('/admin/account-trail', 'fa-route', '账号轨迹'),
+              ('/admin/backup', 'fa-download', '数据备份'),
+              ('/admin/system', 'fa-toggle-on', '系统开关'),
+              ('/admin/ai_config', 'fa-robot', 'AI 配置')] %}
+            <div class="col-6">
+              <a class="quick-action" href="{{ href }}">
+                <i class="fas {{ icon }} text-primary"></i><span class="small">{{ label }}</span>
+              </a>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm">
+        <div class="card-header bg-transparent py-3"><strong><i class="fas fa-circle-info text-primary me-2"></i>部署提示</strong></div>
+        <div class="card-body small text-muted">
+          <ul class="mb-0 ps-3">
+            <li>经 Nginx 部署时设置 <code>TRUST_PROXY_HEADERS=1</code>，否则账号轨迹记录的是代理 IP。</li>
+            <li>升级后运行一次 <code>tools/precompress_static.py --refresh-only</code>，Nginx 才能下发新 .gz。</li>
+            <li>账号轨迹保留 90 天；浏览器直接关闭不会产生准确退出时间，以最后活跃展示。</li>
+            <li>课堂结束会清理学生会话；学生需等待老师重新上课才能登录。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
