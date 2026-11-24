@@ -167,11 +167,15 @@ def test_player_route_access_and_offline_template(app):
         link_sandbox = re.search(
             r'<iframe id="mainFrame"[^>]*sandbox="([^"]+)"', link_text).group(1)
         assert 'allow-same-origin' in link_sandbox
+        assert 'allow-top-navigation-by-user-activation' not in link_sandbox
+        assert 'allow-popups-to-escape-sandbox' not in link_sandbox
         ext = owner_client.get('/study/link?url=https://example.com/')
         ext_sandbox = re.search(
             r'<iframe id="mainFrame"[^>]*sandbox="([^"]+)"',
             ext.get_data(as_text=True)).group(1)
         assert 'allow-same-origin' not in ext_sandbox
+        assert 'allow-top-navigation-by-user-activation' in ext_sandbox
+        assert 'allow-popups-to-escape-sandbox' in ext_sandbox
         # 学生可打开
         assert student.get(
             f'/study/geogebra/{ids["res"]}?file=demo.ggb').status_code == 200

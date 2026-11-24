@@ -13,7 +13,8 @@ from app.utils import (get_client_ip, verify_admin_account, get_local_now,
                        student_login_register_success,
                        teacher_login_blocked_seconds, teacher_login_register_failure,
                        teacher_login_register_success,
-                       password_fingerprint, session_password_matches)
+                       password_fingerprint, session_password_matches,
+                       DEFAULT_GRADE_OPTIONS)
 from app.schemas import AdminLogin, validate_form
 from app.decorators import (admin_login_required, authenticated_required,
                             login_required, teacher_login_required)
@@ -22,13 +23,6 @@ auth_bp = Blueprint('auth', __name__, url_prefix='')
 
 # 教师只读访问码（全校共享，哈希落 SystemConfig；只读会话保存哈希指纹）
 TEACHER_READONLY_CODE_KEY = 'teacher_readonly_code_hash'
-
-# 教师账号年级下拉的常见选项；已有教师的自定义年级会追加在末尾
-_DEFAULT_GRADE_OPTIONS = (
-    '一年级', '二年级', '三年级', '四年级', '五年级', '六年级',
-    '七年级', '八年级', '九年级',
-    '初一', '初二', '初三', '高一', '高二', '高三',
-)
 
 
 def _clear_teacher_session(reason='session_invalid'):
@@ -860,8 +854,8 @@ def admin_teacher_account():
     subjects = Subject.query.order_by(Subject.sort_order, Subject.name).all()
     classes = Class.query.order_by(Class.name).all()
     existing_grades = {(t.grade or '').strip() for t in teachers if (t.grade or '').strip()}
-    grade_options = list(_DEFAULT_GRADE_OPTIONS) + sorted(
-        existing_grades - set(_DEFAULT_GRADE_OPTIONS))
+    grade_options = list(DEFAULT_GRADE_OPTIONS) + sorted(
+        existing_grades - set(DEFAULT_GRADE_OPTIONS))
     return render_template('admin_teacher_account.html', teachers=teachers,
                            subjects=subjects, classes=classes, grades=grade_options,
                            grade_options=grade_options,

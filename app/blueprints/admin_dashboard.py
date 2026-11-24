@@ -8,7 +8,8 @@ from flask import Blueprint, current_app, render_template
 
 from app.decorators import admin_login_required
 from app.models import (AIConfig, AccountSession, Class, ClassSchedule,
-                        ClassroomSession, Resource, Student, TeachingSession)
+                        ClassroomSession, Resource, Student, Teacher,
+                        TeachingSession)
 from app.utils import is_default_admin_account
 
 admin_dashboard_bp = Blueprint('admin_dashboard', __name__, url_prefix='')
@@ -29,6 +30,7 @@ def admin_dashboard():
     now = datetime.now()
 
     classes = Class.query.count()
+    teachers = Teacher.query.count()
     students = Student.query.count()
     resources = Resource.query.count()
     class_schedules = ClassSchedule.query.count()
@@ -63,20 +65,30 @@ def admin_dashboard():
     checks = [
         item('class', '账号与班级',
              'ok' if classes else 'warn',
-             f'已建 {classes} 个班级' if classes else '还没有班级，先建班再导入学生',
+             (f'已建 {classes} 个班级；学生可在「学生信息」用 Excel 批量导入'
+              if classes else
+              '还没有班级：先建班，再在「学生信息」下载模板批量导入学生'),
              '/admin/classes', '去建班'),
+        item('teachers', '教师账号',
+             'ok' if teachers else 'warn',
+             (f'已有 {teachers} 个教师账号' if teachers else
+              '还没有教师账号；创建时需分配学科、年级和任课班级'),
+             '/admin/teacher_account', '去创建'),
         item('students', '学生账号',
              'ok' if students else 'warn',
-             f'已导入 {students} 名学生' if students else '还没有学生账号',
+             (f'已导入 {students} 名学生' if students else
+              '还没有学生账号；可在「学生信息」用 Excel/文本批量导入'
+              '（模板：学号/姓名/班级/年级）'),
              '/admin/students', '去导入'),
         item('resources', '教学资源',
              'ok' if resources else 'warn',
              f'已有 {resources} 个资源' if resources else '还没有上传教学资源',
              '/admin/resources/upload_page', '上传资源'),
         item('schedule', '课程表',
-             'ok' if class_schedules else 'warn',
-             f'已配置 {class_schedules} 条课程安排' if class_schedules
-             else '课程表为空，学生登录依赖课堂状态',
+             'ok' if class_schedules else 'manual',
+             (f'已配置 {class_schedules} 条课程安排' if class_schedules else
+              '可选：管理员可统一配置，教师也可在「作息/课表」添加本人班级；'
+              '未配置时仍可手动开启课堂'),
              '/admin/class_schedule', '去配置'),
         item('static', '仿真/离线产物',
              'ok' if not missing_static else 'warn',
@@ -117,12 +129,18 @@ def admin_dashboard():
     steps = [
         {'label': '建班级', 'done': classes > 0,
          'url': '/admin/classes', 'detail': f'{classes} 个班级'},
+        {'label': '建教师账号', 'done': teachers > 0,
+         'url': '/admin/teacher_account',
+         'detail': '分配学科、年级和任课班级'},
         {'label': '导入学生', 'done': students > 0,
-         'url': '/admin/students', 'detail': f'{students} 名学生'},
+         'url': '/admin/students',
+         'detail': f'{students} 名学生；支持 Excel/文本批量导入'},
         {'label': '上传资源', 'done': resources > 0,
          'url': '/admin/resources/upload_page', 'detail': f'{resources} 个资源'},
-        {'label': '配置课程表', 'done': class_schedules > 0,
-         'url': '/admin/class_schedule', 'detail': f'{class_schedules} 条安排'},
+        {'label': '配置课程表（可选）', 'done': class_schedules > 0,
+         'optional': True, 'url': '/admin/class_schedule',
+         'detail': '管理员统一配置，或教师在「作息/课表」添加本人班级；'
+                   '未配置也可手动开课堂'},
         {'label': '开始课堂', 'done': active_sessions > 0 or teaching_active > 0,
          'url': '/admin/classroom',
          'detail': f'{active_sessions} 个班级大屏开启'},

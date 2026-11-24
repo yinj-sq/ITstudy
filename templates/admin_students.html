@@ -311,13 +311,13 @@
                         <div class="tab-pane fade show active" id="textTab">
                             <label class="form-label">学生名单</label>
                             <textarea class="form-control" name="text_data" rows="10"
-                                      placeholder="每行一名学生，格式：学号 姓名 班级 年级&#10;例如：&#10;2024001 张三 计算机1班 2024级&#10;2024002 李四 计算机1班 2024级&#10;2024003 王五 计算机2班 2024级"></textarea>
-                            <small class="text-muted">每行格式：学号 姓名 班级 年级（空格/逗号分隔）。每批导入会生成新的8位临时密码，并在导入结果中显示。</small>
+                                      placeholder="每行一名学生，格式：学号 姓名 班级 年级&#10;例如：&#10;2024001 张三 计算机1班 高一&#10;2024002 李四 计算机1班 高一&#10;2024003 王五 计算机2班 高一"></textarea>
+                            <small class="text-muted">每行格式：学号 姓名 班级 年级（空格/逗号分隔）。年级建议与教师账号的年级一致（如高一、高二、高三、初一）；每批导入会生成新的8位临时密码，并在导入结果中显示。</small>
                         </div>
                         <div class="tab-pane fade" id="excelTab">
                             <label class="form-label">选择Excel文件</label>
                             <input type="file" class="form-control" name="excel_file" accept=".xlsx,.xls">
-                            <small class="text-muted">列序：A=学号 B=姓名 C=班级 D=年级。先下载模板填写后上传。</small>
+                            <small class="text-muted">列序：A=学号 B=姓名 C=班级 D=年级。模板已带年级下拉，建议与教师账号的年级一致；先下载模板填写后上传。</small>
                         </div>
                     </div>
                 </div>

@@ -113,12 +113,16 @@
             <div class="step-dot"><i class="fas fa-{{ 'check' if step.done else 'circle' }}"></i></div>
             <div class="flex-grow-1">
               <div class="fw-semibold">{{ step.label }}
+                {% if step.optional and not step.done %}
+                <span class="badge bg-info text-dark ms-1">可选</span>
+                {% else %}
                 <span class="badge bg-{{ 'success' if step.done else 'secondary' }} ms-1">{{ '已完成' if step.done else '待完成' }}</span>
+                {% endif %}
               </div>
               <div class="small text-muted">{{ step.detail }}</div>
             </div>
             {% if not step.done %}
-            <a class="btn btn-sm btn-primary rounded-pill" href="{{ step.url }}">开始</a>
+            <a class="btn btn-sm btn-primary rounded-pill" href="{{ step.url }}">{{ '去配置' if step.optional else '开始' }}</a>
             {% endif %}
           </div>
           {% endfor %}

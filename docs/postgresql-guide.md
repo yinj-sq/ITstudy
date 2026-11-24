@@ -7,7 +7,7 @@
 > [README 的安装教程](../README.md#三安装教程) 安装 ITstudy。数据库本身不用手动创建，
 > ITstudy 安装程序会自动建好。
 
-适用版本：ITstudy `V6.1.0` ｜ 推荐 PostgreSQL `12` 或更高版本
+适用版本：ITstudy `V6.1.1` ｜ 推荐 PostgreSQL `12` 或更高版本
 
 ---
 

@@ -21,6 +21,11 @@
       <a href="{{ url_for('resources.teacher_resource_upload_page') }}" class="btn btn-primary rounded-pill">
         <i class="fas fa-cloud-upload-alt me-1"></i>上传资源
       </a>
+      {% if not is_admin %}
+      <button type="button" class="btn btn-outline-info rounded-pill" data-bs-toggle="modal" data-bs-target="#teacherLinkModal">
+        <i class="fas fa-link me-1"></i>添加外链
+      </button>
+      {% endif %}
       {% endif %}
     </div>
   </div>
@@ -112,6 +117,46 @@
     </div>
   </div>
 </div>
+
+{% if mode != 'readonly' and not is_admin %}
+<div class="modal fade" id="teacherLinkModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('resources.teacher_resource_add_link') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="modal-header bg-info text-white">
+          <h5 class="modal-title"><i class="fas fa-link me-1"></i>添加外链资源</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="关闭"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">资源标题</label>
+            <input type="text" class="form-control" name="title" required maxlength="200">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">资源网址</label>
+            <input type="url" class="form-control" name="url" placeholder="https://..." required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">所属学科</label>
+            <select class="form-select" name="subject_id" required>
+              <option value="">请选择学科</option>
+              {% for s in subjects %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+            </select>
+            {% if not subjects %}<div class="form-text text-danger">当前账号尚未分配任教学科，请联系管理员。</div>{% endif %}
+          </div>
+          <div class="form-text">添加后默认学生可见、课堂可用；可在资源编辑页调整。</div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-info">添加外链</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <script>
 function revertInjection(btn) {
   var url = btn && btn.dataset ? btn.dataset.revertUrl : '';

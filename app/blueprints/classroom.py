@@ -2,7 +2,7 @@
 课堂管理蓝图
 功能：作息时间表管理、上课班级设置、大屏展示
 """
-from flask import Blueprint, request, render_template, redirect, url_for, flash, jsonify, send_file, session
+from flask import Blueprint, request, render_template, redirect, url_for, flash, jsonify, send_file, session, abort
 from flask import current_app
 from datetime import datetime, timedelta
 import re
@@ -11,7 +11,8 @@ from sqlalchemy.orm import joinedload
 from app.extensions import db
 from app.models import (Class, Student, Schedule, ClassroomSetting,
                         ClassroomSession, ClassSchedule, Appeal)
-from app.decorators import admin_login_required, teacher_login_required
+from app.decorators import (admin_login_required, teacher_login_required,
+                            teacher_edit_required)
 from app.blueprints.auth import invalidate_active_class_cache
 from app.services.resource_access import teacher_class_ids, teacher_classes
 from app.utils import get_classes_cached, get_schedules_cached, invalidate_lookup_cache, parse_int
@@ -185,6 +186,53 @@ def teacher_schedule():
         'teacher_schedule.html', schedules=schedules, classes=classes,
         entry_map=entry_map, weekday_names=_WEEKDAY_NAMES,
         today_weekday=now.weekday() + 1, current_period=current_period)
+
+
+@classroom_bp.route('/teacher/schedule/add', methods=['POST'])
+@teacher_edit_required
+def teacher_add_schedule_entry():
+    """教师编辑模式为自己的任课班级追加课程表映射。"""
+    teacher_id = session.get('teacher_id')
+    own_class_names = {c.name for c in teacher_classes(teacher_id)}
+    weekday = _parse_weekday(request.form.get('weekday', ''))
+    period_number = parse_int(request.form.get('period_number', '').strip())
+    class_name = request.form.get('class_name', '').strip()
+    schedules = get_schedules_cached()
+    if weekday is None or not period_number or period_number < 1 or not class_name:
+        flash('请选择星期、节次和班级', 'danger')
+    elif not own_class_names or class_name not in own_class_names:
+        flash('只能添加本人任课班级的课程', 'danger')
+    elif period_number > len(schedules):
+        flash('节次超出当前作息时间表范围，请联系管理员设置作息', 'danger')
+    elif ClassSchedule.query.filter_by(
+            weekday=weekday, period_number=period_number,
+            class_name=class_name).first():
+        flash('该节次已包含这个班级', 'warning')
+    else:
+        db.session.add(ClassSchedule(
+            weekday=weekday, period_number=period_number,
+            class_name=class_name))
+        db.session.commit()
+        invalidate_active_class_cache()
+        flash('课程安排已添加', 'success')
+    return redirect(url_for('classroom.teacher_schedule'))
+
+
+@classroom_bp.route('/teacher/schedule/<int:entry_id>/delete', methods=['POST'])
+@teacher_edit_required
+def teacher_delete_schedule_entry(entry_id):
+    """教师编辑模式删除本人任课班级的课程表条目。"""
+    entry = db.session.get(ClassSchedule, entry_id)
+    if not entry:
+        abort(404)
+    own_class_names = {c.name for c in teacher_classes(session.get('teacher_id'))}
+    if entry.class_name not in own_class_names:
+        abort(403)
+    db.session.delete(entry)
+    db.session.commit()
+    invalidate_active_class_cache()
+    flash('课程安排已删除', 'success')
+    return redirect(url_for('classroom.teacher_schedule'))
 
 
 @classroom_bp.route('/admin/schedule/add', methods=['POST'])

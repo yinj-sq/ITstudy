@@ -1,11 +1,11 @@
 ; ============================================================
-; ITstudy v6.1.0 安装脚本 (NSIS)
+; ITstudy v6.1.1 安装脚本 (NSIS)
 ; 版权所有 (C) 2025-2026 YINJUN
 ; 仅供个人使用，不得商用
 ; ============================================================
 
 !define PRODUCT_NAME "ITstudy"
-!define PRODUCT_VERSION "6.1.0"
+!define PRODUCT_VERSION "6.1.1"
 !define PRODUCT_PUBLISHER "YINJUN"
 !define PRODUCT_DIR_REGKEY "Software\Microsoft\Windows\CurrentVersion\App Paths\ITstudy"
 !define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
@@ -35,11 +35,11 @@ ShowUnInstDetails show
 RequestExecutionLevel admin
 
 ; ── 文件版本资源（Setup.exe 属性可见）──
-VIProductVersion "6.1.0.0"
+VIProductVersion "6.1.1.0"
 VIAddVersionKey /LANG=2052 "ProductName" "ITstudy"
 VIAddVersionKey /LANG=2052 "FileDescription" "ITstudy 学科教学及测试平台安装程序"
-VIAddVersionKey /LANG=2052 "FileVersion" "6.1.0"
-VIAddVersionKey /LANG=2052 "ProductVersion" "6.1.0"
+VIAddVersionKey /LANG=2052 "FileVersion" "6.1.1"
+VIAddVersionKey /LANG=2052 "ProductVersion" "6.1.1"
 VIAddVersionKey /LANG=2052 "CompanyName" "YINJUN"
 VIAddVersionKey /LANG=2052 "LegalCopyright" "Copyright (C) 2025-2026 YINJUN"
 
@@ -118,7 +118,7 @@ Function .onInit
     StrCpy $PG_PASS "@@"
 
     ; 命令行覆盖：/PGHOST= /PGPORT= /PGNAME= /PGUSER= /PGPASS=
-    ; 例：ITstudy-v6.1.0-Setup.exe /S /PGNAME=itstudy_x /PGPASS=secret
+    ; 例：ITstudy-v6.1.1-Setup.exe /S /PGNAME=itstudy_x /PGPASS=secret
     ; （值不能含空格；密码含空格/等号时请在页面上手工填写）
     ${GetOptions} $CMDLINE "/PGHOST=" $R0
     ${IfNot} ${Errors}

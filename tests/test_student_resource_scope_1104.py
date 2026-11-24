@@ -686,10 +686,25 @@ def test_admin_dashboard_shows_deployment_checks_and_steps(app):
     assert page.status_code == 200
     text = page.get_data(as_text=True)
     for marker in ('管理总览', '部署检查清单', '首次使用步骤', '账号轨迹',
-                   '数据与审计'):
+                   '数据与审计', '教师账号', '配置课程表（可选）',
+                   '支持 Excel/文本批量导入', '可选'):
         assert marker in text
     assert '管理总览' in (ROOT / 'templates' / 'base.html').read_text(
         encoding='utf-8')
+
+
+def test_student_import_template_has_grade_dropdown(app):
+    admin = _client(app, is_admin=True, admin_name='导入模板管理员')
+    response = admin.get('/admin/students/template')
+    assert response.status_code == 200
+    from io import BytesIO
+    from openpyxl import load_workbook
+    wb = load_workbook(BytesIO(response.data))
+    assert '学生导入模板' in wb.sheetnames
+    assert '年级选项' in wb.sheetnames
+    ws = wb['学生导入模板']
+    validations = list(ws.data_validations.dataValidation)
+    assert any('年级选项' in (dv.formula1 or '') for dv in validations)
 
 
 def test_account_trail_single_and_batch_delete(app):

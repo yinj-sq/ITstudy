@@ -13,14 +13,15 @@ from app.extensions import db, cache
 from app.models import (Class, Student, StudyGroup, Log, GroupFile, GroupJoinRequest,
                          Result, Appeal, HomeworkSubmission, PythonAnswer,
                          ResourceQuizResult, AIChatMessage, StudentAIConfig,
-                         SurveyAnswer,
+                         SurveyAnswer, Teacher,
                          StudentWork, WorkEvaluation, StudentDriveFile, ExamAttempt,
                          AttendanceRecord, StudentDriveQuota, ClassroomSetting,
                          TeachingSession)
 from app.decorators import admin_login_required, login_required
 from app.utils import (get_classes_cached, invalidate_lookup_cache, parse_int,
                        generate_numeric_password, paginate_query, excel_safe,
-                       get_client_ip, student_login_clear_throttle)
+                       get_client_ip, student_login_clear_throttle,
+                       DEFAULT_GRADE_OPTIONS)
 from werkzeug.security import generate_password_hash
 from app.schemas import (
     ClassCreate, ClassUpdate, StudentCreate, StudentUpdate,
@@ -28,6 +29,7 @@ from app.schemas import (
 )
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
+from openpyxl.worksheet.datavalidation import DataValidation
 import re
 
 class_mgmt_bp = Blueprint('class_management', __name__, url_prefix='')
@@ -524,6 +526,16 @@ def batch_delete_students():
     return redirect(url_for('class_management.admin_students'))
 
 
+def _unknown_import_grades(pending):
+    """返回导入名单中不在常用/教师/学生已有年级里的值（仅提示，不阻断）。"""
+    known = set(DEFAULT_GRADE_OPTIONS)
+    known |= {(g or '').strip() for (g,) in db.session.query(Teacher.grade).all()
+              if (g or '').strip()}
+    known |= {(g or '').strip() for (g,) in db.session.query(Student.grade).all()
+              if (g or '').strip()}
+    return sorted({p[3] for p in pending if p[3] and p[3] not in known})
+
+
 @class_mgmt_bp.route('/admin/students/import', methods=['POST'])
 @admin_login_required
 def import_students():
@@ -577,6 +589,10 @@ def import_students():
         msg = f'成功导入 {imported} 名学生（本批临时密码: {batch_password}，请通知学生登录后立即修改）'
         if dup_total:
             msg += f'，其中 {dup_total} 名为同名同班（已按确认导入）'
+        unknown_grades = _unknown_import_grades(pending)
+        if unknown_grades:
+            msg += ('；注意：年级 ' + '、'.join(unknown_grades) +
+                    ' 不在常用年级/教师账号中，按年级授权可能不匹配')
         token = _store_secret_notice(msg)
         redirect_url = url_for('class_management.admin_students', secret_notice=token)
         if wants_json:
@@ -778,6 +794,10 @@ def import_students():
     msg = f'成功导入 {imported} 名学生（本批临时密码: {batch_password}，请通知学生登录后立即修改）'
     if skipped:
         msg += f'，跳过 {skipped} 名重复'
+    unknown_grades = _unknown_import_grades(pending)
+    if unknown_grades:
+        msg += ('；注意：年级 ' + '、'.join(unknown_grades) +
+                ' 不在常用年级/教师账号中，按年级授权可能不匹配')
     if errors:
         msg += f'，{len(errors)} 个错误'
         for err in errors[:5]:
@@ -1056,7 +1076,7 @@ def set_group_members(group_id):
 @class_mgmt_bp.route('/admin/students/template')
 @admin_login_required
 def download_import_template():
-    """下载学生导入Excel模板 — 学号/姓名/班级/年级"""
+    """下载学生导入Excel模板 — 学号/姓名/班级/年级（年级与教师账号对齐）。"""
     wb = Workbook()
     ws = wb.active
     ws.title = "学生导入模板"
@@ -1071,14 +1091,60 @@ def download_import_template():
     ws.cell(row=2, column=1, value='2024001')
     ws.cell(row=2, column=2, value='张三')
     ws.cell(row=2, column=3, value='2024级计算机1班')
-    ws.cell(row=2, column=4, value='2024级')
+    ws.cell(row=2, column=4, value='高一')
     ws.cell(row=3, column=1, value='2024002')
     ws.cell(row=3, column=2, value='李四')
     ws.cell(row=3, column=3, value='2024级计算机1班')
+    ws.cell(row=3, column=4, value='高一')
     ws.column_dimensions['A'].width = 14
     ws.column_dimensions['B'].width = 12
     ws.column_dimensions['C'].width = 20
     ws.column_dimensions['D'].width = 14
+
+    # 年级下拉：内置词表 + 教师账号/学生已有年级。导入的年级应与教师账号
+    # 的年级一致，否则按年级授权的资源可能匹配不到。
+    existing_teacher_grades = {
+        (g or '').strip() for (g,) in db.session.query(Teacher.grade).all()
+        if (g or '').strip()}
+    existing_student_grades = {
+        (g or '').strip() for (g,) in db.session.query(Student.grade).all()
+        if (g or '').strip()}
+    grade_options = list(DEFAULT_GRADE_OPTIONS) + sorted(
+        (existing_teacher_grades | existing_student_grades)
+        - set(DEFAULT_GRADE_OPTIONS))
+    opts = wb.create_sheet('年级选项')
+    for idx, grade in enumerate(grade_options, 1):
+        opts.cell(row=idx, column=1, value=grade)
+    opts.sheet_state = 'hidden'
+    dv = DataValidation(
+        type='list',
+        formula1=f"'年级选项'!$A$1:$A${len(grade_options)}",
+        allow_blank=True)
+    dv.promptTitle = '年级'
+    dv.prompt = '建议与教师账号的年级一致（如高一/高二/高三）'
+    dv.errorTitle = '年级不在列表中'
+    dv.error = '请从下拉选项选择；如学校使用自定义年级，可忽略此提示。'
+    dv.errorStyle = 'warning'
+    dv.showErrorMessage = True
+    ws.add_data_validation(dv)
+    dv.add('D2:D5000')
+
+    guide = wb.create_sheet('填写说明')
+    guide_rows = [
+        ('列', '说明'),
+        ('学号', '建议填写且唯一；同一学号重复会跳过。'),
+        ('姓名', '必填。'),
+        ('班级', '必填；班级名称不存在时会自动创建，建议与「班级管理」保持一致。'),
+        ('年级', '从下拉选择，建议与教师账号的年级一致（如高一、高二、高三、初一）。'
+                 '教师账号只有一个年级；按年级授权的资源以教师年级为准。'),
+        ('登录密码', '导入后系统生成统一临时密码，首次登录必须修改。'),
+    ]
+    for r, (col, desc) in enumerate(guide_rows, 1):
+        guide.cell(row=r, column=1, value=col).font = Font(bold=(r == 1))
+        guide.cell(row=r, column=2, value=desc)
+    guide.column_dimensions['A'].width = 12
+    guide.column_dimensions['B'].width = 70
+
     file_stream = BytesIO()
     wb.save(file_stream)
     file_stream.seek(0)

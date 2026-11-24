@@ -82,10 +82,11 @@
        allow-downloads/allow-modals：活动单等学习资源在 iframe 内导出/下载/打印。 -->
   <!-- 移除 allow-top-navigation / allow-popups-to-escape-sandbox：课件（含
        第三方外链资源）不可将顶层窗口导航至伪登录页或弹出脱离沙箱的窗口
-       （面向学生的钓鱼面）；如确需全屏等能力改用
-       allow-top-navigation-by-user-activation -->
+       （面向学生的钓鱼面）。仅真正的外部 http(s) 站点按需恢复：
+       顶层跳转只允许用户点击触发，弹窗成为正常的外部独立标签页（仍拿不到
+       平台 Cookie）；上传课件与平台自有页面保持隔离。 -->
   <iframe id="mainFrame" src="{{ 'about:blank' if ggb_bridge_root else url }}"
-          sandbox="allow-scripts allow-forms allow-popups allow-downloads allow-modals{% if trusted_same_origin %} allow-same-origin{% endif %}"
+          sandbox="allow-scripts allow-forms allow-popups allow-downloads allow-modals{% if external_site %} allow-top-navigation-by-user-activation allow-popups-to-escape-sandbox{% endif %}{% if trusted_same_origin %} allow-same-origin{% endif %}"
           loading="lazy" referrerpolicy="no-referrer"
           onerror="window.__frameError && window.__frameError()"
           onload="window.__frameOnLoad()"></iframe>

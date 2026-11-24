@@ -16,6 +16,14 @@ from datetime import datetime, timezone
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 
+# 教师账号、学生导入模板、年级授权共用的年级词表。学生导入的年级应与
+# 教师账号的年级保持一致，否则按年级授权的资源可能匹配不到。
+DEFAULT_GRADE_OPTIONS = (
+    '一年级', '二年级', '三年级', '四年级', '五年级', '六年级',
+    '七年级', '八年级', '九年级',
+    '初一', '初二', '初三', '高一', '高二', '高三',
+)
+
 
 def get_utc_now():
     """获取当前 UTC 时间（带时区信息）。"""

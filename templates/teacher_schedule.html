@@ -1,11 +1,12 @@
 {% extends 'base.html' %}
 {% block title %}作息时间表{% endblock %}
 {% block content %}
+{% set can_edit_schedule = session.get('teacher_mode') != 'readonly' %}
 <div class="container py-4">
   <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
     <div>
       <h2 class="mb-1"><i class="fas fa-clock me-2"></i>作息时间表</h2>
-      <div class="text-muted small">管理员维护；这里显示当前启用的作息时段和本人任课班级课程表。</div>
+      <div class="text-muted small">管理员维护作息时段；编辑模式可为自己任课班级添加/删除课程安排，只读模式仅查看。</div>
     </div>
     <div class="d-flex gap-2">
       <a href="/study?mode=classroom" class="btn btn-outline-primary rounded-pill">
@@ -54,6 +55,47 @@
     </div>
   </div>
 
+  {% if can_edit_schedule %}
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-success text-white">
+      <strong><i class="fas fa-plus me-1"></i>添加我的课程安排</strong>
+    </div>
+    <div class="card-body">
+      {% if schedules and classes %}
+      <form method="post" action="{{ url_for('classroom.teacher_add_schedule_entry') }}" class="row g-2 align-items-end">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="col-md-2">
+          <label class="form-label">星期</label>
+          <select name="weekday" class="form-select" required>
+            {% for wd in range(1, 8) %}<option value="{{ wd }}">{{ weekday_names.get(wd) }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">节次</label>
+          <select name="period_number" class="form-select" required>
+            {% for s in schedules %}
+            <option value="{{ loop.index }}">第{{ loop.index }}节 · {{ s.period_name }}（{{ s.start_time }}-{{ s.end_time }}）</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">班级</label>
+          <select name="class_name" class="form-select" required>
+            {% for c in classes %}<option value="{{ c.name }}">{{ c.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <button class="btn btn-success w-100"><i class="fas fa-plus me-1"></i>添加</button>
+        </div>
+      </form>
+      <small class="text-muted">只能添加本人任课班级；同一星期、同一节次可添加多个班级。</small>
+      {% else %}
+      <div class="text-muted small">暂无作息时段或任课班级，请联系管理员设置作息/分配班级。</div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
   <div class="card shadow-sm">
     <div class="card-header bg-dark text-white">
       <strong><i class="fas fa-calendar-alt me-1"></i>我的班级课程表</strong>
@@ -81,7 +123,16 @@
             {% for wd in range(1, 8) %}
             <td class="text-center{% if wd == today_weekday %} table-primary{% endif %}">
               {% for entry in entry_map.get((wd, period_num), []) %}
-              <span class="badge bg-success me-1 mb-1">{{ entry.class_name }}</span>
+              <div class="badge bg-success me-1 mb-1 d-inline-flex align-items-center gap-1">
+                {{ entry.class_name }}
+                {% if can_edit_schedule %}
+                <form method="post" action="{{ url_for('classroom.teacher_delete_schedule_entry', entry_id=entry.id) }}"
+                      class="d-inline m-0" onsubmit="return confirm('删除该课程安排？');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <button class="btn btn-sm btn-link text-white p-0" style="line-height:1" title="删除该课程安排">×</button>
+                </form>
+                {% endif %}
+              </div>
               {% else %}
               <span class="text-muted small">—</span>
               {% endfor %}

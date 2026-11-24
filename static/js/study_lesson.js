@@ -186,6 +186,16 @@
     return typeof src === 'string' && src.indexOf('/static/uploads/') === 0;
   }
 
+  function isExternalLinkSource(src) {
+    try {
+      var url = new URL(src, window.location.href);
+      return (url.protocol === 'http:' || url.protocol === 'https:') &&
+        url.origin !== window.location.origin;
+    } catch (e) {
+      return false;
+    }
+  }
+
   /* 课堂链接帧沙箱：上传 HTML/外链一律 opaque；仅平台自有页面恢复同源。
      平台页面（化学/硬件仿真、GeoGebra 播放器、预览页等）需要 localStorage、
      同源 postMessage 或同源脚本注入；上传课件与外部页面则保持隔离。 */
@@ -215,7 +225,14 @@
   function setLinkFrameSandbox(frame, src) {
     if (!frame) return;
     var sandbox = LINK_SANDBOX;
-    if (isTrustedLinkSource(src)) sandbox += ' allow-same-origin';
+    if (isTrustedLinkSource(src)) {
+      sandbox += ' allow-same-origin';
+    } else if (isExternalLinkSource(src)) {
+      // 外部站点的登录/SSO 常用顶层跳转或新窗口；仅外部源恢复这两项，
+      // 上传课件与平台页面仍保持严格沙箱（顶层跳转需用户点击触发）。
+      sandbox += ' allow-top-navigation-by-user-activation' +
+        ' allow-popups-to-escape-sandbox';
+    }
     if (frame.getAttribute('sandbox') !== sandbox) frame.setAttribute('sandbox', sandbox);
   }
 

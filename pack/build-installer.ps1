@@ -21,7 +21,7 @@ Write-Host "Repo root: $RepoRoot"
 Write-Host "NSIS: $makensis"
 
 # ── 版本单源化：从 installer.nsi 的 PRODUCT_VERSION 提取（此前两处硬编码
-#    v6.1.0，升版只改 nsi 会与本脚本回显/输出检测漂移）──
+#    v6.1.1，升版只改 nsi 会与本脚本回显/输出检测漂移）──
 $nsiPath = Join-Path $ScriptDir "installer.nsi"
 $versionMatch = Select-String -Path $nsiPath -Pattern '!define PRODUCT_VERSION "(.+?)"' |
     Select-Object -First 1

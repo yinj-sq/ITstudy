@@ -750,6 +750,40 @@ def teacher_resource_upload_page():
                            subjects=_available_subjects(), teacher_upload=True)
 
 
+@resources_bp.route('/teacher/resource-library/add-link', methods=['POST'])
+@teacher_edit_required
+def teacher_resource_add_link():
+    """教师编辑模式添加外部链接资源（仅限本人任教学科）。"""
+    title = (request.form.get('title') or '').strip()
+    url = (request.form.get('url') or '').strip()
+    subject_id = parse_int(request.form.get('subject_id'))
+    teacher_id = _session_teacher_id()
+    if not title or not url:
+        flash('资源标题和网址不能为空', 'danger')
+        return redirect(url_for('resources.teacher_resource_library'))
+    if not url.startswith(('http://', 'https://')):
+        flash('外链资源仅支持 http(s) 网址', 'danger')
+        return redirect(url_for('resources.teacher_resource_library'))
+    if not teacher_id or not subject_id or not teacher_subject_allowed(
+            teacher_id, subject_id):
+        flash('请选择你所属的学科后再添加外链资源', 'danger')
+        return redirect(url_for('resources.teacher_resource_library'))
+    resource = Resource(
+        title=title, url=url, subject_id=subject_id,
+        creator_type='teacher', creator_teacher_id=teacher_id,
+        creator_name=session.get('teacher_name') or '教师',
+        show_in_student=True, show_in_classroom=True, quiz_mode='none')
+    db.session.add(resource)
+    db.session.add(Log(
+        user_id=teacher_id, user_type='teacher', action='添加外链资源',
+        detail=f'资源标题: {title}', time=datetime.now()))
+    db.session.commit()
+    cache.delete('study:resources:student')
+    cache.delete('study:resources:classroom')
+    flash('外链资源已添加', 'success')
+    return redirect(url_for('resources.teacher_resource_library'))
+
+
 @resources_bp.route('/teacher/resource-library/<int:res_id>/share', methods=['POST'])
 @teacher_edit_required
 def teacher_resource_share(res_id):
@@ -1008,8 +1042,11 @@ def edit_resource(res_id):
     if not has_custom_tree:
         # 首次编排以系统默认树为起点：否则用户只添加一个新章节就保存，
         # 课堂页会认为"已有自定义编排"，原有主页/文件/活动全部消失。
-        lesson_tree = _default_lesson_tree(files, lesson_activities, dir_name,
-                                           surveys=lesson_surveys)
+        lesson_tree = _default_lesson_tree(
+            files, lesson_activities, dir_name, surveys=lesson_surveys,
+            external_url=(res.url if res.url and res.url.startswith(
+                ('http://', 'https://')) else ''),
+            external_title=res.title)
     subjects = _available_subjects()
     teacher_id = _session_teacher_id()
     can_share = teacher_can_edit(res, teacher_id, bool(session.get('is_admin')))
@@ -2074,11 +2111,20 @@ def _lesson_item_abs_path(res, item):
     return abs_path
 
 
-def _default_lesson_tree(files, activities, dir_name='', surveys=None):
+def _default_lesson_tree(files, activities, dir_name='', surveys=None,
+                         external_url='', external_title=''):
     """未编排（lesson_tree 为空）时按文件清单生成默认章节。
-    文档分类用文件名启发式（教学设计→仅教师可见），可在编排面板调整。"""
+    文档分类用文件名启发式（教学设计→仅教师可见），可在编排面板调整。
+    外链资源没有本地文件，用 external_url 生成一个课堂条目。"""
     node = {'id': _lesson_node_id(), 'title': '课程内容', 'type': 'section',
             'children': [], 'items': []}
+    if external_url:
+        node['items'].append({
+            'id': _lesson_node_id(),
+            'title': external_title or '外部资源',
+            'kind': 'link', 'src': external_url,
+            'visible': {'teacher': True, 'student': True},
+        })
     for f in files:
         rel, ext = f.get('name', ''), f.get('ext', '')
         if not f.get('can_show', True):
@@ -2224,9 +2270,13 @@ def study_lesson(resource_id):
         # 手工改库存成 dict 等非法结构时回退默认树，防下游迭代 500
         tree = None
     if not tree:
-        tree = _default_lesson_tree(data['files'], data['activities'],
-                                    _resource_upload_dir(res) or '',
-                                    surveys=data.get('surveys') or [])
+        tree = _default_lesson_tree(
+            data['files'], data['activities'],
+            _resource_upload_dir(res) or '',
+            surveys=data.get('surveys') or [],
+            external_url=(res.url if res.url and res.url.startswith(
+                ('http://', 'https://')) else ''),
+            external_title=res.title)
     tree = _attach_activity_urls(_filter_lesson_tree(tree, is_teacher))
     # 舞台内嵌的化学仿真页使用极简壳（无站点导航/页脚/AI 助手）
     tree = _embed_internal_lab_links(tree)
@@ -3329,6 +3379,7 @@ def study_link():
     upload_dir = _resource_upload_dir(scoped_resource) if scoped_resource else ''
     own_origin = not parsed.scheme or (
         parsed.scheme == request.scheme and parsed.netloc == request.host)
+    external_site = bool(parsed.scheme in ('http', 'https') and not own_origin)
     if upload_dir and own_origin and parsed.path.lower().endswith(('.html', '.htm')):
         from urllib.parse import unquote
         prefix = '/static/uploads/' + upload_dir + '/'
@@ -3340,6 +3391,7 @@ def study_link():
                            resource_id=scoped_resource.id if scoped_resource else None,
                            quiz_mode=quiz_mode,
                            trusted_same_origin=trusted_same_origin,
+                           external_site=external_site,
                            ggb_bridge_root=bridge_root,
                            courseware_access=bridge_access)
 

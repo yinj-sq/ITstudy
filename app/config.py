@@ -8,7 +8,7 @@ from urllib.parse import quote_plus
 
 
 # ── 产品版本 ──
-APP_VERSION = '6.1.0'
+APP_VERSION = '6.1.1'
 APP_COPYRIGHT = 'Copyright (C) 2025-2026 YINJUN'
 APP_LICENSE = '仅供个人学习使用，商用请联系权利人 YINJUN'
 
