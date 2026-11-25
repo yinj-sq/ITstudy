@@ -586,6 +586,15 @@
     // 防御性归一：课件相对路径以课堂页 URL 为基准解析会 404
     if (!/^https?:/i.test(src) && src.charAt(0) !== '/') src = uploadsUrl(src);
     var originalSrc = src;
+    // 外链条目：目标站点可能以 X-Frame-Options / frame-ancestors 禁止嵌入，
+    // 舞台里提供显式的新标签页入口（不会自动跳转，保留课堂内嵌能力）。
+    var externalOpen = $('externalOpen');
+    if (externalOpen) {
+      var external = isExternalLinkSource(originalSrc) &&
+        item.purpose !== 'quickform_results';
+      externalOpen.href = external ? originalSrc : '#';
+      if (external) show(externalOpen); else hide(externalOpen);
+    }
     // 站内课件文件走带条目权限的课堂路由（编排里勾选学生可见后不受
     // 文件级展示开关拦截）；外链与 QuickForm 保持原地址
     if (item.purpose !== 'quickform_results' && isLocalUploadSrc(src)) {

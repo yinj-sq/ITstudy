@@ -73,8 +73,28 @@ def test_external_resource_study_page_exposes_classroom_entry():
     start = next(i for i in starts if 'p-3 bg-light' in src[i:i + 200])
     end = src.index('{% elif rd.is_file_resource %}', start)
     block = src[start:end]
+    assert '打开（新标签页）' in block
+    assert 'href="{{ res.url }}" target="_blank"' in block
+    assert '站内打开（含 AI 助手）' in block
     assert '进入课堂' in block
     assert '/study/lesson/{{ res.id }}' in block
+
+
+def test_nginx_sample_sends_proxy_secret_and_forwarded_headers():
+    conf = (ROOT / 'docs' / 'itstudy.conf').read_text(encoding='utf-8')
+    assert 'proxy_set_header X-Real-IP $remote_addr;' in conf
+    assert 'proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;' in conf
+    secret_lines = [line.strip() for line in conf.splitlines()
+                    if 'proxy_set_header X-Proxy-Secret' in line]
+    assert secret_lines and not secret_lines[0].startswith('#'), secret_lines
+
+
+def test_classroom_external_link_has_new_tab_escape():
+    html = (ROOT / 'templates' / 'study_lesson.html').read_text(encoding='utf-8')
+    assert 'id="externalOpen"' in html
+    js = (ROOT / 'static' / 'js' / 'study_lesson.js').read_text(encoding='utf-8')
+    assert 'externalOpen' in js
+    assert 'isExternalLinkSource(originalSrc)' in js
 
 
 def test_classroom_sandbox_allows_external_user_navigation():

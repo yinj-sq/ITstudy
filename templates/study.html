@@ -314,6 +314,12 @@
                 </a>
                 {% endif %}
               {% else %}
+              {% if rd.is_external_link %}
+              <a href="{{ res.url }}" target="_blank" rel="noopener"
+                 class="btn btn-info btn-sm rounded-pill" title="在新标签页打开外部站点（不受 iframe 限制）">
+                <i class="fas fa-external-link-alt me-1"></i>打开
+              </a>
+              {% endif %}
               <a href="/study/lesson/{{ res.id }}{% if classroom_mode %}?mode=classroom{% if classroom_info and classroom_info.class_id %}&class_id={{ classroom_info.class_id }}{% endif %}{% endif %}" target="_blank" rel="noopener"
                  class="btn btn-outline-primary btn-sm rounded-pill" title="课堂式界面：章节列表 + 大屏视频/课件放映 + 课堂工具">
                 <i class="fas fa-chalkboard me-1"></i>进入课堂
@@ -351,13 +357,17 @@
           {% elif rd.is_external_link %}
             <div class="p-3 bg-light rounded-3">
               <div class="d-flex flex-wrap gap-2 align-items-center">
-                <a href="/study/link?url={{ res.url|urlencode }}&title={{ res.title|urlencode }}&resource_id={{ res.id }}&quiz_mode={{ res.quiz_mode|default('inject') }}" target="_blank" class="btn btn-info rounded-pill px-4">
-                  <i class="fas fa-external-link-alt me-1"></i>打开（含 AI 助手）
+                <a href="{{ res.url }}" target="_blank" rel="noopener" class="btn btn-info rounded-pill px-4">
+                  <i class="fas fa-external-link-alt me-1"></i>打开（新标签页）
+                </a>
+                <a href="/study/link?url={{ res.url|urlencode }}&title={{ res.title|urlencode }}&resource_id={{ res.id }}&quiz_mode={{ res.quiz_mode|default('inject') }}" target="_blank" class="btn btn-outline-info rounded-pill px-4">
+                  <i class="fas fa-window-restore me-1"></i>站内打开（含 AI 助手）
                 </a>
                 <a href="/study/lesson/{{ res.id }}{% if classroom_mode %}?mode=classroom{% if classroom_info and classroom_info.class_id %}&class_id={{ classroom_info.class_id }}{% endif %}{% endif %}" target="_blank" class="btn btn-outline-primary rounded-pill px-4">
                   <i class="fas fa-chalkboard me-1"></i>进入课堂
                 </a>
               </div>
+              <div class="small text-muted mt-2">外部站点禁止 iframe 嵌入（X-Frame-Options/CSP）时，请使用「打开（新标签页）」。</div>
             </div>
           {% elif rd.is_file_resource %}
             <div class="study-files-lazy" data-files-url="{{ url_for('resources.study_resource_files', resource_id=res.id) }}">

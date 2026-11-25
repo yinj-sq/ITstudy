@@ -75,6 +75,11 @@
                 <i class="fas fa-flask-vial me-1"></i>目录
               </a>
               {% else %}
+              {% if r.url and (r.url.startswith('http://') or r.url.startswith('https://')) %}
+              <a href="{{ r.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-info rounded-pill" title="在新标签页打开外部站点（不受 iframe 限制）">
+                <i class="fas fa-external-link-alt me-1"></i>打开
+              </a>
+              {% endif %}
               <a href="/study/lesson/{{ r.id }}?mode=classroom" class="btn btn-sm btn-outline-primary rounded-pill">
                 <i class="fas fa-play me-1"></i>课堂使用
               </a>

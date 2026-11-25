@@ -339,6 +339,9 @@ body.sidebar-collapsed .sidebar-collapse { left: 0; }
   font-size: 15px;
 }
 .btn-enter-activity:hover { background: #2f66d8; color: #fff; }
+/* 外链课堂条目：目标站点禁止 iframe 嵌入时的逃生入口 */
+.external-open { position: absolute; top: 12px; right: 14px; z-index: 8; padding: 8px 18px; font-size: 13px; box-shadow: 0 4px 14px rgba(0,0,0,.15); }
+.external-open.hidden { display: none; }
 
 /* 画笔层 */
 #drawCanvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 50; cursor: crosshair; touch-action: none; }

@@ -4,7 +4,7 @@ import os
 import shutil
 from datetime import datetime, timedelta
 
-from flask import Blueprint, current_app, render_template
+from flask import Blueprint, current_app, render_template, request
 
 from app.decorators import admin_login_required
 from app.models import (AIConfig, AccountSession, Class, ClassSchedule,
@@ -47,7 +47,10 @@ def admin_dashboard():
         free_pct = disk.free / disk.total * 100
     except Exception:
         free_pct = None
-    proxy_ok = bool(current_app.config.get('TRUST_PROXY_HEADERS'))
+    proxy_enabled = bool(current_app.config.get('TRUST_PROXY_HEADERS'))
+    proxy_secret = bool(current_app.config.get('PROXY_SECRET'))
+    proxy_trusted = request.environ.get('itstudy.trusted_proxy', True)
+    proxy_ok = proxy_enabled and (not proxy_secret or proxy_trusted)
     ai_config = AIConfig.query.first()
     ai_enabled = bool(ai_config and ai_config.enabled)
     default_password = is_default_admin_account()
@@ -102,8 +105,13 @@ def admin_dashboard():
              '/admin/system', '查看说明'),
         item('proxy', '登录 IP 归因',
              'ok' if proxy_ok else 'warn',
-             '已信任反向代理头' if proxy_ok
-             else '未启用 TRUST_PROXY_HEADERS；经 Nginx 部署时审计 IP 可能为代理地址',
+             ('已信任反向代理头（X-Real-IP / X-Forwarded-For）'
+              if proxy_ok else
+              '未启用 TRUST_PROXY_HEADERS；经 Nginx 部署时审计 IP 可能为代理地址'
+              if not proxy_enabled else
+              '已启用 TRUST_PROXY_HEADERS，但当前请求未携带正确的 '
+              'X-Proxy-Secret；请检查 Nginx 的 proxy_set_header X-Proxy-Secret，'
+              '否则账号轨迹会记录 127.0.0.1'),
              '/admin/account-trail', '查看轨迹'),
         item('password', '管理员口令',
              'warn' if default_password else 'ok',

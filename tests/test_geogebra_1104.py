@@ -170,9 +170,12 @@ def test_player_route_access_and_offline_template(app):
         assert 'allow-top-navigation-by-user-activation' not in link_sandbox
         assert 'allow-popups-to-escape-sandbox' not in link_sandbox
         ext = owner_client.get('/study/link?url=https://example.com/')
+        ext_text = ext.get_data(as_text=True)
+        assert 'external-hint' in ext_text
+        assert '原始页' in ext_text
         ext_sandbox = re.search(
             r'<iframe id="mainFrame"[^>]*sandbox="([^"]+)"',
-            ext.get_data(as_text=True)).group(1)
+            ext_text).group(1)
         assert 'allow-same-origin' not in ext_sandbox
         assert 'allow-top-navigation-by-user-activation' in ext_sandbox
         assert 'allow-popups-to-escape-sandbox' in ext_sandbox

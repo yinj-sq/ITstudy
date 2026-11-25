@@ -22,6 +22,9 @@
   .toolbar .url-display { flex: 1; min-width: 150px; font-size: 0.8rem; opacity: 0.85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .toolbar .title-display { font-weight: 600; font-size: 0.95rem; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+  /* 外链提示：部分站点禁止 iframe 嵌入，页面会空白 */
+  .external-hint { display: flex; align-items: center; gap: 8px; padding: 6px 14px; background: #fef3c7; color: #92400e; border-bottom: 1px solid #fcd34d; font-size: 0.82rem; flex-shrink: 0; }
+
   /* iframe 容器 */
   .iframe-container { flex: 1; position: relative; background: #fff; }
   .iframe-container iframe { width: 100%; height: 100%; border: none; }
@@ -72,6 +75,13 @@
     <i class="fas fa-external-link-alt me-1"></i>原始页
   </button>
 </div>
+
+{% if external_site %}
+<div class="external-hint">
+  <i class="fas fa-triangle-exclamation"></i>
+  <span>目标站点可能禁止 iframe 嵌入。若下方页面空白，请点右上角「原始页」在新标签页打开。</span>
+</div>
+{% endif %}
 
 <!-- iframe 区 -->
 <div class="iframe-container">
